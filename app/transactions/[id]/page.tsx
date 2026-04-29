@@ -30,23 +30,28 @@ export default function DetailTransaction() {
     };
 
     const handleApproval = async (status: 'APPROVED' | 'REJECTED') => {
-        if (!id) return;
         setLoading(true);
         try {
             const res = await fetch('https://sedayu.com/api/warehouse/update_approval.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, status, comment })
+                body: JSON.stringify({
+                    id: params.id, // ID transaksi dari URL
+                    status: status,
+                    comment: managerComment // Inputan komentar lo
+                })
             });
+
             const result = await res.json();
             if (result.status === 'success') {
-                alert(`Transaksi berhasil di-${status}!`);
-                fetchDetail(); // Refresh data biar status berubah di layar
+                alert("Status Berhasil Diperbarui!");
+                window.location.reload(); // Refresh biar keliatan perubahannya
             } else {
                 alert("Gagal: " + result.message);
             }
-        } catch (e) {
-            alert("Terjadi kesalahan koneksi.");
+        } catch (error) {
+            // ALERT INI YANG MUNCUL DI FOTO LO
+            alert("Terjadi kesalahan koneksi. Pastikan file update_approval.php sudah di-upload.");
         }
         setLoading(false);
     };
