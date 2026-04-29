@@ -241,7 +241,7 @@ function CheckoutContent() {
                         {cart.length > 0 && (
                             <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 space-y-4">
                                 <div className="space-y-4">
-                                    <input type="date" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl border-none outline-none text-slate-700 font-medium" />
+                                    <input type="date" placeholder="Tanggal Check Out" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl border-none outline-none text-slate-700 font-medium" />
                                     <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e: any) => setProjectName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl border-none outline-none text-slate-700 font-medium" />
                                     <input type="text" placeholder="Nama PIC Penerima" value={picName} onChange={(e: any) => setPicName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl border-none outline-none text-slate-700 font-medium" />
                                 </div>
