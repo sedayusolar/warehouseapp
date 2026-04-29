@@ -295,10 +295,10 @@ export default function CheckoutCart() {
                             </div>
                             <canvas
                                 ref={canvasRef}
-                                width={350} height={180}
+                                width={500} height={300}
                                 onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
                                 onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)}
-                                className="w-full h-44 bg-slate-50 rounded-2xl border-2 border-slate-100 touch-none cursor-crosshair shadow-inner"
+                                className="w-full h-72 bg-slate-50 rounded-2xl border-2 border-slate-100 touch-none cursor-crosshair shadow-inner"
                             />
                             <p className="text-[9px] text-center text-slate-400 italic">Harap tanda tangan di dalam kotak abu-abu di atas</p>
                         </div>
