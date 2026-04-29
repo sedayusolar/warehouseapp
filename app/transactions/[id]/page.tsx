@@ -1,207 +1,249 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useState, useEffect, useRef, use } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function DetailTransaction() {
-    const { id } = useParams();
+export default function TransactionDetail({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
-    const [data, setData] = useState<any>(null);
-    const [comment, setComment] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [fetchLoading, setFetchLoading] = useState(true);
+    const { id } = use(params); // Unwrapping params sesuai standar Next.js terbaru
+
+    const [transaction, setTransaction] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [managerComment, setManagerComment] = useState('');
+
+    // Ref untuk Canvas Tanda Tangan Manager
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
 
     useEffect(() => {
         fetchDetail();
     }, [id]);
 
     const fetchDetail = async () => {
-        setFetchLoading(true);
         try {
             const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${id}`);
             const result = await res.json();
             if (result.status === 'success') {
-                setData(result);
-                setComment(result.header.manager_comment || '');
+                setTransaction(result);
             }
-        } catch (e) {
-            console.error("Gagal ambil detail", e);
+        } catch (error) {
+            console.error("Gagal ambil detail:", error);
         }
-        setFetchLoading(false);
+        setLoading(false);
     };
 
-    const handleApproval = async (status: 'APPROVED' | 'REJECTED') => {
-        setLoading(true);
+    // --- LOGIC TANDA TANGAN MANAGER ---
+    const startDrawing = (e: any) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#1e293b'; // Warna Slate-800
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setIsDrawing(true);
+    };
+
+    const draw = (e: any) => {
+        if (!isDrawing) return;
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (!ctx || !canvas) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        if (e.touches) e.preventDefault(); // Mencegah scroll saat tanda tangan di HP
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    // --- LOGIC APPROVAL ---
+    const handleStatusUpdate = async (status: 'APPROVED' | 'REJECTED') => {
+        const signatureBase64 = canvasRef.current?.toDataURL('image/png');
+
+        if (status === 'APPROVED' && (!signatureBase64 || signatureBase64.length < 2000)) {
+            alert("Tanda tangan Manager wajib diisi untuk Approval!");
+            return;
+        }
+
+        if (!confirm(`Yakin ingin ${status} transaksi ini?`)) return;
+
+        setSubmitting(true);
         try {
             const res = await fetch('https://sedayu.com/api/warehouse/update_approval.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    id: params.id, // ID transaksi dari URL
+                    id: id,
                     status: status,
-                    comment: managerComment // Inputan komentar lo
+                    comment: managerComment,
+                    manager_signature_base64: status === 'APPROVED' ? signatureBase64 : ''
                 })
             });
 
             const result = await res.json();
             if (result.status === 'success') {
-                alert("Status Berhasil Diperbarui!");
-                window.location.reload(); // Refresh biar keliatan perubahannya
+                alert(`Transaksi Berhasil di-${status}!`);
+                router.push('/transactions');
             } else {
                 alert("Gagal: " + result.message);
             }
         } catch (error) {
-            // ALERT INI YANG MUNCUL DI FOTO LO
-            alert("Terjadi kesalahan koneksi. Pastikan file update_approval.php sudah di-upload.");
+            alert("Terjadi kesalahan koneksi ke server.");
         }
-        setLoading(false);
+        setSubmitting(false);
     };
 
-    if (fetchLoading) return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="text-center space-y-3">
-                <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Menarik Data...</p>
-            </div>
-        </div>
-    );
+    if (loading) return <div className="p-20 text-center font-bold animate-pulse text-slate-400 uppercase tracking-widest">Memuat Detail...</div>;
+    if (!transaction) return <div className="p-20 text-center text-red-500">Data tidak ditemukan!</div>;
 
-    if (!data) return <div className="p-10 text-center">Data tidak ditemukan.</div>;
-
-    const { header, items } = data;
+    const { header, items } = transaction;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-12 font-sans">
-            {/* Header Area */}
-            <div className="bg-slate-900 p-6 text-white shadow-xl">
-                <button
-                    onClick={() => router.push('/transactions')}
-                    className="mb-4 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
-                >
-                    <span>←</span> KEMBALI KE LIST
-                </button>
-                <div className="flex justify-between items-end">
-                    <div>
-                        <span className="text-[10px] bg-blue-600 px-2 py-0.5 rounded font-mono font-bold mb-2 inline-block">
-                            {header.transaction_code}
-                        </span>
-                        <h1 className="text-2xl font-bold leading-tight">{header.project_name}</h1>
-                        <p className="text-slate-400 text-xs mt-1 uppercase tracking-tighter">
-                            Checkout: {new Date(header.checkout_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
-                        </p>
-                    </div>
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${header.transaction_status === 'DRAFT' ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white'
-                        }`}>
-                        {header.transaction_status}
-                    </div>
+        <main className="min-h-screen bg-slate-50 pb-24 font-sans">
+            {/* Header Info */}
+            <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-10 flex justify-between items-center">
+                <div>
+                    <h1 className="text-xl font-bold">{header.project_name}</h1>
+                    <p className="text-[10px] text-slate-400 uppercase font-mono tracking-widest">{header.transaction_code}</p>
                 </div>
+                <button onClick={() => router.back()} className="text-xs bg-slate-800 px-3 py-1.5 rounded-full">KEMBALI</button>
             </div>
 
-            <div className="p-4 max-w-2xl mx-auto space-y-6 -mt-4">
-                {/* Info PIC & TTD Card */}
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Informasi Penerima</h3>
+            <div className="p-4 max-w-2xl mx-auto space-y-6">
+
+                {/* Detail Ringkas */}
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 grid grid-cols-2 gap-4">
                     <div>
-                        <p className="text-xs text-slate-400 font-bold uppercase">Nama PIC / Teknisi</p>
-                        <p className="text-lg font-bold text-slate-800">{header.pic_name || '—'}</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase">Teknisi / PIC</p>
+                        <p className="font-bold text-slate-800">{header.pic_name || '—'}</p>
                     </div>
                     <div>
-                        <p className="text-xs text-slate-400 font-bold uppercase mb-2">Tanda Tangan</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase">Tanggal Keluar</p>
+                        <p className="font-bold text-slate-800">{header.checkout_date}</p>
+                    </div>
+                    <div className="col-span-2 pt-2">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Tanda Tangan Penerima</p>
                         {header.signature_pic_path ? (
-                            <div className="bg-slate-50 p-2 rounded-2xl border border-slate-100 inline-block">
-                                <img
-                                    src={`https://sedayu.com/api/warehouse/${header.signature_pic_path}`}
-                                    className="h-40 w-auto mix-blend-multiply"
-                                    alt="Signature"
-                                />
-                            </div>
-                        ) : (
-                            <div className="h-32 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 text-xs italic border-2 border-dashed border-slate-200">
-                                Tanda tangan belum tersedia (Status Draft)
-                            </div>
-                        )}
+                            <img src={`https://sedayu.com/api/warehouse/${header.signature_pic_path}`} className="h-24 bg-slate-50 rounded-xl border p-2" alt="TTD PIC" />
+                        ) : <p className="text-xs italic text-slate-400">Tidak ada tanda tangan</p>}
                     </div>
                 </div>
 
-                {/* List Barang Card */}
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Daftar Material / Tools</h3>
-                    <div className="divide-y divide-slate-50">
-                        {items.map((item: any, idx: number) => (
-                            <div key={idx} className="py-4 flex justify-between items-center group">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{item.item_name}</p>
-                                    <div className="flex gap-2">
-                                        <span className="text-[9px] font-mono text-slate-400">{item.qr_id}</span>
-                                        <span className={`text-[9px] font-bold px-1.5 rounded ${item.item_type === 'TOOLS' ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                            {item.item_type}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="bg-blue-50 px-3 py-2 rounded-xl">
-                                    <p className="text-sm font-black text-blue-700">{item.qty} <span className="text-[10px]">PCS</span></p>
-                                </div>
+                {/* List Barang */}
+                <div className="space-y-3">
+                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Daftar Barang ({items.length})</h2>
+                    {items.map((item: any, idx: number) => (
+                        <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">{item.qr_id} | {item.item_type}</p>
                             </div>
-                        ))}
-                    </div>
+                            <div className="text-right">
+                                <p className="text-lg font-black text-blue-600">{item.qty}</p>
+                                <p className="text-[8px] font-bold text-slate-300 uppercase">Quantity</p>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
-                {/* Manager Review Section (Hanya untuk SUBMITTED) */}
-                {header.transaction_status === 'SUBMITTED' && (
-                    <div className="bg-white p-6 rounded-3xl shadow-xl border-2 border-blue-50 space-y-5">
-                        <div className="flex justify-between items-center border-b pb-3">
-                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Manager Review</h3>
-                            {header.manager_approval_date && (
-                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
-                                    Log: {new Date(header.manager_approval_date).toLocaleString('id-ID', {
-                                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                    })}
-                                </span>
-                            )}
+                {/* Approval Section (Hanya muncul jika status masih PENDING/SUBMITTED) */}
+                {header.manager_approval_status === 'PENDING' && (
+                    <div className="bg-white p-6 rounded-3xl border-2 border-blue-100 shadow-xl space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h2 className="font-black text-slate-800 text-xs uppercase tracking-widest text-center text-blue-600">Konfirmasi Manager</h2>
+
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Komentar / Catatan</label>
+                            <textarea
+                                placeholder="Tambahkan catatan jika perlu..."
+                                value={managerComment}
+                                onChange={(e) => setManagerComment(e.target.value)}
+                                className="w-full p-4 bg-slate-50 rounded-2xl text-sm outline-none border-none focus:ring-2 ring-blue-500 transition-all"
+                                rows={2}
+                            />
                         </div>
 
-                        {header.manager_approval_status === 'PENDING' ? (
-                            <>
-                                <textarea
-                                    placeholder="Berikan catatan atau instruksi di sini..."
-                                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm outline-none focus:border-blue-500 transition-all shadow-inner h-24"
-                                    value={comment}
-                                    onChange={(e) => setComment(e.target.value)}
-                                />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button
-                                        onClick={() => handleApproval('REJECTED')}
-                                        disabled={loading}
-                                        className="py-4 bg-red-50 text-red-500 font-black rounded-2xl active:scale-95 transition-all text-[10px] tracking-widest hover:bg-red-100"
-                                    >
-                                        REJECT
-                                    </button>
-                                    <button
-                                        onClick={() => handleApproval('APPROVED')}
-                                        disabled={loading}
-                                        className="py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-100 active:scale-95 transition-all text-[10px] tracking-widest hover:bg-emerald-700"
-                                    >
-                                        {loading ? 'PROSES...' : 'APPROVE'}
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <div className={`p-5 rounded-2xl border-l-4 shadow-sm ${header.manager_approval_status === 'APPROVED' ? 'bg-emerald-50 border-emerald-500 text-emerald-800' : 'bg-red-50 border-red-500 text-red-800'
-                                }`}>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className={`w-2 h-2 rounded-full animate-pulse ${header.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Status Keputusan</p>
-                                </div>
-                                <p className="text-xl font-black">{header.manager_approval_status}</p>
-                                {header.manager_comment && (
-                                    <div className="mt-3 pt-3 border-t border-black/5">
-                                        <p className="text-[10px] font-bold uppercase opacity-50 mb-1">Catatan Manager:</p>
-                                        <p className="text-sm italic font-medium">"{header.manager_comment}"</p>
-                                    </div>
-                                )}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tanda Tangan Manager</label>
+                                <button onClick={clearCanvas} className="text-[10px] text-blue-500 font-black">RESET</button>
+                            </div>
+                            <canvas
+                                ref={canvasRef}
+                                width={500} height={300}
+                                onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
+                                onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)}
+                                className="w-full h-56 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 touch-none shadow-inner"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <button
+                                onClick={() => handleStatusUpdate('REJECTED')}
+                                disabled={submitting}
+                                className="bg-slate-100 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                            >
+                                Reject
+                            </button>
+                            <button
+                                onClick={() => handleStatusUpdate('APPROVED')}
+                                disabled={submitting}
+                                className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                            >
+                                {submitting ? 'MEMPROSES...' : 'APPROVE & POTONG STOK'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Status Jika Sudah Diproses */}
+                {header.manager_approval_status !== 'PENDING' && (
+                    <div className={`p-6 rounded-3xl border-2 text-center space-y-2 ${header.manager_approval_status === 'APPROVED' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'
+                        }`}>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status Transaksi</p>
+                        <p className={`text-2xl font-black ${header.manager_approval_status === 'APPROVED' ? 'text-emerald-600' : 'text-red-600'
+                            }`}>
+                            {header.manager_approval_status}
+                        </p>
+                        {header.manager_comment && (
+                            <p className="text-xs text-slate-500 italic mt-2 italic">"{header.manager_comment}"</p>
+                        )}
+                        {header.manager_signature_path && (
+                            <div className="pt-4 flex flex-col items-center">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Tanda Tangan Manager</p>
+                                <img src={`https://sedayu.com/api/warehouse/${header.manager_signature_path}`} className="h-20 grayscale opacity-70" alt="TTD Manager" />
                             </div>
                         )}
                     </div>
                 )}
+
             </div>
         </main>
     );
