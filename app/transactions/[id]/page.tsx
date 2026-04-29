@@ -65,9 +65,19 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const handleStatusUpdate = async (status: 'APPROVED' | 'REJECTED') => {
         const signatureBase64 = canvasRef.current?.toDataURL('image/png');
 
-        if (status === 'APPROVED' && (!signatureBase64 || signatureBase64.length < 2000)) {
-            alert("Tanda tangan Manager wajib untuk Approval!");
-            return;
+        if (status === 'APPROVED') {
+            // Validasi TTD
+            if (!signatureBase64 || signatureBase64.length < 2000) {
+                alert("Tanda tangan Manager wajib untuk Approval!");
+                return;
+            }
+            // Validasi Stok Akhir (Mencegah Approve jika stok tidak cukup)
+            for (const item of transaction.items) {
+                if (Number(item.qty) > Number(item.stock_qty)) {
+                    alert(`❌ STOK TIDAK CUKUP!\n\nBarang: ${item.item_name}\nSisa di Gudang: ${item.stock_qty}\nDiminta: ${item.qty}\n\nSilakan Reject atau hubungi Teknisi.`);
+                    return;
+                }
+            }
         }
 
         if (!confirm(`Yakin ingin ${status} transaksi ini?`)) return;
@@ -143,12 +153,17 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                 <span>📦</span> Material / Consumables
                             </h2>
                             {items.filter((i: any) => i.item_type === 'MATERIAL').map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 flex justify-between items-center">
+                                <div key={idx} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 flex justify-between items-center ${item.qty > item.stock_qty ? 'bg-red-50' : ''}`}>
                                     <div>
                                         <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                         <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
                                     </div>
-                                    <p className="text-xl font-black text-blue-600">{item.qty}</p>
+                                    <div className="text-right">
+                                        <p className="text-xl font-black text-blue-600 leading-tight">{item.qty}</p>
+                                        <p className={`text-[9px] font-black uppercase ${item.qty > item.stock_qty ? 'text-red-500' : 'text-slate-400'}`}>
+                                            Stok Gudang: {item.stock_qty}
+                                        </p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -161,12 +176,17 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                 <span>🛠️</span> Tools / Peralatan
                             </h2>
                             {items.filter((i: any) => i.item_type === 'TOOLS').map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-amber-500 flex justify-between items-center">
+                                <div key={idx} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-amber-500 flex justify-between items-center ${item.qty > item.stock_qty ? 'bg-red-50' : ''}`}>
                                     <div>
                                         <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                         <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
                                     </div>
-                                    <p className="text-xl font-black text-blue-600">{item.qty}</p>
+                                    <div className="text-right">
+                                        <p className="text-xl font-black text-blue-600 leading-tight">{item.qty}</p>
+                                        <p className={`text-[9px] font-black uppercase ${item.qty > item.stock_qty ? 'text-red-500' : 'text-slate-400'}`}>
+                                            Stok Gudang: {item.stock_qty}
+                                        </p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -195,13 +215,13 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                 ref={canvasRef} width={500} height={300}
                                 onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
                                 onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)}
-                                className="w-full h-56 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 touch-none"
+                                className="w-full h-56 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 touch-none shadow-inner"
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 pt-2">
                             <button onClick={() => handleStatusUpdate('REJECTED')} disabled={submitting} className="bg-slate-100 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">Reject</button>
-                            <button onClick={() => handleStatusUpdate('APPROVED')} disabled={submitting} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 text-[10px] uppercase tracking-widest active:scale-95 transition-all uppercase">{submitting ? '...' : 'Approve & Potong Stok'}</button>
+                            <button onClick={() => handleStatusUpdate('APPROVED')} disabled={submitting} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 text-[10px] uppercase tracking-widest active:scale-95 transition-all">{submitting ? '...' : 'Approve & Potong Stok'}</button>
                         </div>
                     </div>
                 ) : (
