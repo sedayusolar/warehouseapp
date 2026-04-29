@@ -21,6 +21,7 @@ export default function DashboardGudang() {
     // Nanti di sini kita tambah logic cari barang otomatis
   };
 
+
   return (
     <main className="min-h-screen bg-slate-50 p-6">
       {showScanner && <Scanner onResult={handleScanResult} />}
