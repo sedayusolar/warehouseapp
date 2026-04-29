@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
+// 1. Kita pisah logic utamanya ke komponen internal
 function CheckoutContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -38,7 +39,7 @@ function CheckoutContent() {
                             photo_base64: ''
                         })));
                     }
-                } catch (error: any) { console.error("Load draft error:", error); }
+                } catch (error: any) { console.error(error); }
                 setFetchingDraft(false);
             };
             loadData();
@@ -53,8 +54,8 @@ function CheckoutContent() {
         }
         return () => {
             if (scanner) {
-                // FIX: Tambahkan tipe data (error: any) biar Vercel nggak protes
-                scanner.clear().catch((error: any) => console.error("Scanner clear failed", error));
+                // FIX: Tambahkan (error: any) di catch
+                scanner.clear().catch((error: any) => console.error(error));
             }
         };
     }, [showScanner]);
@@ -78,7 +79,7 @@ function CheckoutContent() {
                     }]);
                 }
             }
-        } catch (error: any) { alert("Gagal koneksi server."); }
+        } catch (error: any) { alert("Gagal koneksi."); }
     }
 
     const startDrawing = (e: any) => {
@@ -112,27 +113,19 @@ function CheckoutContent() {
 
     const handleSubmit = async (isDraft: boolean = false) => {
         const signatureBase64 = canvasRef.current?.toDataURL('image/png');
-        if (!projectName || !checkoutDate || cart.length === 0) { alert("Data belum lengkap!"); return; }
-        if (!isDraft && (!picName || !signatureBase64)) { alert("PIC & TTD wajib untuk Submit!"); return; }
+        if (!projectName || !checkoutDate || cart.length === 0) { alert("Lengkapi data!"); return; }
+        if (!isDraft && (!picName || !signatureBase64)) { alert("PIC & TTD wajib!"); return; }
 
         setLoading(true);
         try {
             const response = await fetch('https://sedayu.com/api/warehouse/checkout.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: editId,
-                    project_name: projectName,
-                    pic_name: picName,
-                    checkout_date: checkoutDate,
-                    signature_base64: isDraft ? '' : signatureBase64,
-                    transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED',
-                    items: cart
-                })
+                body: JSON.stringify({ id: editId, project_name: projectName, pic_name: picName, checkout_date: checkoutDate, signature_base64: isDraft ? '' : signatureBase64, transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED', items: cart })
             });
             const result = await response.json();
             if (result.status === 'success') {
-                alert(isDraft ? "Draft tersimpan!" : "Berhasil submit!");
+                alert("Berhasil!");
                 router.push('/transactions');
             }
         } catch (error: any) { alert("Gagal koneksi."); }
@@ -141,18 +134,18 @@ function CheckoutContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pb-24">
-            <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
-                <h1 className="text-2xl font-bold">{editId ? 'Edit Draft' : 'Checkout'}</h1>
+            <div className="bg-slate-900 p-6 text-white flex justify-between items-center shadow-md">
+                <h1 className="text-xl font-bold">{editId ? 'Edit Draft' : 'Checkout'}</h1>
                 <button onClick={() => router.push('/transactions')} className="p-2 bg-slate-800 rounded-full text-xs">✕</button>
             </div>
 
             <div className="p-4 space-y-6">
                 {fetchingDraft ? (
-                    <div className="text-center py-20 text-blue-600 animate-pulse font-bold">MEMUAT DATA DRAFT...</div>
+                    <div className="text-center py-20 text-blue-600 animate-pulse font-bold">MEMUAT DATA...</div>
                 ) : (
                     <>
                         {!showScanner ? (
-                            <button onClick={() => setShowScanner(true)} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg">📷 SCAN BARANG</button>
+                            <button onClick={() => setShowScanner(true)} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">📷 SCAN BARANG</button>
                         ) : (
                             <div className="space-y-4">
                                 <div id="reader" className="overflow-hidden rounded-2xl border-2 border-blue-600 bg-black"></div>
@@ -163,9 +156,9 @@ function CheckoutContent() {
                         <div className="space-y-3">
                             {cart.map((item: any, index: number) => (
                                 <div key={index} className="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
-                                    <div><p className="font-bold text-sm">{item.name}</p><p className="text-[10px] text-slate-400">{item.qr_id}</p></div>
+                                    <div><p className="font-bold text-sm text-slate-800">{item.name}</p><p className="text-[10px] text-slate-400">{item.qr_id}</p></div>
                                     <div className="flex items-center gap-3">
-                                        <input type="number" value={item.qty} onChange={(e: any) => { const nc = [...cart]; nc[index].qty = e.target.value; setCart(nc); }} className="w-12 text-center border rounded font-bold" />
+                                        <input type="number" value={item.qty} onChange={(e: any) => { const nc = [...cart]; nc[index].qty = e.target.value; setCart(nc); }} className="w-12 text-center border rounded font-bold text-slate-700" />
                                         <button onClick={() => setCart(cart.filter((_: any, i: number) => i !== index))} className="text-red-500 font-bold">✕</button>
                                     </div>
                                 </div>
@@ -173,24 +166,19 @@ function CheckoutContent() {
                         </div>
 
                         {cart.length > 0 && (
-                            <div className="bg-white p-6 rounded-3xl shadow-xl space-y-4">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanggal Keluar</label>
+                            <div className="bg-white p-6 rounded-3xl shadow-xl border space-y-4">
                                 <input type="date" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
-
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Proyek</label>
                                 <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e: any) => setProjectName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
-
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama PIC</label>
                                 <input type="text" placeholder="Nama PIC" value={picName} onChange={(e: any) => setPicName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
 
                                 <div className="space-y-2">
-                                    <div className="flex justify-between"><label className="text-[10px] font-bold text-slate-400">TTD PIC</label><button onClick={() => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)} className="text-[10px] text-blue-500">RESET</button></div>
-                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-72 bg-slate-50 rounded-2xl border-2 touch-none shadow-inner" />
+                                    <div className="flex justify-between"><label className="text-[10px] font-bold text-slate-400">TTD PIC</label><button onClick={() => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)} className="text-[10px] text-blue-500 font-bold">RESET</button></div>
+                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-72 bg-slate-50 rounded-2xl border-2 touch-none" />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-200 py-4 rounded-2xl font-bold text-sm hover:bg-slate-300 transition-colors">DRAFT</button>
-                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg hover:bg-emerald-700 transition-colors">{loading ? '...' : 'SUBMIT'}</button>
+                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-200 py-4 rounded-2xl font-bold text-sm text-slate-600">DRAFT</button>
+                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg">{loading ? '...' : 'SUBMIT'}</button>
                                 </div>
                             </div>
                         )}
@@ -201,6 +189,7 @@ function CheckoutContent() {
     );
 }
 
+// 2. Bungkus dengan Suspense (Obat buat Vercel)
 export default function CheckoutPage() {
     return (
         <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">LOADING SYSTEM...</div>}>
