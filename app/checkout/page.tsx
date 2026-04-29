@@ -3,7 +3,6 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
-// --- KOMPONEN UTAMA ---
 function CheckoutContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -20,7 +19,6 @@ function CheckoutContent() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    // 1. Load Data Draft (Gunakan fungsi biasa di useEffect)
     useEffect(() => {
         if (editId) {
             const loadData = async () => {
@@ -40,14 +38,13 @@ function CheckoutContent() {
                             photo_base64: ''
                         })));
                     }
-                } catch (e) { console.error(e); }
+                } catch (error: any) { console.error("Load draft error:", error); }
                 setFetchingDraft(false);
             };
             loadData();
         }
     }, [editId]);
 
-    // 2. Scanner Logic (Vercel Compliant: No Async in Effect)
     useEffect(() => {
         let scanner: any = null;
         if (showScanner) {
@@ -56,7 +53,8 @@ function CheckoutContent() {
         }
         return () => {
             if (scanner) {
-                scanner.clear().catch(e => console.error(e));
+                // FIX: Tambahkan tipe data (error: any) biar Vercel nggak protes
+                scanner.clear().catch((error: any) => console.error("Scanner clear failed", error));
             }
         };
     }, [showScanner]);
@@ -68,16 +66,21 @@ function CheckoutContent() {
             const result = await res.json();
             if (result.status === 'success') {
                 const item = result.data;
-                if (cart.find(i => i.qr_id === item.qr_id)) {
+                if (cart.find((i: any) => i.qr_id === item.qr_id)) {
                     alert("Barang sudah ada!");
                 } else {
-                    setCart([...cart, { qr_id: item.qr_id, name: item.item_name, type: item.qr_id.startsWith('SDU-TOL') ? 'TOOLS' : 'MATERIAL', qty: 1, photo_base64: '' }]);
+                    setCart([...cart, {
+                        qr_id: item.qr_id,
+                        name: item.item_name,
+                        type: item.qr_id.startsWith('SDU-TOL') ? 'TOOLS' : 'MATERIAL',
+                        qty: 1,
+                        photo_base64: ''
+                    }]);
                 }
             }
-        } catch (e) { alert("Gagal koneksi server."); }
+        } catch (error: any) { alert("Gagal koneksi server."); }
     }
 
-    // 3. Signature Logic (Fix Skala)
     const startDrawing = (e: any) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -117,14 +120,22 @@ function CheckoutContent() {
             const response = await fetch('https://sedayu.com/api/warehouse/checkout.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: editId, project_name: projectName, pic_name: picName, checkout_date: checkoutDate, signature_base64: isDraft ? '' : signatureBase64, transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED', items: cart })
+                body: JSON.stringify({
+                    id: editId,
+                    project_name: projectName,
+                    pic_name: picName,
+                    checkout_date: checkoutDate,
+                    signature_base64: isDraft ? '' : signatureBase64,
+                    transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED',
+                    items: cart
+                })
             });
             const result = await response.json();
             if (result.status === 'success') {
                 alert(isDraft ? "Draft tersimpan!" : "Berhasil submit!");
                 router.push('/transactions');
             }
-        } catch (e) { alert("Gagal koneksi."); }
+        } catch (error: any) { alert("Gagal koneksi."); }
         setLoading(false);
     };
 
@@ -150,12 +161,12 @@ function CheckoutContent() {
                         )}
 
                         <div className="space-y-3">
-                            {cart.map((item, index) => (
+                            {cart.map((item: any, index: number) => (
                                 <div key={index} className="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
                                     <div><p className="font-bold text-sm">{item.name}</p><p className="text-[10px] text-slate-400">{item.qr_id}</p></div>
                                     <div className="flex items-center gap-3">
-                                        <input type="number" value={item.qty} onChange={(e) => { const nc = [...cart]; nc[index].qty = e.target.value; setCart(nc); }} className="w-12 text-center border rounded font-bold" />
-                                        <button onClick={() => setCart(cart.filter((_, i) => i !== index))} className="text-red-500 font-bold">✕</button>
+                                        <input type="number" value={item.qty} onChange={(e: any) => { const nc = [...cart]; nc[index].qty = e.target.value; setCart(nc); }} className="w-12 text-center border rounded font-bold" />
+                                        <button onClick={() => setCart(cart.filter((_: any, i: number) => i !== index))} className="text-red-500 font-bold">✕</button>
                                     </div>
                                 </div>
                             ))}
@@ -163,18 +174,23 @@ function CheckoutContent() {
 
                         {cart.length > 0 && (
                             <div className="bg-white p-6 rounded-3xl shadow-xl space-y-4">
-                                <input type="date" value={checkoutDate} onChange={(e) => setCheckoutDate(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
-                                <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
-                                <input type="text" placeholder="Nama PIC" value={picName} onChange={(e) => setPicName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanggal Keluar</label>
+                                <input type="date" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
+
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Proyek</label>
+                                <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e: any) => setProjectName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
+
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama PIC</label>
+                                <input type="text" placeholder="Nama PIC" value={picName} onChange={(e: any) => setPicName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border outline-none text-slate-700" />
 
                                 <div className="space-y-2">
                                     <div className="flex justify-between"><label className="text-[10px] font-bold text-slate-400">TTD PIC</label><button onClick={() => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)} className="text-[10px] text-blue-500">RESET</button></div>
-                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-72 bg-slate-50 rounded-2xl border-2 touch-none" />
+                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-72 bg-slate-50 rounded-2xl border-2 touch-none shadow-inner" />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-200 py-4 rounded-2xl font-bold text-sm">DRAFT</button>
-                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm">{loading ? '...' : 'SUBMIT'}</button>
+                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-200 py-4 rounded-2xl font-bold text-sm hover:bg-slate-300 transition-colors">DRAFT</button>
+                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white py-4 rounded-2xl font-bold text-sm shadow-lg hover:bg-emerald-700 transition-colors">{loading ? '...' : 'SUBMIT'}</button>
                                 </div>
                             </div>
                         )}
@@ -185,10 +201,9 @@ function CheckoutContent() {
     );
 }
 
-// --- PEMBUNGKUS WAJIB UNTUK VERCEL ---
 export default function CheckoutPage() {
     return (
-        <Suspense fallback={<div className="p-10 text-center font-bold">Loading Sistem...</div>}>
+        <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">LOADING SYSTEM...</div>}>
             <CheckoutContent />
         </Suspense>
     );
