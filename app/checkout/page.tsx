@@ -75,12 +75,18 @@ export default function CheckoutCart() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Hitung skala rasio ukuran asli canvas vs ukuran di layar
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-        const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
 
-        ctx.lineWidth = 2;
+        // Kalikan posisi jari dengan skala
+        const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
+        const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
+
+        ctx.lineWidth = 3; // Gue tebelin dikit biar lebih jelas kayak pulpen
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         ctx.strokeStyle = '#000';
         ctx.beginPath();
         ctx.moveTo(x, y);
@@ -93,13 +99,18 @@ export default function CheckoutCart() {
         const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
 
+        // Hitung skala rasio ukuran asli canvas vs ukuran di layar
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-        const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        // Kalikan posisi jari dengan skala
+        const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
+        const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
 
         ctx.lineTo(x, y);
         ctx.stroke();
-        if (e.touches) e.preventDefault();
+        if (e.touches) e.preventDefault(); // Mencegah layar ikut scrolling pas TTD
     };
 
     const clearSignature = () => {
