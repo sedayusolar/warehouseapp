@@ -41,7 +41,6 @@ export default function CheckoutCart() {
     async function onScanSuccess(decodedText: string) {
         setShowScanner(false);
         try {
-            // Nembak API get_item_by_qr.php yang baru kita buat
             const res = await fetch(`https://sedayu.com/api/warehouse/get_item_by_qr.php?qr=${decodedText}`);
             const result = await res.json();
 
@@ -68,23 +67,21 @@ export default function CheckoutCart() {
         }
     }
 
-    // --- LOGIC SIGNATURE ---
+    // --- LOGIC SIGNATURE DENGAN FIX SKALA KOORDINAT ---
     const startDrawing = (e: any) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Hitung skala rasio ukuran asli canvas vs ukuran di layar
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
-        // Kalikan posisi jari dengan skala
         const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
         const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
 
-        ctx.lineWidth = 3; // Gue tebelin dikit biar lebih jelas kayak pulpen
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = '#000';
@@ -99,18 +96,16 @@ export default function CheckoutCart() {
         const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
 
-        // Hitung skala rasio ukuran asli canvas vs ukuran di layar
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
-        // Kalikan posisi jari dengan skala
         const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * scaleX;
         const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * scaleY;
 
         ctx.lineTo(x, y);
         ctx.stroke();
-        if (e.touches) e.preventDefault(); // Mencegah layar ikut scrolling pas TTD
+        if (e.touches) e.preventDefault();
     };
 
     const clearSignature = () => {
@@ -119,12 +114,19 @@ export default function CheckoutCart() {
         if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
 
-    // --- SUBMIT ---
-    const handleSubmit = async () => {
+    // --- SUBMIT DENGAN FITUR DRAFT ---
+    const handleSubmit = async (isDraft: boolean = false) => {
         const signatureBase64 = canvasRef.current?.toDataURL('image/png');
 
-        if (!projectName || !picName || !checkoutDate || cart.length === 0) {
-            alert("Mohon lengkapi Nama Proyek, PIC, Tanggal, dan Barang!");
+        // Validasi Minimal (Draft maupun Submit)
+        if (!projectName || !checkoutDate || cart.length === 0) {
+            alert("Mohon lengkapi minimal Nama Proyek, Tanggal Keluar, dan Barang!");
+            return;
+        }
+
+        // Validasi Ekstra untuk Submit Resmi
+        if (!isDraft && (!picName || !signatureBase64)) {
+            alert("Untuk pengajuan resmi (Submit), Nama PIC dan Tanda Tangan wajib diisi!");
             return;
         }
 
@@ -137,14 +139,15 @@ export default function CheckoutCart() {
                     project_name: projectName,
                     pic_name: picName,
                     checkout_date: checkoutDate,
-                    signature_base64: signatureBase64,
+                    signature_base64: isDraft ? '' : signatureBase64,
+                    transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED',
                     items: cart
                 })
             });
 
             const result = await response.json();
             if (result.status === 'success') {
-                alert(`Berhasil Simpan! Kode: ${result.trx_code}`);
+                alert(isDraft ? "Draft berhasil disimpan!" : `Berhasil Simpan! Kode TRX: ${result.trx_code}`);
                 router.push('/');
             } else {
                 alert(result.message);
@@ -163,7 +166,7 @@ export default function CheckoutCart() {
                     <h1 className="text-2xl font-bold">Checkout</h1>
                     <p className="text-slate-400 text-xs tracking-widest uppercase">Warehouse System</p>
                 </div>
-                <button onClick={() => router.push('/')} className="p-2 bg-slate-800 rounded-full">✕</button>
+                <button onClick={() => router.push('/')} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors">✕</button>
             </div>
 
             <div className="p-4 space-y-6">
@@ -180,7 +183,7 @@ export default function CheckoutCart() {
                         <div id="reader" className="overflow-hidden rounded-2xl border-2 border-blue-600 bg-black"></div>
                         <button
                             onClick={() => setShowScanner(false)}
-                            className="w-full py-2 text-red-500 font-semibold"
+                            className="w-full py-3 bg-red-50 text-red-500 font-bold rounded-xl active:scale-95 transition-all"
                         >
                             Batalkan Scan
                         </button>
@@ -261,39 +264,39 @@ export default function CheckoutCart() {
                     <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-200 space-y-5">
                         <div className="border-b pb-2">
                             <h3 className="font-bold text-lg text-slate-800">Finalisasi Pengeluaran</h3>
-                            <p className="text-slate-400 text-xs">Lengkapi data administrasi proyek</p>
+                            <p className="text-slate-400 text-xs">Simpan sebagai Draft atau Submit Resmi</p>
                         </div>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanggal Keluar Barang</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanggal Keluar Barang *</label>
                                 <input
                                     type="date"
                                     value={checkoutDate}
                                     onChange={(e) => setCheckoutDate(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all"
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all font-medium text-slate-700"
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Proyek</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Proyek *</label>
                                 <input
                                     type="text"
                                     placeholder="Cth: PLTS Atap Jonggol"
                                     value={projectName}
                                     onChange={(e) => setProjectName(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all"
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all text-slate-700"
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama PIC (Penerima)</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama PIC (Opsional untuk Draft)</label>
                                 <input
                                     type="text"
                                     placeholder="Nama Lengkap Teknisi"
                                     value={picName}
                                     onChange={(e) => setPicName(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all"
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl border border-slate-100 outline-none focus:border-blue-500 transition-all text-slate-700"
                                 />
                             </div>
                         </div>
@@ -301,7 +304,7 @@ export default function CheckoutCart() {
                         {/* Signature Area */}
                         <div className="space-y-2 pt-2">
                             <div className="flex justify-between items-end">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanda Tangan PIC</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tanda Tangan PIC (Opsional untuk Draft)</label>
                                 <button onClick={clearSignature} className="text-[10px] text-blue-500 font-bold hover:underline mb-1">RESET TTD</button>
                             </div>
                             <canvas
@@ -309,28 +312,28 @@ export default function CheckoutCart() {
                                 width={500} height={300}
                                 onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
                                 onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)}
-                                className="w-full h-72 bg-slate-50 rounded-2xl border-2 border-slate-100 touch-none cursor-crosshair shadow-inner"
+                                className="w-full h-72 bg-slate-50 rounded-2xl border-2 border-slate-200 touch-none cursor-crosshair shadow-inner"
                             />
-                            <p className="text-[9px] text-center text-slate-400 italic">Harap tanda tangan di dalam kotak abu-abu di atas</p>
                         </div>
 
-                        <button
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className={`w-full text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${loading ? 'bg-slate-400' : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-emerald-200'}`}
-                        >
-                            {loading ? (
-                                <>
-                                    <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Memproses...
-                                </>
-                            ) : (
-                                'KIRIM REQUEST PENGELUARAN'
-                            )}
-                        </button>
+                        {/* Tombol Aksi */}
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <button
+                                onClick={() => handleSubmit(true)}
+                                disabled={loading}
+                                className="bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl active:scale-95 transition-all text-sm hover:bg-slate-300"
+                            >
+                                SIMPAN DRAFT
+                            </button>
+
+                            <button
+                                onClick={() => handleSubmit(false)}
+                                disabled={loading}
+                                className={`text-white font-bold py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm ${loading ? 'bg-slate-400' : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-emerald-200'}`}
+                            >
+                                {loading ? 'PROSES...' : 'SUBMIT RESMI'}
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
