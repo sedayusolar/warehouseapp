@@ -17,6 +17,9 @@ function CheckoutContent() {
     const [fetchingDraft, setFetchingDraft] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
 
+    // --- KONFIGURASI API KEY ---
+    const API_KEY = "SedayuSolar_TopSecret_2026";
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
@@ -41,7 +44,9 @@ function CheckoutContent() {
             const loadData = async () => {
                 setFetchingDraft(true);
                 try {
-                    const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${editId}`);
+                    const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${editId}`, {
+                        headers: { 'X-API-KEY': API_KEY }
+                    });
                     const result = await res.json();
                     if (result.status === 'success') {
                         setProjectName(result.header.project_name);
@@ -56,7 +61,7 @@ function CheckoutContent() {
                             photo_base64: ''
                         })));
                     }
-                } catch (err: any) { console.error(err); }
+                } catch (err: any) { console.error("Gagal sinkron draft:", err); }
                 setFetchingDraft(false);
             };
             loadData();
@@ -76,7 +81,9 @@ function CheckoutContent() {
     async function onScanSuccess(decodedText: string) {
         setShowScanner(false);
         try {
-            const res = await fetch(`https://sedayu.com/api/warehouse/get_item_by_qr.php?qr=${decodedText}`);
+            const res = await fetch(`https://sedayu.com/api/warehouse/get_item_by_qr.php?qr=${decodedText}`, {
+                headers: { 'X-API-KEY': API_KEY }
+            });
             const result = await res.json();
             if (result.status === 'success') {
                 const item = result.data;
@@ -88,9 +95,13 @@ function CheckoutContent() {
                         qr_id: item.qr_id,
                         name: item.item_name,
                         type: item.qr_id.startsWith('SDU-TOL') ? 'TOOLS' : 'MATERIAL',
-                        qty: 1, stock: item.stock_qty, photo_base64: ''
+                        qty: 1,
+                        stock: item.stock_qty,
+                        photo_base64: ''
                     }]);
                 }
+            } else {
+                alert(result.message);
             }
         } catch (err: any) { alert("Gagal koneksi server."); }
     }
@@ -100,8 +111,8 @@ function CheckoutContent() {
         const canvas = canvasRef.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const x = ((e.clientX || e.touches[0].clientX) - rect.left) * (canvas.width / rect.width);
-        const y = ((e.clientY || e.touches[0].clientY) - rect.top) * (canvas.height / rect.height);
+        const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * (canvas.width / rect.width);
+        const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * (canvas.height / rect.height);
         ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
         ctx.beginPath(); ctx.moveTo(x, y); setIsDrawing(true);
     };
@@ -110,14 +121,15 @@ function CheckoutContent() {
         if (!isDrawing) return;
         const canvas = canvasRef.current; const ctx = canvas?.getContext('2d'); if (!ctx || !canvas) return;
         const rect = canvas.getBoundingClientRect();
-        const x = ((e.clientX || e.touches[0].clientX) - rect.left) * (canvas.width / rect.width);
-        const y = ((e.clientY || e.touches[0].clientY) - rect.top) * (canvas.height / rect.height);
+        const x = ((e.clientX || (e.touches && e.touches[0].clientX)) - rect.left) * (canvas.width / rect.width);
+        const y = ((e.clientY || (e.touches && e.touches[0].clientY)) - rect.top) * (canvas.height / rect.height);
         ctx.lineTo(x, y); ctx.stroke(); if (e.touches) e.preventDefault();
     };
 
     const handleSubmit = async (isDraft: boolean = false) => {
         const signatureBase64 = canvasRef.current?.toDataURL('image/png');
         if (!projectName || !checkoutDate || cart.length === 0) { alert("Data belum lengkap!"); return; }
+
         if (!isDraft) {
             for (const item of cart) {
                 if (Number(item.qty) > Number(item.stock)) {
@@ -125,46 +137,55 @@ function CheckoutContent() {
                     return;
                 }
             }
-            if (!picName || !signatureBase64) { alert("PIC & Tanda Tangan wajib!"); return; }
+            if (!picName || !signatureBase64 || signatureBase64.length < 2000) { alert("PIC & Tanda Tangan wajib!"); return; }
         }
 
         setLoading(true);
         try {
             const response = await fetch('https://sedayu.com/api/warehouse/checkout.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': API_KEY
+                },
                 body: JSON.stringify({
-                    id: editId, project_name: projectName, pic_name: picName,
-                    checkout_date: checkoutDate, signature_base64: isDraft ? '' : signatureBase64,
-                    transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED', items: cart
+                    id: editId,
+                    project_name: projectName,
+                    pic_name: picName,
+                    checkout_date: checkoutDate,
+                    signature_base64: isDraft ? '' : signatureBase64,
+                    transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED',
+                    items: cart
                 })
             });
             const result = await response.json();
             if (result.status === 'success') {
-                alert("Berhasil!");
+                alert(isDraft ? "Draft tersimpan!" : "Submit Berhasil! Menunggu Approval.");
                 router.push('/transactions');
+            } else {
+                alert("Gagal: " + result.message);
             }
-        } catch (err: any) { alert("Gagal koneksi."); }
+        } catch (err: any) { alert("Gagal koneksi ke server."); }
         setLoading(false);
     };
 
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-24 font-sans">
-            <div className="bg-slate-900 p-6 text-white flex justify-between items-center shadow-lg">
+        <main className="min-h-screen bg-slate-50 pb-28 font-sans relative">
+            <div className="bg-slate-900 p-6 text-white flex justify-between items-center shadow-lg sticky top-0 z-20">
                 <div>
                     <h1 className="text-xl font-bold">{editId ? 'Lanjutkan Draft' : 'Checkout'}</h1>
                     <p className="text-[10px] text-slate-400 uppercase tracking-widest">User: {user.name} ({user.role})</p>
                 </div>
-                <button onClick={() => router.push('/transactions')} className="bg-slate-800 p-2 rounded-full text-xs">✕</button>
+                <button onClick={() => router.push('/transactions')} className="bg-slate-800 p-2 rounded-full text-xs font-black">✕</button>
             </div>
 
             <div className="p-4 space-y-6">
                 {fetchingDraft ? <div className="text-center py-20 font-bold animate-pulse text-slate-400">LOADING...</div> : (
                     <>
                         {!showScanner ? (
-                            <button onClick={() => setShowScanner(true)} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">📷 SCAN BARANG</button>
+                            <button onClick={() => setShowScanner(true)} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-sm">📷 SCAN BARANG</button>
                         ) : (
                             <div className="space-y-4">
                                 <div id="reader" className="overflow-hidden rounded-2xl border-2 border-blue-600 bg-black"></div>
@@ -179,10 +200,10 @@ function CheckoutContent() {
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">📦 Material</h3>
                                     {cart.filter(i => i.type === 'MATERIAL').map((item, idx) => (
                                         <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 flex justify-between items-center">
-                                            <div className="flex-1"><p className="font-bold text-sm text-slate-800">{item.name}</p><p className="text-[10px] text-slate-400">Stok: {item.stock}</p></div>
+                                            <div className="flex-1"><p className="font-bold text-sm text-slate-800">{item.name}</p><p className="text-[10px] font-bold text-slate-400">Stok Gudang: {item.stock}</p></div>
                                             <div className="flex items-center gap-3">
                                                 <input type="number" value={item.qty} onChange={(e: any) => { const nc = [...cart]; const i = nc.findIndex(it => it.qr_id === item.qr_id); nc[i].qty = e.target.value; setCart(nc); }} className="w-12 text-center border-2 rounded-lg font-black text-blue-600" />
-                                                <button onClick={() => setCart(cart.filter(i => i.qr_id !== item.qr_id))} className="text-red-300">✕</button>
+                                                <button onClick={() => setCart(cart.filter(i => i.qr_id !== item.qr_id))} className="text-red-300 font-black p-1">✕</button>
                                             </div>
                                         </div>
                                     ))}
@@ -194,10 +215,10 @@ function CheckoutContent() {
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">🛠️ Tools</h3>
                                     {cart.filter(i => i.type === 'TOOLS').map((item, idx) => (
                                         <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-amber-500 flex justify-between items-center">
-                                            <div className="flex-1"><p className="font-bold text-sm text-slate-800">{item.name}</p><p className="text-[10px] text-slate-400">Stok: {item.stock}</p></div>
+                                            <div className="flex-1"><p className="font-bold text-sm text-slate-800">{item.name}</p><p className="text-[10px] font-bold text-slate-400">Stok Gudang: {item.stock}</p></div>
                                             <div className="flex items-center gap-3">
                                                 <input type="number" value={item.qty} onChange={(e: any) => { const nc = [...cart]; const i = nc.findIndex(it => it.qr_id === item.qr_id); nc[i].qty = e.target.value; setCart(nc); }} className="w-12 text-center border-2 rounded-lg font-black text-blue-600" />
-                                                <button onClick={() => setCart(cart.filter(i => i.qr_id !== item.qr_id))} className="text-red-300">✕</button>
+                                                <button onClick={() => setCart(cart.filter(i => i.qr_id !== item.qr_id))} className="text-red-300 font-black p-1">✕</button>
                                             </div>
                                         </div>
                                     ))}
@@ -207,21 +228,39 @@ function CheckoutContent() {
 
                         {cart.length > 0 && (
                             <div className="bg-white p-6 rounded-3xl shadow-xl space-y-4">
-                                <input type="date" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl" />
-                                <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e: any) => setProjectName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl" />
-                                <input type="text" placeholder="Nama PIC" value={picName} onChange={(e: any) => setPicName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl" />
-                                <div className="space-y-2">
+                                <input type="date" value={checkoutDate} onChange={(e: any) => setCheckoutDate(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <input type="text" placeholder="Nama Proyek" value={projectName} onChange={(e: any) => setProjectName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <input type="text" placeholder="Nama PIC Penerima" value={picName} onChange={(e: any) => setPicName(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <div className="space-y-2 pt-2">
                                     <div className="flex justify-between"><label className="text-[10px] font-black text-slate-400 uppercase">TTD PIC</label><button onClick={() => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)} className="text-[10px] text-blue-500 font-bold">RESET</button></div>
-                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-64 bg-slate-50 rounded-2xl border-2 touch-none shadow-inner" />
+                                    <canvas ref={canvasRef} width={500} height={300} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} className="w-full h-64 bg-slate-50 rounded-2xl border-2 border-slate-100 touch-none shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 pt-4">
-                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px]">SIMPAN DRAFT</button>
-                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg text-[10px] uppercase">SUBMIT RESMI</button>
+                                    <button onClick={() => handleSubmit(true)} disabled={loading} className="bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px] tracking-widest active:scale-95 transition-all">SIMPAN DRAFT</button>
+                                    <button onClick={() => handleSubmit(false)} disabled={loading} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg text-[10px] uppercase tracking-widest active:scale-95 transition-all">SUBMIT RESMI</button>
                                 </div>
                             </div>
                         )}
                     </>
                 )}
+            </div>
+
+            {/* --- BOTTOM MENU BAR --- */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
+                <div className="max-w-4xl mx-auto flex gap-3">
+                    <button
+                        onClick={() => router.push('/')}
+                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                    >
+                        🏠 Menu Utama
+                    </button>
+                    <button
+                        onClick={() => router.push('/transactions')}
+                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                    >
+                        📋 Riwayat Transaksi
+                    </button>
+                </div>
             </div>
         </main>
     );
