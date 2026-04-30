@@ -26,10 +26,11 @@ function TransactionListContent() {
     const fetchTransactions = async () => {
         setLoading(true);
         try {
-            // --- UPDATE: Tambahkan Header X-API-KEY ---
+            // Mengirim kunci lewat headers
             const res = await fetch('https://sedayu.com/api/warehouse/get_transactions.php', {
                 headers: {
-                    'X-API-KEY': API_KEY
+                    'X-API-KEY': API_KEY,
+                    'Content-Type': 'application/json'
                 }
             });
             const result = await res.json();
@@ -47,20 +48,23 @@ function TransactionListContent() {
     const handleDelete = async (id: number) => {
         if (!confirm("Hapus transaksi ini secara permanen?")) return;
         try {
-            // --- UPDATE: Tambahkan Header X-API-KEY ---
+            // Mengirim kunci lewat headers
             const res = await fetch(`https://sedayu.com/api/warehouse/delete_transaction.php?id=${id}`, {
                 method: 'DELETE',
                 headers: {
-                    'X-API-KEY': API_KEY
+                    'X-API-KEY': API_KEY,
+                    'Content-Type': 'application/json'
                 }
             });
             const result = await res.json();
             if (result.status === 'success') {
                 alert("Terhapus!");
                 fetchTransactions();
+            } else {
+                alert("Gagal: " + result.message);
             }
         } catch (e) {
-            alert("Gagal hapus.");
+            alert("Terjadi kesalahan sistem saat menghapus.");
         }
     };
 
@@ -76,16 +80,13 @@ function TransactionListContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900 relative">
             <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-20">
                 <div className="flex justify-between items-center max-w-4xl mx-auto">
                     <div>
                         <h1 className="text-xl font-bold">Warehouse Transactions</h1>
                         <p className="text-slate-400 text-[10px] tracking-widest uppercase font-black">Logged as: {user.name} ({user.role})</p>
                     </div>
-                    {user.role !== 'MANAGER' && (
-                        <button onClick={() => router.push('/checkout')} className="bg-blue-600 px-4 py-2 rounded-xl text-xs font-black">+ Baru</button>
-                    )}
                 </div>
 
                 <div className="flex gap-2 mt-6 max-w-4xl mx-auto">
@@ -93,7 +94,7 @@ function TransactionListContent() {
                         <button
                             key={tab}
                             onClick={() => setFilter(tab)}
-                            className={`flex-1 py-2.5 text-[10px] font-black rounded-xl uppercase tracking-widest transition-all ${filter === tab ? 'bg-white text-slate-900 shadow-md' : 'bg-slate-800 text-slate-500'}`}
+                            className={`flex-1 py-2.5 text-[10px] font-black rounded-xl uppercase tracking-widest transition-all ${filter === tab ? 'bg-white text-slate-900 shadow-md scale-105' : 'bg-slate-800 text-slate-500'}`}
                         >
                             {tab === 'SUBMITTED' ? 'MENUNGGU APPROVAL' : tab}
                         </button>
@@ -126,7 +127,7 @@ function TransactionListContent() {
 
                             <div className="flex gap-2">
                                 {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
-                                    <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">🚀 Lanjutkan Draft</button>
+                                    <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">🚀 Lanjutkan Draft</button>
                                 ) : (
                                     <button
                                         onClick={() => router.push(`/transactions/${trx.id}`)}
@@ -145,13 +146,33 @@ function TransactionListContent() {
                     ))
                 )}
             </div>
+
+            {/* --- BOTTOM MENU BAR --- */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
+                <div className="max-w-4xl mx-auto flex gap-3">
+                    <button
+                        onClick={() => router.push('/')}
+                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                    >
+                        🏠 Menu Utama
+                    </button>
+                    {user.role !== 'MANAGER' && (
+                        <button
+                            onClick={() => router.push('/checkout')}
+                            className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                        >
+                            + Baru
+                        </button>
+                    )}
+                </div>
+            </div>
         </main>
     );
 }
 
 export default function TransactionListPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className="h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading...</div>}>
             <TransactionListContent />
         </Suspense>
     );
