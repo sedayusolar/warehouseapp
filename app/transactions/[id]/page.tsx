@@ -6,21 +6,35 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const router = useRouter();
     const { id } = use(params);
 
+    const [user, setUser] = useState<any>(null); // Ambil data user buat Bottom Menu
     const [transaction, setTransaction] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [managerComment, setManagerComment] = useState('');
 
+    const API_KEY = "SedayuSolar_TopSecret_2026"; // KUNCI RAHASIA
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
     useEffect(() => {
+        const loggedInUser = localStorage.getItem('user');
+        if (!loggedInUser) {
+            router.push('/login');
+            return;
+        }
+        setUser(JSON.parse(loggedInUser));
         fetchDetail();
     }, [id]);
 
     const fetchDetail = async () => {
         try {
-            const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${id}`);
+            const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${id}`, {
+                headers: {
+                    'X-API-KEY': API_KEY, // Kirim kunci
+                    'Content-Type': 'application/json'
+                }
+            });
             const result = await res.json();
             if (result.status === 'success') {
                 setTransaction(result);
@@ -33,33 +47,25 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
 
     // --- LOGIC TANDA TANGAN ---
     const startDrawing = (e: any) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const canvas = canvasRef.current; if (!canvas) return;
+        const ctx = canvas.getContext('2d'); if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
         const clientX = e.clientX || (e.touches && e.touches[0].clientX);
         const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        const x = (clientX - rect.left) * scaleX;
-        const y = (clientY - rect.top) * scaleY;
+        const x = (clientX - rect.left) * scaleX; const y = (clientY - rect.top) * scaleY;
         ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
         ctx.beginPath(); ctx.moveTo(x, y); setIsDrawing(true);
     };
 
     const draw = (e: any) => {
         if (!isDrawing) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!ctx || !canvas) return;
+        const canvas = canvasRef.current; const ctx = canvas?.getContext('2d'); if (!ctx || !canvas) return;
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
         const clientX = e.clientX || (e.touches && e.touches[0].clientX);
         const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        const x = (clientX - rect.left) * scaleX;
-        const y = (clientY - rect.top) * scaleY;
+        const x = (clientX - rect.left) * scaleX; const y = (clientY - rect.top) * scaleY;
         ctx.lineTo(x, y); ctx.stroke();
         if (e.touches) e.preventDefault();
     };
@@ -89,7 +95,10 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         try {
             const res = await fetch('https://sedayu.com/api/warehouse/update_approval.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': API_KEY // Kirim kunci
+                },
                 body: JSON.stringify({
                     id: id,
                     status: status,
@@ -112,7 +121,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const { header, items } = transaction;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900 relative">
             <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-10 flex justify-between items-center">
                 <div>
                     <h1 className="text-xl font-bold">{header.project_name}</h1>
@@ -189,7 +198,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                 </div>
 
                 {/* --- APPROVAL SECTION --- */}
-                {header.manager_approval_status === 'PENDING' ? (
+                {header.manager_approval_status === 'PENDING' && user?.role === 'MANAGER' ? (
                     <div className="bg-white p-6 rounded-3xl border-2 border-blue-100 shadow-xl space-y-5">
                         <h2 className="font-black text-blue-600 text-[10px] uppercase tracking-[0.2em] text-center">Manager Confirmation</h2>
                         <textarea placeholder="Berikan catatan atau instruksi khusus..." value={managerComment} onChange={(e) => setManagerComment(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl text-sm outline-none border-none focus:ring-2 ring-blue-500 transition-all text-slate-700" rows={2} />
@@ -199,10 +208,10 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         </div>
                         <div className="grid grid-cols-2 gap-3 pt-2">
                             <button onClick={() => handleStatusUpdate('REJECTED')} disabled={submitting} className="bg-slate-100 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">Reject</button>
-                            <button onClick={() => handleStatusUpdate('APPROVED')} disabled={submitting} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 text-[10px] uppercase tracking-widest active:scale-95 transition-all">APPROVE & POTONG STOK</button>
+                            <button onClick={() => handleStatusUpdate('APPROVED')} disabled={submitting} className="bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-100 text-[10px] uppercase tracking-widest active:scale-95 transition-all">{submitting ? 'MEMPROSES...' : 'APPROVE & POTONG STOK'}</button>
                         </div>
                     </div>
-                ) : (
+                ) : header.manager_approval_status !== 'PENDING' ? (
                     <div className={`p-8 rounded-3xl border-2 text-center space-y-4 ${header.manager_approval_status === 'APPROVED' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                         <div><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Status Final</p><p className={`text-2xl font-black ${header.manager_approval_status === 'APPROVED' ? 'text-emerald-600' : 'text-red-600'}`}>{header.manager_approval_status}</p></div>
                         {header.manager_comment && <p className="text-xs text-slate-600 italic">"{header.manager_comment}"</p>}
@@ -213,8 +222,35 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                             </div>
                         )}
                     </div>
+                ) : (
+                    <div className="bg-blue-50 border-2 border-blue-100 p-6 rounded-3xl text-center space-y-2">
+                        <p className="text-blue-600 font-black uppercase text-[10px] tracking-widest">Menunggu Approval</p>
+                        <p className="text-xs text-slate-500">Hanya Manager yang dapat melakukan Approval.</p>
+                    </div>
                 )}
             </div>
+
+            {/* --- BOTTOM MENU BAR --- */}
+            {user && (
+                <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
+                    <div className="max-w-4xl mx-auto flex gap-3">
+                        <button
+                            onClick={() => router.push('/transactions')}
+                            className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                        >
+                            📋 Riwayat Transaksi
+                        </button>
+                        {user.role !== 'MANAGER' && (
+                            <button
+                                onClick={() => router.push('/checkout')}
+                                className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                            >
+                                + Checkout Baru
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
         </main>
     );
 }
