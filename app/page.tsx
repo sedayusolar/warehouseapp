@@ -41,6 +41,10 @@ export default function Dashboard() {
           📋 Riwayat Transaksi
         </button>
 
+        <button onClick={() => router.push('/inventory')} className="bg-slate-700 text-white py-6 rounded-3xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all">
+          🗃️ Inventory List
+        </button>
+
         <button
           onClick={() => { localStorage.removeItem('user'); router.push('/login'); }}
           className="text-red-400 text-xs font-bold uppercase pt-4"
