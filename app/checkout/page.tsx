@@ -126,7 +126,7 @@ function CheckoutContent() {
                 const item = result.data;
                 if (Number(item.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${item.item_name}`);
                 if (cart.find((i: any) => i.qr_id === item.qr_id)) {
-                    alert("Barang sudah ada di list!");
+                    alert("Barang sudah ada di liss!");
                 } else {
                     setCart(prev => [...prev, {
                         qr_id: item.qr_id,
