@@ -89,7 +89,7 @@ function CheckoutContent() {
                             name: item.item_name,
                             type: item.item_type,
                             qty: item.qty,
-                            stock: item.stock_qty,
+                            stock: item.available_qty ?? item.stock_qty,
                             photo_base64: ''
                         })));
                     }
@@ -124,16 +124,17 @@ function CheckoutContent() {
             const result = await res.json();
             if (result.status === 'success') {
                 const item = result.data;
-                if (Number(item.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${item.item_name}`);
+                const avail = item.available_qty ?? item.stock_qty;
+                if (avail <= 0) alert(`⚠️ STOK TIDAK TERSEDIA: ${item.item_name} (Stok fisik: ${item.stock_qty}, Direservasi pending: ${item.reserved_qty})`);
                 if (cart.find((i: any) => i.qr_id === item.qr_id)) {
-                    alert("Barang sudah ada di liss!");
+                    alert("Barang sudah ada di list!");
                 } else {
                     setCart(prev => [...prev, {
                         qr_id: item.qr_id,
                         name: item.item_name,
                         type: (item.category || '').toUpperCase(), // pakai kolom category dari DB
                         qty: 1,
-                        stock: item.stock_qty,
+                        stock: item.available_qty ?? item.stock_qty,
                         photo_base64: ''
                     }]);
                 }
@@ -169,13 +170,13 @@ function CheckoutContent() {
         if (cart.find((i: any) => i.qr_id === item.qr_id)) {
             alert("Barang sudah ada di list!");
         } else {
-            if (Number(item.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${item.item_name}`);
+            if ((item.available_qty ?? item.stock_qty) <= 0) alert(`⚠️ STOK TIDAK TERSEDIA: ${item.item_name} (Stok fisik: ${item.stock_qty}, Direservasi pending: ${item.reserved_qty})`);
             setCart(prev => [...prev, {
                 qr_id: item.qr_id,
                 name: item.item_name,
                 type: (item.category || '').toUpperCase(), // pakai kolom category dari DB
                 qty: 1,
-                stock: item.stock_qty,
+                stock: item.available_qty ?? item.stock_qty,
                 photo_base64: ''
             }]);
         }
@@ -362,9 +363,12 @@ function CheckoutContent() {
                                                             <div>
                                                                 <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                                 <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
+                                                                {Number(item.reserved_qty) > 0 && (
+                                                                    <p className="text-[10px] text-orange-500 font-bold">⏳ {item.reserved_qty} pending approval</p>
+                                                                )}
                                                             </div>
-                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-full flex-shrink-0 ${Number(item.stock_qty) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-500'}`}>
-                                                                Stok: {item.stock_qty}
+                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-full flex-shrink-0 ${Number(item.available_qty) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-500'}`}>
+                                                                Tersedia: {item.available_qty ?? item.stock_qty}
                                                             </span>
                                                         </button>
                                                     ))}
