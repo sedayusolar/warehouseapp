@@ -35,15 +35,37 @@ function InventoryContent() {
     const [editForm, setEditForm] = useState<any>({});
     const [savingEdit, setSavingEdit] = useState(false);
 
+    // Stock log state
+    const [logQr, setLogQr] = useState<string | null>(null);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [loadingLog, setLoadingLog] = useState(false);
+
     const handleStartEdit = (item: any) => {
         setEditingQr(item.qr_id);
+        setLogQr(null);
         setEditForm({
             item_name: item.item_name,
             category: item.category,
             unit: item.unit,
             stock_qty: item.stock_qty,
             storage_location_id: item.storage_location_id || '',
+            note: '',
         });
+    };
+
+    const fetchLog = async (qrId: string) => {
+        if (logQr === qrId) { setLogQr(null); return; } // toggle
+        setLogQr(qrId);
+        setLoadingLog(true);
+        try {
+            const res = await fetch(`${BASE_URL}/get_stock_logs.php?qr_id=${qrId}`, {
+                headers: { 'X-API-KEY': API_KEY }
+            });
+            const result = await res.json();
+            if (result.status === 'success') setLogs(result.data);
+            else setLogs([]);
+        } catch { setLogs([]); }
+        setLoadingLog(false);
     };
 
     const handleSaveEdit = async () => {
@@ -55,7 +77,12 @@ function InventoryContent() {
             const res = await fetch(`${BASE_URL}/update_item.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ qr_id: editingQr, ...editForm, stock_qty: Number(editForm.stock_qty) })
+                body: JSON.stringify({
+                    qr_id: editingQr,
+                    ...editForm,
+                    stock_qty: Number(editForm.stock_qty),
+                    adjusted_by: user?.name || 'unknown',
+                })
             });
             const result = await res.json();
             if (result.status === 'success') {
@@ -392,6 +419,13 @@ function InventoryContent() {
                                                             </select>
                                                         </div>
                                                     </div>
+                                                    <input
+                                                        type="text"
+                                                        value={editForm.note}
+                                                        onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                                                        placeholder="Catatan perubahan stok (opsional)..."
+                                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm"
+                                                    />
                                                     <div className="flex gap-2 pt-1">
                                                         <button
                                                             onClick={() => setEditingQr(null)}
@@ -448,6 +482,12 @@ function InventoryContent() {
                                                                     ✏️ Edit
                                                                 </button>
                                                             )}
+                                                            <button
+                                                                onClick={() => fetchLog(item.qr_id)}
+                                                                className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95 transition-all"
+                                                            >
+                                                                📋 Log
+                                                            </button>
                                                         </div>
                                                     </div>
                                                     {/* Stok bar */}
@@ -460,6 +500,38 @@ function InventoryContent() {
                                                         </div>
                                                         <span className="text-[9px] text-slate-400 mt-1 block">Stok fisik: {item.stock_qty} {item.unit}</span>
                                                     </div>
+
+                                                    {/* STOCK LOG PANEL */}
+                                                    {logQr === item.qr_id && (
+                                                        <div className="mt-3 pt-3 border-t border-slate-100">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📋 Riwayat Adjustment Stok</p>
+                                                            {loadingLog ? (
+                                                                <p className="text-[10px] text-slate-400 animate-pulse py-2">Memuat log...</p>
+                                                            ) : logs.length === 0 ? (
+                                                                <p className="text-[10px] text-slate-300 italic py-2">Belum ada perubahan stok tercatat.</p>
+                                                            ) : (
+                                                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                                    {logs.map((log: any) => (
+                                                                        <div key={log.id} className="flex justify-between items-start gap-2 bg-slate-50 rounded-xl p-2.5">
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className={`text-[10px] font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                                        {log.diff > 0 ? `+${log.diff}` : log.diff}
+                                                                                    </span>
+                                                                                    <span className="text-[10px] text-slate-500">
+                                                                                        ({log.stock_before} → {log.stock_after})
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p className="text-[9px] text-slate-400 font-bold">{log.adjusted_by}</p>
+                                                                                {log.note && <p className="text-[9px] text-slate-500 italic mt-0.5">"{log.note}"</p>}
+                                                                            </div>
+                                                                            <p className="text-[9px] text-slate-300 flex-shrink-0">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
