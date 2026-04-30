@@ -89,7 +89,7 @@ function CheckoutContent() {
                             name: item.item_name,
                             type: item.item_type,
                             qty: item.qty,
-                            stock: item.available_qty ?? item.stock_qty,
+                            stock: item.stock_qty,
                             photo_base64: ''
                         })));
                     }
@@ -112,7 +112,31 @@ function CheckoutContent() {
 
     async function onScanSuccess(decodedText: string) {
         setShowScanner(false);
+        playBeep('success');
         addItemByQr(decodedText);
+    }
+
+    // --- AUDIO EFFECTS ---
+    function playBeep(type: 'success' | 'error' | 'warning') {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const configs: Record<string, { freq: number[], duration: number, gain: number }> = {
+            success: { freq: [880, 1320], duration: 0.12, gain: 0.3 },
+            error: { freq: [300, 200], duration: 0.25, gain: 0.4 },
+            warning: { freq: [600, 600], duration: 0.18, gain: 0.3 },
+        };
+        const { freq, duration, gain } = configs[type];
+        freq.forEach((f, i) => {
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc.frequency.value = f;
+            osc.type = 'sine';
+            gainNode.gain.setValueAtTime(gain, ctx.currentTime + i * duration);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * duration + duration);
+            osc.start(ctx.currentTime + i * duration);
+            osc.stop(ctx.currentTime + i * duration + duration);
+        });
     }
 
     // --- SHARED: ADD ITEM TO CART ---
@@ -124,9 +148,9 @@ function CheckoutContent() {
             const result = await res.json();
             if (result.status === 'success') {
                 const item = result.data;
-                const avail = item.available_qty ?? item.stock_qty;
-                if (avail <= 0) alert(`⚠️ STOK TIDAK TERSEDIA: ${item.item_name} (Stok fisik: ${item.stock_qty}, Direservasi pending: ${item.reserved_qty})`);
+                if (Number(item.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${item.item_name}`);
                 if (cart.find((i: any) => i.qr_id === item.qr_id)) {
+                    playBeep('warning');
                     alert("Barang sudah ada di list!");
                 } else {
                     setCart(prev => [...prev, {
@@ -134,14 +158,15 @@ function CheckoutContent() {
                         name: item.item_name,
                         type: (item.category || '').toUpperCase(), // pakai kolom category dari DB
                         qty: 1,
-                        stock: item.available_qty ?? item.stock_qty,
+                        stock: item.stock_qty,
                         photo_base64: ''
                     }]);
                 }
             } else {
+                playBeep('error');
                 alert(result.message);
             }
-        } catch (err: any) { alert("Gagal koneksi server."); }
+        } catch (err: any) { playBeep('error'); alert("Gagal koneksi server."); }
     }
 
     // --- SEARCH INVENTORY ---
@@ -170,13 +195,13 @@ function CheckoutContent() {
         if (cart.find((i: any) => i.qr_id === item.qr_id)) {
             alert("Barang sudah ada di list!");
         } else {
-            if ((item.available_qty ?? item.stock_qty) <= 0) alert(`⚠️ STOK TIDAK TERSEDIA: ${item.item_name} (Stok fisik: ${item.stock_qty}, Direservasi pending: ${item.reserved_qty})`);
+            if (Number(item.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${item.item_name}`);
             setCart(prev => [...prev, {
                 qr_id: item.qr_id,
                 name: item.item_name,
                 type: (item.category || '').toUpperCase(), // pakai kolom category dari DB
                 qty: 1,
-                stock: item.available_qty ?? item.stock_qty,
+                stock: item.stock_qty,
                 photo_base64: ''
             }]);
         }
@@ -363,12 +388,9 @@ function CheckoutContent() {
                                                             <div>
                                                                 <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                                 <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
-                                                                {Number(item.reserved_qty) > 0 && (
-                                                                    <p className="text-[10px] text-orange-500 font-bold">⏳ {item.reserved_qty} pending approval</p>
-                                                                )}
                                                             </div>
-                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-full flex-shrink-0 ${Number(item.available_qty) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-500'}`}>
-                                                                Tersedia: {item.available_qty ?? item.stock_qty}
+                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-full flex-shrink-0 ${Number(item.stock_qty) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-500'}`}>
+                                                                Stok: {item.stock_qty}
                                                             </span>
                                                         </button>
                                                     ))}
