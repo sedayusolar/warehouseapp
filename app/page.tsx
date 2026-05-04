@@ -8,15 +8,24 @@ export default function Dashboard() {
   const [checking, setChecking] = useState(true); // ← tambah state loading
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Fallback: kalau 3 detik masih loading, paksa ke login
+      window.location.href = '/login';
+    }, 3000);
+
     try {
       const loggedInUser = localStorage.getItem('user');
       if (!loggedInUser) {
-        router.push('/login');
+        clearTimeout(timeout);
+        window.location.href = '/login'; // pakai window.location bukan router untuk iOS
       } else {
-        setUser(JSON.parse(loggedInUser));
+        const parsed = JSON.parse(loggedInUser);
+        setUser(parsed);
+        clearTimeout(timeout);
       }
     } catch (e) {
-      router.push('/login');
+      clearTimeout(timeout);
+      window.location.href = '/login';
     } finally {
       setChecking(false);
     }
