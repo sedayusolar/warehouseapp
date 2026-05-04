@@ -118,25 +118,31 @@ function CheckoutContent() {
 
     // --- AUDIO EFFECTS ---
     function playBeep(type: 'success' | 'error' | 'warning') {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const configs: Record<string, { freq: number[], duration: number, gain: number }> = {
-            success: { freq: [880, 1320], duration: 0.12, gain: 0.3 },
-            error: { freq: [300, 200], duration: 0.25, gain: 0.4 },
-            warning: { freq: [600, 600], duration: 0.18, gain: 0.3 },
-        };
-        const { freq, duration, gain } = configs[type];
-        freq.forEach((f, i) => {
-            const osc = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(ctx.destination);
-            osc.frequency.value = f;
-            osc.type = 'sine';
-            gainNode.gain.setValueAtTime(gain, ctx.currentTime + i * duration);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * duration + duration);
-            osc.start(ctx.currentTime + i * duration);
-            osc.stop(ctx.currentTime + i * duration + duration);
-        });
+        try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) return; // browser tidak support, skip
+            const ctx = new AudioCtx();
+            const configs: Record<string, { freq: number[], duration: number, gain: number }> = {
+                success: { freq: [880, 1320], duration: 0.12, gain: 0.3 },
+                error: { freq: [300, 200], duration: 0.25, gain: 0.4 },
+                warning: { freq: [600, 600], duration: 0.18, gain: 0.3 },
+            };
+            const { freq, duration, gain } = configs[type];
+            freq.forEach((f, i) => {
+                const osc = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                osc.frequency.value = f;
+                osc.type = 'sine';
+                gainNode.gain.setValueAtTime(gain, ctx.currentTime + i * duration);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * duration + duration);
+                osc.start(ctx.currentTime + i * duration);
+                osc.stop(ctx.currentTime + i * duration + duration);
+            });
+        } catch (e) {
+            // Audio tidak support atau diblok browser — skip tanpa crash
+        }
     }
 
     // --- SHARED: ADD ITEM TO CART ---

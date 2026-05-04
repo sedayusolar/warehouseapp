@@ -5,17 +5,32 @@ import { useRouter } from 'next/navigation';
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [checking, setChecking] = useState(true); // ← tambah state loading
 
   useEffect(() => {
-    const loggedInUser = localStorage.getItem('user');
-    if (!loggedInUser) {
+    try {
+      const loggedInUser = localStorage.getItem('user');
+      if (!loggedInUser) {
+        router.push('/login');
+      } else {
+        setUser(JSON.parse(loggedInUser));
+      }
+    } catch (e) {
       router.push('/login');
-    } else {
-      setUser(JSON.parse(loggedInUser));
+    } finally {
+      setChecking(false);
     }
   }, []);
 
-  if (!user) return null;
+  // Tampilkan loading spinner, bukan null — iOS tidak stuck di blank
+  if (checking || !user) return (
+    <main className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-center space-y-3">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Memuat...</p>
+      </div>
+    </main>
+  );
 
   return (
     <main className="min-h-screen bg-slate-900 text-white p-6 flex flex-col items-center justify-center space-y-8 font-sans">
