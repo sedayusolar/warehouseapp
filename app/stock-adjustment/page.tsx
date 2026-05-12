@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
@@ -33,6 +34,7 @@ function StockAdjustmentContent() {
     const [searchingItem, setSearchingItem] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const searchTimeout = useRef<any>(null);
+    const [showScanner, setShowScanner] = useState(false);
 
     // PURCHASE - new item fields
     const [isNewItem, setIsNewItem] = useState(false);
@@ -76,6 +78,50 @@ function StockAdjustmentContent() {
         const res = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
         const r = await res.json();
         if (r.status === 'success') setItems(r.data);
+    };
+
+    // Scanner logic
+    useEffect(() => {
+        let scanner: any = null;
+        if (showScanner) {
+            scanner = new Html5QrcodeScanner("adj-reader", { fps: 10, qrbox: 250 }, false);
+            scanner.render(async (qrId: string) => {
+                setShowScanner(false);
+                await fetchItemByQr(qrId);
+            }, () => { });
+        }
+        return () => { if (scanner) scanner.clear().catch(() => { }); };
+    }, [showScanner]);
+
+    const fetchItemByQr = async (qrId: string) => {
+        try {
+            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}`, {
+                headers: { 'X-API-KEY': API_KEY }
+            });
+            const r = await res.json();
+            if (r.status === 'success') {
+                const item = r.data;
+                // Map ke format yang sama dengan search results
+                const mapped = {
+                    qr_id: item.qr_id,
+                    item_name: item.item_name,
+                    category: item.category,
+                    unit: item.unit,
+                    stock_qty: item.stock_qty,
+                    reserved_qty: item.reserved_qty,
+                    available_qty: item.available_qty,
+                    locations: item.locations,
+                };
+                setSelectedItem(mapped);
+                setItemSearch(item.item_name);
+                setItemResults([]);
+                setLocationId('');
+                setFromLocationId('');
+                setActualQty('');
+            } else {
+                alert("Barang tidak ditemukan: " + qrId);
+            }
+        } catch { alert("Gagal koneksi server."); }
     };
 
     const handleItemSearch = (val: string) => {
@@ -321,6 +367,7 @@ function StockAdjustmentContent() {
                                         value={itemSearch} onChange={handleItemSearch}
                                         results={itemResults} searching={searchingItem}
                                         onSelect={handleSelectItem} selected={selectedItem}
+                                        showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)}
                                     />
                                 )}
 
@@ -351,7 +398,8 @@ function StockAdjustmentContent() {
                             <>
                                 <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
                                     results={itemResults} searching={searchingItem}
-                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                    onSelect={handleSelectItem} selected={selectedItem}
+                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
                                 {selectedItem && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -395,7 +443,8 @@ function StockAdjustmentContent() {
                             <>
                                 <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
                                     results={itemResults} searching={searchingItem}
-                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                    onSelect={handleSelectItem} selected={selectedItem}
+                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
                                 {selectedItem && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -433,7 +482,8 @@ function StockAdjustmentContent() {
                             <>
                                 <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
                                     results={itemResults} searching={searchingItem}
-                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                    onSelect={handleSelectItem} selected={selectedItem}
+                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
                                 {selectedItem && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -561,7 +611,7 @@ function StockAdjustmentContent() {
 }
 
 // Reusable item search component
-function ItemSearchBox({ value, onChange, results, searching, onSelect, selected }: any) {
+function ItemSearchBox({ value, onChange, results, searching, onSelect, selected, showScanner, onToggleScanner }: any) {
     return (
         <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cari Barang *</label>
@@ -575,11 +625,29 @@ function ItemSearchBox({ value, onChange, results, searching, onSelect, selected
                 </div>
             ) : (
                 <>
-                    <input type="text" value={value} onChange={e => onChange(e.target.value)}
-                        placeholder="Ketik nama atau QR ID..."
-                        className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 focus:bg-white focus:ring-2 ring-blue-200 transition-all" />
+                    {/* Scan / Search toggle */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={onToggleScanner}
+                            className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95
+                                ${showScanner ? 'bg-red-500 text-white' : 'bg-blue-600 text-white shadow-md shadow-blue-200'}`}
+                        >
+                            {showScanner ? '✕ Batal Scan' : '📷 Scan QR'}
+                        </button>
+                        <div className="flex-1 relative">
+                            <input type="text" value={value} onChange={e => onChange(e.target.value)}
+                                placeholder="Atau ketik nama / QR ID..."
+                                className="w-full p-2.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm focus:bg-white focus:ring-2 ring-blue-200 transition-all" />
+                        </div>
+                    </div>
+
+                    {/* Scanner */}
+                    {showScanner && (
+                        <div id="adj-reader" className="overflow-hidden rounded-2xl border-2 border-blue-600 bg-black"></div>
+                    )}
+
                     {searching && <p className="text-[10px] text-slate-400 animate-pulse text-center">Mencari...</p>}
-                    {results.length > 0 && (
+                    {!showScanner && results.length > 0 && (
                         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-lg">
                             {results.map((item: any) => (
                                 <button key={item.qr_id} onClick={() => onSelect(item)}
