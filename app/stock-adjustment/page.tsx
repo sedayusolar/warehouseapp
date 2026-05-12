@@ -163,11 +163,12 @@ function StockAdjustmentContent() {
 
     const resetForm = () => {
         setSelectedItem(null); setItemSearch(''); setItemResults([]);
-        setIsNewItem(false); setNewItemName(''); setNewCategory(''); setNewUnit('');
+        setNewItemName(''); setNewCategory(''); setNewUnit('');
         setItemPhotoB64(''); setItemPhotoPreview('');
         setLocationId(''); setToLocationId(''); setFromLocationId('');
         setQty(''); setActualQty(''); setSupplier(''); setNote('');
         setPhotoB64(''); setPhotoPreview('');
+        setShowScanner(false);
     };
 
     const handleSubmit = async () => {
@@ -293,7 +294,7 @@ function StockAdjustmentContent() {
                     {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
                         <button
                             key={key}
-                            onClick={() => { setAdjType(key); setResult(null); resetForm(); }}
+                            onClick={() => { setAdjType(key); setResult(null); resetForm(); setIsNewItem(false); }}
                             className={`p-4 rounded-2xl border-2 text-left transition-all active:scale-95
                                 ${adjType === key
                                     ? `${typeColors[key]} border-2 shadow-md scale-[1.02]`
@@ -318,11 +319,11 @@ function StockAdjustmentContent() {
                             <>
                                 {/* Toggle new/existing */}
                                 <div className="flex gap-2">
-                                    <button onClick={() => { setIsNewItem(false); resetForm(); setAdjType('PURCHASE'); }}
+                                    <button onClick={() => { resetForm(); setIsNewItem(false); }}
                                         className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${!isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                         Item Existing
                                     </button>
-                                    <button onClick={() => { setIsNewItem(true); resetForm(); setAdjType('PURCHASE'); }}
+                                    <button onClick={() => { resetForm(); setTimeout(() => setIsNewItem(true), 0); }}
                                         className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                         ＋ Item Baru
                                     </button>
@@ -586,7 +587,7 @@ function StockAdjustmentContent() {
                                                     {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </p>
                                                 {log.photo_path && (
-                                                    <a href={`https://sedayu.com/${log.photo_path}`} target="_blank" rel="noreferrer"
+                                                    <a href={`https://sedayu.com/api/warehouse/${log.photo_path}`} target="_blank" rel="noreferrer"
                                                         className="text-[9px] text-blue-500 font-bold">📷 Foto</a>
                                                 )}
                                             </div>
