@@ -5,41 +5,17 @@ import { useRouter } from 'next/navigation';
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [checking, setChecking] = useState(true); // ← tambah state loading
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      // Fallback: kalau 3 detik masih loading, paksa ke login
-      window.location.href = '/login';
-    }, 3000);
-
-    try {
-      const loggedInUser = localStorage.getItem('user');
-      if (!loggedInUser) {
-        clearTimeout(timeout);
-        window.location.href = '/login'; // pakai window.location bukan router untuk iOS
-      } else {
-        const parsed = JSON.parse(loggedInUser);
-        setUser(parsed);
-        clearTimeout(timeout);
-      }
-    } catch (e) {
-      clearTimeout(timeout);
-      window.location.href = '/login';
-    } finally {
-      setChecking(false);
+    const loggedInUser = localStorage.getItem('user');
+    if (!loggedInUser) {
+      router.push('/login');
+    } else {
+      setUser(JSON.parse(loggedInUser));
     }
   }, []);
 
-  // Tampilkan loading spinner, bukan null — iOS tidak stuck di blank
-  if (checking || !user) return (
-    <main className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <div className="text-center space-y-3">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Memuat...</p>
-      </div>
-    </main>
-  );
+  if (!user) return null;
 
   return (
     <main className="min-h-screen bg-slate-900 text-white p-6 flex flex-col items-center justify-center space-y-8 font-sans">
@@ -68,6 +44,12 @@ export default function Dashboard() {
         <button onClick={() => router.push('/inventory')} className="bg-slate-700 text-white py-6 rounded-3xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all">
           🗃️ Inventory List
         </button>
+
+        {user.role !== 'MANAGER' && (
+          <button onClick={() => router.push('/stock-adjustment')} className="bg-slate-600 text-white py-6 rounded-3xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all">
+            🔄 Stock Adjustment
+          </button>
+        )}
 
         <button
           onClick={() => { localStorage.removeItem('user'); router.push('/login'); }}

@@ -1,0 +1,608 @@
+'use client';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+const API_KEY = "SedayuSolar_TopSecret_2026";
+const BASE_URL = "https://sedayu.com/api/warehouse";
+
+const TYPE_CONFIG = {
+    PURCHASE: { label: 'Pembelian Baru', icon: '🛒', color: 'emerald', desc: 'Tambah stok dari pembelian atau item baru' },
+    TRANSFER: { label: 'Pindah Lokasi', icon: '🔄', color: 'blue', desc: 'Transfer stok antar gudang/lokasi' },
+    OPNAME: { label: 'Koreksi Stok', icon: '📋', color: 'amber', desc: 'Sesuaikan stok berdasarkan hasil hitung fisik' },
+    DAMAGE: { label: 'Rusak / Hilang', icon: '⚠️', color: 'red', desc: 'Catat barang rusak atau hilang' },
+};
+
+function StockAdjustmentContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const initType = searchParams.get('type') || '';
+
+    const [user, setUser] = useState<any>(null);
+    const [adjType, setAdjType] = useState<string>(initType);
+    const [items, setItems] = useState<any[]>([]);
+    const [locations, setLocations] = useState<any[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [result, setResult] = useState<{ ok: boolean, msg: string } | null>(null);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [showLogs, setShowLogs] = useState(false);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+
+    // Search item state
+    const [itemSearch, setItemSearch] = useState('');
+    const [itemResults, setItemResults] = useState<any[]>([]);
+    const [searchingItem, setSearchingItem] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const searchTimeout = useRef<any>(null);
+
+    // PURCHASE - new item fields
+    const [isNewItem, setIsNewItem] = useState(false);
+    const [newItemName, setNewItemName] = useState('');
+    const [newCategory, setNewCategory] = useState('');
+    const [newUnit, setNewUnit] = useState('');
+    const [itemPhotoB64, setItemPhotoB64] = useState('');
+    const [itemPhotoPreview, setItemPhotoPreview] = useState('');
+
+    // Shared fields
+    const [locationId, setLocationId] = useState('');
+    const [toLocationId, setToLocationId] = useState('');
+    const [fromLocationId, setFromLocationId] = useState('');
+    const [qty, setQty] = useState('');
+    const [actualQty, setActualQty] = useState('');
+    const [supplier, setSupplier] = useState('');
+    const [note, setNote] = useState('');
+    const [photoB64, setPhotoB64] = useState('');
+    const [photoPreview, setPhotoPreview] = useState('');
+
+    const photoRef = useRef<HTMLInputElement>(null);
+    const itemPhotoRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const u = localStorage.getItem('user');
+        if (!u) { router.push('/login'); return; }
+        const parsed = JSON.parse(u);
+        if (parsed.role === 'MANAGER') { router.push('/'); return; }
+        setUser(parsed);
+        fetchLocations();
+        fetchItems();
+    }, []);
+
+    const fetchLocations = async () => {
+        const res = await fetch(`${BASE_URL}/get_locations.php`, { headers: { 'X-API-KEY': API_KEY } });
+        const r = await res.json();
+        if (r.status === 'success') setLocations(r.data);
+    };
+
+    const fetchItems = async () => {
+        const res = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
+        const r = await res.json();
+        if (r.status === 'success') setItems(r.data);
+    };
+
+    const handleItemSearch = (val: string) => {
+        setItemSearch(val);
+        setSelectedItem(null);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        if (val.length < 2) { setItemResults([]); return; }
+        searchTimeout.current = setTimeout(async () => {
+            setSearchingItem(true);
+            try {
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const r = await res.json();
+                setItemResults(r.status === 'success' ? r.data : []);
+            } catch { setItemResults([]); }
+            setSearchingItem(false);
+        }, 350);
+    };
+
+    const handleSelectItem = (item: any) => {
+        setSelectedItem(item);
+        setItemSearch(item.item_name);
+        setItemResults([]);
+        setLocationId('');
+        setFromLocationId('');
+        setActualQty('');
+    };
+
+    const handlePhotoInput = (e: React.ChangeEvent<HTMLInputElement>, isItem = false) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const b64 = ev.target?.result as string;
+            if (isItem) { setItemPhotoB64(b64); setItemPhotoPreview(b64); }
+            else { setPhotoB64(b64); setPhotoPreview(b64); }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const resetForm = () => {
+        setSelectedItem(null); setItemSearch(''); setItemResults([]);
+        setIsNewItem(false); setNewItemName(''); setNewCategory(''); setNewUnit('');
+        setItemPhotoB64(''); setItemPhotoPreview('');
+        setLocationId(''); setToLocationId(''); setFromLocationId('');
+        setQty(''); setActualQty(''); setSupplier(''); setNote('');
+        setPhotoB64(''); setPhotoPreview('');
+    };
+
+    const handleSubmit = async () => {
+        if (!adjType) { alert("Pilih tipe adjustment dulu."); return; }
+        setSubmitting(true);
+        setResult(null);
+
+        try {
+            let payload: any = {
+                type: adjType, adjusted_by: user?.name || 'unknown',
+                note, photo: photoB64
+            };
+
+            if (adjType === 'PURCHASE') {
+                if (isNewItem) {
+                    if (!newItemName || !newCategory || !newUnit) throw new Error("Nama, kategori, dan satuan wajib diisi.");
+                    payload = { ...payload, item_name: newItemName, category: newCategory, unit: newUnit, item_photo: itemPhotoB64 };
+                } else {
+                    if (!selectedItem) throw new Error("Pilih item terlebih dahulu.");
+                    payload.qr_id = selectedItem.qr_id;
+                }
+                if (!locationId) throw new Error("Pilih lokasi penyimpanan.");
+                if (!qty || Number(qty) <= 0) throw new Error("Qty harus lebih dari 0.");
+                payload.location_id = locationId;
+                payload.qty = Number(qty);
+                payload.supplier = supplier;
+            }
+            else if (adjType === 'TRANSFER') {
+                if (!selectedItem) throw new Error("Pilih item.");
+                if (!fromLocationId) throw new Error("Pilih lokasi asal.");
+                if (!toLocationId) throw new Error("Pilih lokasi tujuan.");
+                if (!qty || Number(qty) <= 0) throw new Error("Qty harus lebih dari 0.");
+                payload.qr_id = selectedItem.qr_id;
+                payload.from_location_id = fromLocationId;
+                payload.to_location_id = toLocationId;
+                payload.qty = Number(qty);
+            }
+            else if (adjType === 'OPNAME') {
+                if (!selectedItem) throw new Error("Pilih item.");
+                if (!locationId) throw new Error("Pilih lokasi.");
+                if (actualQty === '') throw new Error("Isi stok aktual hasil hitung.");
+                payload.qr_id = selectedItem.qr_id;
+                payload.location_id = locationId;
+                payload.actual_qty = Number(actualQty);
+            }
+            else if (adjType === 'DAMAGE') {
+                if (!selectedItem) throw new Error("Pilih item.");
+                if (!locationId) throw new Error("Pilih lokasi.");
+                if (!qty || Number(qty) <= 0) throw new Error("Qty harus lebih dari 0.");
+                payload.qr_id = selectedItem.qr_id;
+                payload.location_id = locationId;
+                payload.qty = Number(qty);
+            }
+
+            const res = await fetch(`${BASE_URL}/stock_adjustment.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify(payload)
+            });
+            const r = await res.json();
+            if (r.status === 'success') {
+                setResult({ ok: true, msg: r.message + (r.qr_id ? ` QR: ${r.qr_id}` : '') });
+                resetForm();
+                fetchItems();
+            } else {
+                setResult({ ok: false, msg: r.message });
+            }
+        } catch (e: any) {
+            setResult({ ok: false, msg: e.message });
+        }
+        setSubmitting(false);
+    };
+
+    const fetchLogs = async () => {
+        setShowLogs(v => !v);
+        if (showLogs) return;
+        setLoadingLogs(true);
+        try {
+            const res = await fetch(`${BASE_URL}/get_adjustment_logs.php`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            if (r.status === 'success') setLogs(r.data);
+        } catch { }
+        setLoadingLogs(false);
+    };
+
+    // Stok at selected location (for OPNAME pre-fill)
+    const stockAtLoc = selectedItem?.locations?.find((l: any) => String(l.location_id) === String(locationId));
+    const stockAtFromLoc = selectedItem?.locations?.find((l: any) => String(l.location_id) === String(fromLocationId));
+
+    const typeColors: Record<string, string> = {
+        PURCHASE: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+        TRANSFER: 'bg-blue-100 text-blue-700 border-blue-300',
+        OPNAME: 'bg-amber-100 text-amber-700 border-amber-300',
+        DAMAGE: 'bg-red-100 text-red-700 border-red-300',
+    };
+
+    if (!user) return null;
+
+    return (
+        <main className="min-h-screen bg-slate-50 pb-28 font-sans">
+            {/* HEADER */}
+            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-xl font-bold">Stock Adjustment</h1>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{user.name} · {user.role}</p>
+                    </div>
+                    <button onClick={() => router.push('/inventory')} className="bg-slate-800 px-3 py-2 rounded-xl text-xs font-black">← Inventory</button>
+                </div>
+            </div>
+
+            <div className="p-4 max-w-2xl mx-auto space-y-5">
+
+                {/* RESULT BANNER */}
+                {result && (
+                    <div className={`p-4 rounded-2xl font-bold text-sm ${result.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                        {result.ok ? '✅ ' : '❌ '}{result.msg}
+                    </div>
+                )}
+
+                {/* TYPE SELECTOR */}
+                <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+                        <button
+                            key={key}
+                            onClick={() => { setAdjType(key); setResult(null); resetForm(); }}
+                            className={`p-4 rounded-2xl border-2 text-left transition-all active:scale-95
+                                ${adjType === key
+                                    ? `${typeColors[key]} border-2 shadow-md scale-[1.02]`
+                                    : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
+                        >
+                            <p className="text-xl mb-1">{cfg.icon}</p>
+                            <p className="font-black text-xs uppercase tracking-widest">{cfg.label}</p>
+                            <p className="text-[10px] mt-0.5 opacity-70 leading-tight">{cfg.desc}</p>
+                        </button>
+                    ))}
+                </div>
+
+                {/* FORM */}
+                {adjType && (
+                    <div className="bg-white rounded-3xl shadow-lg p-5 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.icon} {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.label}
+                        </p>
+
+                        {/* ===== PURCHASE ===== */}
+                        {adjType === 'PURCHASE' && (
+                            <>
+                                {/* Toggle new/existing */}
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setIsNewItem(false); resetForm(); setAdjType('PURCHASE'); }}
+                                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${!isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        Item Existing
+                                    </button>
+                                    <button onClick={() => { setIsNewItem(true); resetForm(); setAdjType('PURCHASE'); }}
+                                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        ＋ Item Baru
+                                    </button>
+                                </div>
+
+                                {isNewItem ? (
+                                    /* NEW ITEM FIELDS */
+                                    <div className="space-y-3">
+                                        <input type="text" placeholder="Nama Barang *" value={newItemName}
+                                            onChange={e => setNewItemName(e.target.value)}
+                                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
+                                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                                <option value="">Kategori *</option>
+                                                <option value="Material">Material</option>
+                                                <option value="Tools">Tools</option>
+                                            </select>
+                                            <input type="text" placeholder="Satuan * (pcs, m...)" value={newUnit}
+                                                onChange={e => setNewUnit(e.target.value)}
+                                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                        </div>
+                                        {/* Foto item baru */}
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang</label>
+                                            <div className="mt-1.5 flex gap-3 items-center">
+                                                <button onClick={() => itemPhotoRef.current?.click()}
+                                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95">
+                                                    📷 Upload Foto
+                                                </button>
+                                                {itemPhotoPreview && (
+                                                    <img src={itemPhotoPreview} alt="preview" className="w-14 h-14 object-cover rounded-xl border border-slate-200" />
+                                                )}
+                                            </div>
+                                            <input ref={itemPhotoRef} type="file" accept="image/*" className="hidden"
+                                                onChange={e => handlePhotoInput(e, true)} />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* EXISTING ITEM SEARCH */
+                                    <ItemSearchBox
+                                        value={itemSearch} onChange={handleItemSearch}
+                                        results={itemResults} searching={searchingItem}
+                                        onSelect={handleSelectItem} selected={selectedItem}
+                                    />
+                                )}
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Lokasi *</label>
+                                        <select value={locationId} onChange={e => setLocationId(e.target.value)}
+                                            className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                            <option value="">-- Pilih --</option>
+                                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah *</label>
+                                        <input type="number" min="1" placeholder="0" value={qty}
+                                            onChange={e => setQty(e.target.value)}
+                                            className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                    </div>
+                                </div>
+                                <input type="text" placeholder="Supplier / Vendor (opsional)" value={supplier}
+                                    onChange={e => setSupplier(e.target.value)}
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            </>
+                        )}
+
+                        {/* ===== TRANSFER ===== */}
+                        {adjType === 'TRANSFER' && (
+                            <>
+                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
+                                    results={itemResults} searching={searchingItem}
+                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                {selectedItem && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Dari Lokasi *</label>
+                                            <select value={fromLocationId} onChange={e => setFromLocationId(e.target.value)}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Asal --</option>
+                                                {selectedItem.locations?.filter((l: any) => l.stock_qty > 0).map((l: any) => (
+                                                    <option key={l.location_id} value={l.location_id}>
+                                                        {l.location_name} (stok: {l.available_qty ?? l.stock_qty})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {stockAtFromLoc && (
+                                                <p className="text-[10px] text-slate-400 mt-1 ml-1">Tersedia: {stockAtFromLoc.available_qty ?? stockAtFromLoc.stock_qty}</p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Ke Lokasi *</label>
+                                            <select value={toLocationId} onChange={e => setToLocationId(e.target.value)}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Tujuan --</option>
+                                                {locations.filter((l: any) => String(l.id) !== String(fromLocationId)).map((l: any) => (
+                                                    <option key={l.id} value={l.id}>{l.location_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah Dipindah *</label>
+                                    <input type="number" min="1" placeholder="0" value={qty}
+                                        onChange={e => setQty(e.target.value)}
+                                        className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                </div>
+                            </>
+                        )}
+
+                        {/* ===== OPNAME ===== */}
+                        {adjType === 'OPNAME' && (
+                            <>
+                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
+                                    results={itemResults} searching={searchingItem}
+                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                {selectedItem && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Lokasi *</label>
+                                            <select value={locationId} onChange={e => { setLocationId(e.target.value); setActualQty(''); }}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Pilih --</option>
+                                                {selectedItem.locations?.map((l: any) => (
+                                                    <option key={l.location_id} value={l.location_id}>
+                                                        {l.location_name} (sistem: {l.stock_qty})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok Aktual *</label>
+                                            <input type="number" min="0" placeholder="hasil hitung" value={actualQty}
+                                                onChange={e => setActualQty(e.target.value)}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                        </div>
+                                    </div>
+                                )}
+                                {/* Preview selisih */}
+                                {stockAtLoc && actualQty !== '' && (
+                                    <div className={`px-4 py-3 rounded-xl text-sm font-bold ${Number(actualQty) >= stockAtLoc.stock_qty ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                                        Stok sistem: {stockAtLoc.stock_qty} → Aktual: {actualQty} →
+                                        Selisih: {Number(actualQty) >= stockAtLoc.stock_qty ? '+' : ''}{Number(actualQty) - stockAtLoc.stock_qty}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* ===== DAMAGE ===== */}
+                        {adjType === 'DAMAGE' && (
+                            <>
+                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
+                                    results={itemResults} searching={searchingItem}
+                                    onSelect={handleSelectItem} selected={selectedItem} />
+                                {selectedItem && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Lokasi *</label>
+                                            <select value={locationId} onChange={e => setLocationId(e.target.value)}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Pilih --</option>
+                                                {selectedItem.locations?.filter((l: any) => l.stock_qty > 0).map((l: any) => (
+                                                    <option key={l.location_id} value={l.location_id}>
+                                                        {l.location_name} (stok: {l.stock_qty})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah *</label>
+                                            <input type="number" min="1" placeholder="0" value={qty}
+                                                onChange={e => setQty(e.target.value)}
+                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* SHARED: Note + Foto bukti */}
+                        <input type="text" placeholder="Catatan (opsional)" value={note}
+                            onChange={e => setNote(e.target.value)}
+                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Bukti (opsional)</label>
+                            <div className="mt-1.5 flex gap-3 items-center">
+                                <button onClick={() => photoRef.current?.click()}
+                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95">
+                                    📷 Upload Foto
+                                </button>
+                                {photoPreview && (
+                                    <div className="relative">
+                                        <img src={photoPreview} alt="preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" />
+                                        <button onClick={() => { setPhotoB64(''); setPhotoPreview(''); }}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                    </div>
+                                )}
+                            </div>
+                            <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={e => handlePhotoInput(e, false)} />
+                        </div>
+
+                        <button onClick={handleSubmit} disabled={submitting}
+                            className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
+                            {submitting ? 'Menyimpan...' : `✓ Simpan ${TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.label}`}
+                        </button>
+                    </div>
+                )}
+
+                {/* LOG PANEL */}
+                <button onClick={fetchLogs}
+                    className="w-full bg-white border border-slate-200 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase tracking-widest active:scale-95 transition-all">
+                    {showLogs ? '▲ Sembunyikan Log' : '📋 Lihat Riwayat Adjustment'}
+                </button>
+
+                {showLogs && (
+                    <div className="bg-white rounded-3xl shadow-lg p-5 space-y-3">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Riwayat Adjustment</p>
+                        {loadingLogs ? (
+                            <p className="text-center text-slate-400 animate-pulse py-4 text-sm">Memuat...</p>
+                        ) : logs.length === 0 ? (
+                            <p className="text-center text-slate-300 italic text-sm py-4">Belum ada log.</p>
+                        ) : (
+                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                                {logs.map((log: any) => (
+                                    <div key={log.id} className="border border-slate-100 rounded-2xl p-3.5">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${typeColors[log.adjustment_type] || 'bg-slate-100 text-slate-500'}`}>
+                                                        {log.adjustment_type}
+                                                    </span>
+                                                    <span className={`text-xs font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                        {log.diff > 0 ? `+${log.diff}` : log.diff}
+                                                    </span>
+                                                </div>
+                                                <p className="font-bold text-sm text-slate-800">{log.item_name}</p>
+                                                <p className="text-[10px] text-slate-400">
+                                                    {log.location_name}
+                                                    {log.to_location_name ? ` → ${log.to_location_name}` : ''}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400">
+                                                    {log.stock_before} → {log.stock_after} · {log.adjusted_by}
+                                                </p>
+                                                {log.note && <p className="text-[10px] text-slate-500 italic">"{log.note}"</p>}
+                                                {log.supplier && <p className="text-[10px] text-blue-500">🏪 {log.supplier}</p>}
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="text-[9px] text-slate-300">
+                                                    {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                </p>
+                                                <p className="text-[9px] text-slate-300">
+                                                    {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                                {log.photo_path && (
+                                                    <a href={`https://sedayu.com/${log.photo_path}`} target="_blank" rel="noreferrer"
+                                                        className="text-[9px] text-blue-500 font-bold">📷 Foto</a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* BOTTOM NAV */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 z-50 p-4 pb-6">
+                <div className="max-w-2xl mx-auto flex gap-3">
+                    <button onClick={() => router.push('/')} className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">🏠 Menu</button>
+                    <button onClick={() => router.push('/inventory')} className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">🗃️ Inventory</button>
+                </div>
+            </div>
+        </main>
+    );
+}
+
+// Reusable item search component
+function ItemSearchBox({ value, onChange, results, searching, onSelect, selected }: any) {
+    return (
+        <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cari Barang *</label>
+            {selected ? (
+                <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3.5">
+                    <div>
+                        <p className="font-bold text-sm text-slate-800">{selected.item_name}</p>
+                        <p className="text-[10px] font-mono text-slate-400">{selected.qr_id} · Stok total: {selected.stock_qty}</p>
+                    </div>
+                    <button onClick={() => onSelect(null)} className="text-slate-400 text-xs font-black px-2 py-1 bg-slate-200 rounded-lg">Ganti</button>
+                </div>
+            ) : (
+                <>
+                    <input type="text" value={value} onChange={e => onChange(e.target.value)}
+                        placeholder="Ketik nama atau QR ID..."
+                        className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 focus:bg-white focus:ring-2 ring-blue-200 transition-all" />
+                    {searching && <p className="text-[10px] text-slate-400 animate-pulse text-center">Mencari...</p>}
+                    {results.length > 0 && (
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-lg">
+                            {results.map((item: any) => (
+                                <button key={item.qr_id} onClick={() => onSelect(item)}
+                                    className="w-full text-left p-3.5 hover:bg-blue-50 transition-colors flex justify-between items-center">
+                                    <div>
+                                        <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                        <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-500">Stok: {item.stock_qty}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+export default function StockAdjustmentPage() {
+    return (
+        <Suspense fallback={<div className="h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading...</div>}>
+            <StockAdjustmentContent />
+        </Suspense>
+    );
+}
