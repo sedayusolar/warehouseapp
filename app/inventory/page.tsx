@@ -29,6 +29,9 @@ function InventoryContent() {
     const [editingQr, setEditingQr] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<any>({});
     const [savingEdit, setSavingEdit] = useState(false);
+    const [editPhotoB64, setEditPhotoB64] = useState('');
+    const [editPhotoPreview, setEditPhotoPreview] = useState('');
+    const editPhotoRef = useRef<HTMLInputElement>(null);
 
     // Log
     const [logQr, setLogQr] = useState<string | null>(null);
@@ -126,6 +129,7 @@ function InventoryContent() {
 
     const handleStartEdit = (item: any) => {
         setEditingQr(item.qr_id); setLogQr(null);
+        setEditPhotoB64(''); setEditPhotoPreview('');
         setEditForm({
             item_name: item.item_name, category: item.category, unit: item.unit,
             locations: item.locations?.length
@@ -148,7 +152,8 @@ function InventoryContent() {
                     qr_id: editingQr, item_name: editForm.item_name,
                     category: editForm.category, unit: editForm.unit,
                     locations: editForm.locations.filter((l: any) => l.location_id),
-                    adjusted_by: user?.name || 'unknown', note: editForm.note
+                    adjusted_by: user?.name || 'unknown', note: editForm.note,
+                    item_photo: editPhotoB64 || null,
                 })
             });
             const r = await res.json();
@@ -497,6 +502,37 @@ function InventoryContent() {
                                                     <input type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })}
                                                         placeholder="Catatan perubahan stok (opsional)..."
                                                         className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
+
+                                                    {/* Upload foto item */}
+                                                    <div>
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
+                                                        <div className="flex items-center gap-3 mt-1.5">
+                                                            <button onClick={() => editPhotoRef.current?.click()}
+                                                                className="px-3 py-2 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95 transition-all">
+                                                                📷 Upload Foto
+                                                            </button>
+                                                            {editPhotoPreview && (
+                                                                <div className="relative">
+                                                                    <img src={editPhotoPreview} alt="preview"
+                                                                        className="w-14 h-14 object-cover rounded-xl border border-slate-200" />
+                                                                    <button onClick={() => { setEditPhotoB64(''); setEditPhotoPreview(''); }}
+                                                                        className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input ref={editPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                                            onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (!file) return;
+                                                                const reader = new FileReader();
+                                                                reader.onload = ev => {
+                                                                    const b64 = ev.target?.result as string;
+                                                                    setEditPhotoB64(b64);
+                                                                    setEditPhotoPreview(b64);
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }} />
+                                                    </div>
                                                     <div className="flex gap-2 pt-1">
                                                         <button onClick={() => setEditingQr(null)} className="flex-1 bg-slate-100 text-slate-500 font-black py-2.5 rounded-xl text-xs">Batal</button>
                                                         <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 bg-blue-600 text-white font-black py-2.5 rounded-xl text-xs shadow-md disabled:opacity-50">
