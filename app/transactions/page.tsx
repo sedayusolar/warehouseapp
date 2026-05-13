@@ -129,18 +129,20 @@ function TransactionListContent() {
                                 {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
                                     <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">🚀 Lanjutkan Draft</button>
                                 ) : (
-                                    <button
-                                        onClick={() => router.push(`/transactions/${trx.id}`)}
-                                        className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
-                                    >
-                                        {trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
-                                    </button>
-                                    {trx.manager_approval_status === 'APPROVED' && user.role !== 'MANAGER' && (
-                                    <button
-                                        onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)}
-                                        className="flex-1 bg-emerald-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-emerald-100"
-                                    >✅ Check In</button>
-                                )}
+                                    <>
+                                        <button
+                                            onClick={() => router.push(`/transactions/${trx.id}`)}
+                                            className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
+                                        >
+                                            {trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
+                                        </button>
+                                        {trx.manager_approval_status === 'APPROVED' && user.role !== 'MANAGER' && (
+                                            <button
+                                                onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)}
+                                                className="flex-1 bg-emerald-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-emerald-100"
+                                            >✅ Check In</button>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
