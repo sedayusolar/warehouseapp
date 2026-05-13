@@ -227,7 +227,7 @@ function InventoryContent() {
             {detailItem && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={closeDetail}>
                     <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
-                        <div className="bg-white min-h-full rounded-t-3xl p-5 space-y-5">
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-28 space-y-5">
                             {/* Header */}
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
@@ -399,7 +399,7 @@ function InventoryContent() {
             {editingQr && editItem && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setEditingQr(null); setEditItem(null); }}>
                     <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
-                        <div className="bg-white min-h-full rounded-t-3xl p-5 space-y-4">
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-16 space-y-4">
                             <div className="flex justify-between items-center">
                                 <div>
                                     <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Edit Item</p>
@@ -480,7 +480,7 @@ function InventoryContent() {
                                     }} />
                             </div>
 
-                            <div className="flex gap-3 pt-2 pb-8">
+                            <div className="flex gap-3 pt-2 pb-4">
                                 <button onClick={() => { setEditingQr(null); setEditItem(null); }}
                                     className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-xs uppercase">Batal</button>
                                 <button onClick={handleSaveEdit} disabled={savingEdit}

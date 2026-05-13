@@ -149,16 +149,31 @@ function StockAdjustmentContent() {
         setActualQty('');
     };
 
-    const handlePhotoInput = (e: React.ChangeEvent<HTMLInputElement>, isItem = false) => {
+    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handlePhotoInput = async (e: React.ChangeEvent<HTMLInputElement>, isItem = false) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-            const b64 = ev.target?.result as string;
-            if (isItem) { setItemPhotoB64(b64); setItemPhotoPreview(b64); }
-            else { setPhotoB64(b64); setPhotoPreview(b64); }
-        };
-        reader.readAsDataURL(file);
+        const b64 = await compressImage(file);
+        if (isItem) { setItemPhotoB64(b64); setItemPhotoPreview(b64); }
+        else { setPhotoB64(b64); setPhotoPreview(b64); }
     };
 
     const resetForm = () => {
