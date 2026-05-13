@@ -128,7 +128,6 @@ function CheckoutContent() {
 
     // Fetch item data → tampilkan location picker
     const fetchAndPend = async (qrId: string) => {
-        if (cart.find(i => i.qr_id === qrId)) { playBeep('warning'); alert("Barang sudah ada di list!"); return; }
         try {
             const res = await fetch(`${BASE}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
@@ -143,6 +142,11 @@ function CheckoutContent() {
     // Setelah pilih lokasi
     const confirmLocation = (loc: any) => {
         if (!pendingItem) return;
+        // Cek combo qr_id + location_id — boleh sama qr_id tapi beda lokasi
+        if (cart.find(i => i.qr_id === pendingItem.qr_id && String(i.location_id) === String(loc.location_id))) {
+            alert(`${pendingItem.item_name} dari ${loc.location_name} sudah ada di list!`);
+            return;
+        }
         setCart(prev => [...prev, {
             qr_id: pendingItem.qr_id,
             name: pendingItem.item_name,
@@ -176,7 +180,6 @@ function CheckoutContent() {
     };
 
     const handleSelectSearch = (item: any) => {
-        if (cart.find(i => i.qr_id === item.qr_id)) { alert("Barang sudah ada di list!"); return; }
         setSearchQuery(''); setSearchResults([]); setShowSearch(false);
         // Kalau ada locations → tampilkan picker, kalau tidak → langsung masuk cart
         if (item.locations?.length > 0) {
@@ -276,6 +279,9 @@ function CheckoutContent() {
         setLoading(false);
     };
 
+    // Cart item key = qr_id + location_id
+    const cartItemKey = (item: any) => `${item.qr_id}__${item.location_id || 'noloc'}`;
+
     const renderCartItem = (item: any) => {
         const reserved = Number(item.reserved_qty ?? 0);
         const available = Number(item.available_qty ?? item.stock_qty);
@@ -285,7 +291,7 @@ function CheckoutContent() {
         const isOk = !isUnavailable && !isInsufficient;
 
         return (
-            <div key={item.qr_id} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 transition-all
+            <div key={cartItemKey(item)} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 transition-all
                 ${isUnavailable || isInsufficient ? 'border-l-red-400' : item.type === 'MATERIAL' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
                 <div className="flex justify-between items-start gap-3">
                     <div className="flex-1 min-w-0">
@@ -325,6 +331,20 @@ function CheckoutContent() {
                             </select>
                         </div>
 
+                        {/* Tambah dari lokasi lain */}
+                        {item.locations?.length > 1 && (
+                            <button
+                                onClick={() => setPendingItem({
+                                    qr_id: item.qr_id, item_name: item.name,
+                                    category: item.type, stock_qty: item.stock_qty,
+                                    reserved_qty: item.reserved_qty, available_qty: item.available_qty,
+                                    locations: item.locations
+                                })}
+                                className="mt-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest active:opacity-70">
+                                ＋ Tambah dari Lokasi Lain
+                            </button>
+                        )}
+
                         {/* Foto kondisi */}
                         <div className="mt-2">
                             <label className="text-[9px] font-black text-slate-400 uppercase">Foto Kondisi Barang</label>
@@ -335,13 +355,13 @@ function CheckoutContent() {
                                         onChange={async e => {
                                             const file = e.target.files?.[0]; if (!file) return;
                                             const b64 = await compressImage(file);
-                                            setCart(prev => prev.map(c => c.qr_id === item.qr_id ? { ...c, photo_base64: b64 } : c));
+                                            setCart(prev => prev.map(c => cartItemKey(c) === cartItemKey(item) ? { ...c, photo_base64: b64 } : c));
                                         }} />
                                 </label>
                                 {item.photo_base64 && (
                                     <div className="relative">
                                         <img src={item.photo_base64} alt="preview" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
-                                        <button onClick={() => setCart(prev => prev.map(c => c.qr_id === item.qr_id ? { ...c, photo_base64: '' } : c))}
+                                        <button onClick={() => setCart(prev => prev.map(c => cartItemKey(c) === cartItemKey(item) ? { ...c, photo_base64: '' } : c))}
                                             className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-black">✕</button>
                                     </div>
                                 )}
@@ -351,9 +371,9 @@ function CheckoutContent() {
 
                     <div className="flex flex-col items-center gap-2 flex-shrink-0">
                         <input type="number" min="1" value={item.qty}
-                            onChange={(e: any) => { const nc = [...cart]; const idx = nc.findIndex(it => it.qr_id === item.qr_id); nc[idx].qty = e.target.value; setCart(nc); }}
+                            onChange={(e: any) => { const nc = [...cart]; const idx = nc.findIndex(it => cartItemKey(it) === cartItemKey(item)); if (idx >= 0) { nc[idx].qty = e.target.value; setCart(nc); }; }}
                             className={`w-12 text-center border-2 rounded-lg font-black py-1 ${isInsufficient ? 'border-red-400 text-red-500' : 'text-blue-600'}`} />
-                        <button onClick={() => setCart(cart.filter(i => i.qr_id !== item.qr_id))} className="text-red-300 font-black p-1">✕</button>
+                        <button onClick={() => setCart(cart.filter(i => cartItemKey(i) !== cartItemKey(item)))} className="text-red-300 font-black p-1">✕</button>
                     </div>
                 </div>
             </div>
@@ -397,6 +417,11 @@ function CheckoutContent() {
                                 ))
                             )}
                         </div>
+                        {cart.find(i => i.qr_id === pendingItem?.qr_id) && (
+                            <p className="text-[10px] text-blue-500 font-bold text-center">
+                                ✓ Sudah ada {cart.filter(i => i.qr_id === pendingItem?.qr_id).length} lokasi untuk item ini
+                            </p>
+                        )}
                         <button onClick={() => setPendingItem(null)} className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">Batal</button>
                     </div>
                 </div>
@@ -460,6 +485,9 @@ function CheckoutContent() {
                                                                             <p className="text-[10px] text-slate-400 mt-0.5">
                                                                                 {item.locations.map((l: any) => `${l.location_name}: ${l.available_qty}`).join(' · ')}
                                                                             </p>
+                                                                        )}
+                                                                        {cart.find(c => c.qr_id === item.qr_id) && (
+                                                                            <p className="text-[10px] text-blue-500 font-bold mt-0.5">＋ Tambah dari lokasi lain</p>
                                                                         )}
                                                                     </div>
                                                                     <div className="text-right flex-shrink-0">
