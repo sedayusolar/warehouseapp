@@ -135,6 +135,12 @@ function TransactionListContent() {
                                     >
                                         {trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
                                     </button>
+                                    {trx.manager_approval_status === 'APPROVED' && user.role !== 'MANAGER' && (
+                                    <button
+                                        onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)}
+                                        className="flex-1 bg-emerald-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-emerald-100"
+                                    >✅ Check In</button>
+                                )}
                                 )}
                             </div>
 

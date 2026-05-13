@@ -301,6 +301,26 @@ function CheckoutContent() {
     if (!user) return null;
 
     // Helper render cart item
+    // Compress image
+    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
     const renderCartItem = (item: any) => {
         const reserved = Number(item.reserved_qty ?? 0);
         const available = Number(item.available_qty ?? item.stock_qty);
@@ -333,21 +353,21 @@ function CheckoutContent() {
 
                         {/* Status availability */}
                         {isUnavailable && (
-                            <div className="mt-1.5 flex items-center gap-1.5 bg-red-50 px-2.5 py-1.5 rounded-lg">
+                            <div className="mt-1.5 bg-red-50 px-2.5 py-1.5 rounded-lg">
                                 <span className="text-[10px] font-black text-red-600">
                                     ❌ Stok tidak tersedia — semua sedang pending approval ({reserved} transaksi)
                                 </span>
                             </div>
                         )}
                         {isInsufficient && (
-                            <div className="mt-1.5 flex items-center gap-1.5 bg-orange-50 px-2.5 py-1.5 rounded-lg">
+                            <div className="mt-1.5 bg-orange-50 px-2.5 py-1.5 rounded-lg">
                                 <span className="text-[10px] font-black text-orange-600">
                                     ⚠️ Qty melebihi stok tersedia ({available} tersedia, {reserved} pending)
                                 </span>
                             </div>
                         )}
                         {isOk && reserved > 0 && (
-                            <div className="mt-1.5 flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+                            <div className="mt-1.5 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
                                 <span className="text-[10px] font-bold text-emerald-600">
                                     ✓ Tersedia: {available} (ada {reserved} pending di transaksi lain)
                                 </span>
@@ -356,6 +376,30 @@ function CheckoutContent() {
                         {isOk && reserved === 0 && (
                             <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Tersedia: {available}</p>
                         )}
+
+                        {/* Foto kondisi barang saat checkout */}
+                        <div className="mt-2">
+                            <label className="text-[9px] font-black text-slate-400 uppercase">Foto Kondisi Barang</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <label className="px-2.5 py-1.5 bg-slate-100 text-slate-500 font-black text-[10px] rounded-lg cursor-pointer active:scale-95 transition-all">
+                                    📷 Upload
+                                    <input type="file" accept="image/*" capture="environment" className="hidden"
+                                        onChange={async e => {
+                                            const file = e.target.files?.[0]; if (!file) return;
+                                            const b64 = await compressImage(file);
+                                            setCart(prev => prev.map(c => c.qr_id === item.qr_id ? { ...c, photo_base64: b64 } : c));
+                                        }} />
+                                </label>
+                                {item.photo_base64 && (
+                                    <div className="relative">
+                                        <img src={item.photo_base64} alt="preview"
+                                            className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
+                                        <button onClick={() => setCart(prev => prev.map(c => c.qr_id === item.qr_id ? { ...c, photo_base64: '' } : c))}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-black">✕</button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">

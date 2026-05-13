@@ -51,6 +51,12 @@ export default function Dashboard() {
           </button>
         )}
 
+        {user.role !== 'MANAGER' && (
+          <button onClick={() => router.push('/checkin')} className="bg-emerald-700 text-white py-6 rounded-3xl font-black text-sm uppercase tracking-widest active:scale-95 transition-all">
+            ✅ Check In Barang
+          </button>
+        )}
+
         <button
           onClick={() => { localStorage.removeItem('user'); router.push('/login'); }}
           className="text-red-400 text-xs font-bold uppercase pt-4"
