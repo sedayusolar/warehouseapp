@@ -47,6 +47,29 @@ function InventoryContent() {
     const [detailData, setDetailData] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
+    // Lightbox
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+    // Compress image before upload
+    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
@@ -242,9 +265,12 @@ function InventoryContent() {
                                     {detailData.item?.photo_path && (
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Foto Barang</p>
-                                            <img src={`https://sedayu.com/api/warehouse/${detailData.item.photo_path}`}
-                                                alt={detailItem.item_name}
-                                                className="w-full max-h-48 object-cover rounded-2xl border border-slate-100" />
+                                            <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${detailData.item.photo_path}`)} className="w-full">
+                                                <img src={`https://sedayu.com/api/warehouse/${detailData.item.photo_path}`}
+                                                    alt={detailItem.item_name}
+                                                    className="w-full max-h-48 object-cover rounded-2xl border border-slate-100 active:opacity-80 transition-opacity" />
+                                                <p className="text-[9px] text-slate-400 text-center mt-1">👆 Tap untuk perbesar</p>
+                                            </button>
                                         </div>
                                     )}
 
@@ -295,18 +321,18 @@ function InventoryContent() {
                                                             </div>
                                                             <div className="flex flex-col gap-1 flex-shrink-0">
                                                                 {trx.photo_path && (
-                                                                    <a href={`https://sedayu.com/api/warehouse/${trx.photo_path}`} target="_blank" rel="noreferrer">
+                                                                    <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path}`)}>
                                                                         <img src={`https://sedayu.com/api/warehouse/${trx.photo_path}`}
                                                                             className="w-12 h-12 object-cover rounded-lg border border-slate-100" alt="checkout" />
                                                                         <p className="text-[8px] text-slate-400 text-center mt-0.5">Checkout</p>
-                                                                    </a>
+                                                                    </button>
                                                                 )}
                                                                 {trx.photo_path_checkin && (
-                                                                    <a href={`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`} target="_blank" rel="noreferrer">
+                                                                    <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`)}>
                                                                         <img src={`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`}
                                                                             className="w-12 h-12 object-cover rounded-lg border border-emerald-100" alt="checkin" />
                                                                         <p className="text-[8px] text-emerald-500 text-center mt-0.5">Check In</p>
-                                                                    </a>
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -333,10 +359,10 @@ function InventoryContent() {
                                                             {adj.note && <p className="text-[10px] italic text-slate-400">"{adj.note}"</p>}
                                                         </div>
                                                         {adj.photo_path && (
-                                                            <a href={`https://sedayu.com/api/warehouse/${adj.photo_path}`} target="_blank" rel="noreferrer">
+                                                            <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${adj.photo_path}`)}>
                                                                 <img src={`https://sedayu.com/api/warehouse/${adj.photo_path}`}
                                                                     className="w-10 h-10 object-cover rounded-lg border border-slate-200" alt="adj" />
-                                                            </a>
+                                                            </button>
                                                         )}
                                                     </div>
                                                 ))}
@@ -357,6 +383,15 @@ function InventoryContent() {
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* LIGHTBOX */}
+            {lightboxUrl && (
+                <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4"
+                    onClick={() => setLightboxUrl(null)}>
+                    <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
+                    <img src={lightboxUrl} alt="fullscreen" className="max-w-full max-h-full object-contain rounded-xl" />
                 </div>
             )}
 
@@ -438,11 +473,10 @@ function InventoryContent() {
                                     ) : null}
                                 </div>
                                 <input ref={editPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                                    onChange={e => {
+                                    onChange={async e => {
                                         const file = e.target.files?.[0]; if (!file) return;
-                                        const reader = new FileReader();
-                                        reader.onload = ev => { const b64 = ev.target?.result as string; setEditPhotoB64(b64); setEditPhotoPreview(b64); };
-                                        reader.readAsDataURL(file);
+                                        const b64 = await compressImage(file);
+                                        setEditPhotoB64(b64); setEditPhotoPreview(b64);
                                     }} />
                             </div>
 
@@ -559,11 +593,10 @@ function InventoryContent() {
                                 )}
                             </div>
                             <input ref={itemPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                                onChange={e => {
+                                onChange={async e => {
                                     const file = e.target.files?.[0]; if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = ev => { const b64 = ev.target?.result as string; setItemPhotoB64(b64); setItemPhotoPreview(b64); };
-                                    reader.readAsDataURL(file);
+                                    const b64 = await compressImage(file);
+                                    setItemPhotoB64(b64); setItemPhotoPreview(b64);
                                 }} />
                         </div>
                         <button onClick={handleSubmitItem} disabled={submitting}
