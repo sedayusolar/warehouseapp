@@ -24,9 +24,13 @@ function InventoryContent() {
     const [formLocations, setFormLocations] = useState<{ location_id: string, qty: number }[]>([{ location_id: '', qty: 0 }]);
     const [newItemQr, setNewItemQr] = useState('');
     const [newItemName, setNewItemName] = useState('');
+    const [itemPhotoB64, setItemPhotoB64] = useState('');
+    const [itemPhotoPreview, setItemPhotoPreview] = useState('');
+    const itemPhotoRef = useRef<HTMLInputElement>(null);
 
     // Edit
     const [editingQr, setEditingQr] = useState<string | null>(null);
+    const [editItem, setEditItem] = useState<any>(null);
     const [editForm, setEditForm] = useState<any>({});
     const [savingEdit, setSavingEdit] = useState(false);
     const [editPhotoB64, setEditPhotoB64] = useState('');
@@ -102,13 +106,14 @@ function InventoryContent() {
             const res = await fetch(`${BASE_URL}/add_item.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ ...form, locations: validLocs })
+                body: JSON.stringify({ ...form, locations: validLocs, item_photo: itemPhotoB64 || null })
             });
             const r = await res.json();
             if (r.status === 'success') {
                 setNewItemQr(r.qr_id); setNewItemName(form.item_name);
                 setForm({ item_name: '', category: '', unit: '' });
                 setFormLocations([{ location_id: '', qty: 0 }]);
+                setItemPhotoB64(''); setItemPhotoPreview('');
                 fetchItems(filterLocation, filterCategory);
             } else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
@@ -128,6 +133,7 @@ function InventoryContent() {
     };
 
     const handleStartEdit = (item: any) => {
+        setEditItem(item);
         setEditingQr(item.qr_id); setLogQr(null);
         setEditPhotoB64(''); setEditPhotoPreview('');
         setEditForm({
@@ -157,7 +163,7 @@ function InventoryContent() {
                 })
             });
             const r = await res.json();
-            if (r.status === 'success') { setEditingQr(null); fetchItems(filterLocation, filterCategory); }
+            if (r.status === 'success') { setEditingQr(null); setEditItem(null); fetchItems(filterLocation, filterCategory); }
             else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setSavingEdit(false);
@@ -354,6 +360,105 @@ function InventoryContent() {
                 </div>
             )}
 
+            {/* EDIT MODAL */}
+            {editingQr && editItem && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setEditingQr(null); setEditItem(null); }}>
+                    <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Edit Item</p>
+                                    <p className="font-bold text-slate-800 mt-0.5">{editItem.item_name}</p>
+                                    <p className="text-[10px] font-mono text-slate-400">{editItem.qr_id}</p>
+                                </div>
+                                <button onClick={() => { setEditingQr(null); setEditItem(null); }} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                            </div>
+
+                            <input type="text" value={editForm.item_name} onChange={e => setEditForm({ ...editForm, item_name: e.target.value })}
+                                placeholder="Nama Barang *"
+                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <div className="grid grid-cols-2 gap-3">
+                                <select value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                                    className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                    <option value="Material">Material</option>
+                                    <option value="Tools">Tools</option>
+                                </select>
+                                <input type="text" value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
+                                    placeholder="Satuan *"
+                                    className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
+                                <div className="space-y-2 mt-1.5">
+                                    {(editForm.locations || []).map((fl: any, idx: number) => (
+                                        <div key={idx} className="flex gap-2 items-center">
+                                            <select value={fl.location_id} onChange={e => { const u = [...editForm.locations]; u[idx].location_id = e.target.value; setEditForm({ ...editForm, locations: u }); }}
+                                                className="flex-1 p-3 bg-slate-50 rounded-xl outline-none text-sm font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Lokasi --</option>
+                                                {locations.map((l: any) => <option key={l.id} value={String(l.id)}>{l.location_name}</option>)}
+                                            </select>
+                                            <input type="number" min="0" value={fl.qty}
+                                                onChange={e => { const u = [...editForm.locations]; u[idx].qty = Number(e.target.value); setEditForm({ ...editForm, locations: u }); }}
+                                                className="w-16 p-3 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                            {editForm.locations.length > 1 && (
+                                                <button onClick={() => setEditForm({ ...editForm, locations: editForm.locations.filter((_: any, i: number) => i !== idx) })}
+                                                    className="text-red-400 font-black text-sm px-1">✕</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button onClick={() => setEditForm({ ...editForm, locations: [...(editForm.locations || []), { location_id: '', qty: 0 }] })}
+                                        className="text-[10px] font-black text-blue-500 uppercase tracking-widest">＋ Tambah Lokasi</button>
+                                </div>
+                            </div>
+
+                            <input type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                                placeholder="Catatan perubahan stok (opsional)..."
+                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
+                                <div className="flex items-center gap-3 mt-1.5">
+                                    <button onClick={() => editPhotoRef.current?.click()}
+                                        className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95">
+                                        📷 Upload Foto
+                                    </button>
+                                    {editPhotoPreview ? (
+                                        <div className="relative">
+                                            <img src={editPhotoPreview} alt="preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" />
+                                            <button onClick={() => { setEditPhotoB64(''); setEditPhotoPreview(''); }}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                        </div>
+                                    ) : editItem.photo_path ? (
+                                        <div className="relative">
+                                            <img src={`https://sedayu.com/api/warehouse/${editItem.photo_path}`}
+                                                alt="current" className="w-16 h-16 object-cover rounded-xl border border-slate-200 opacity-60" />
+                                            <p className="text-[8px] text-slate-400 text-center mt-0.5">Foto saat ini</p>
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <input ref={editPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                    onChange={e => {
+                                        const file = e.target.files?.[0]; if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = ev => { const b64 = ev.target?.result as string; setEditPhotoB64(b64); setEditPhotoPreview(b64); };
+                                        reader.readAsDataURL(file);
+                                    }} />
+                            </div>
+
+                            <div className="flex gap-3 pt-2 pb-8">
+                                <button onClick={() => { setEditingQr(null); setEditItem(null); }}
+                                    className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-xs uppercase">Batal</button>
+                                <button onClick={handleSaveEdit} disabled={savingEdit}
+                                    className="flex-1 bg-blue-600 text-white font-black py-4 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                    {savingEdit ? 'Menyimpan...' : '✓ Simpan'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* HEADER */}
             <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
                 <div className="p-5 flex justify-between items-center">
@@ -438,6 +543,29 @@ function InventoryContent() {
                                     className="text-[10px] font-black text-blue-500 uppercase tracking-widest">＋ Tambah Lokasi</button>
                             </div>
                         </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
+                            <div className="flex items-center gap-3 mt-1.5">
+                                <button onClick={() => itemPhotoRef.current?.click()}
+                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95 transition-all">
+                                    📷 Upload Foto
+                                </button>
+                                {itemPhotoPreview && (
+                                    <div className="relative">
+                                        <img src={itemPhotoPreview} alt="preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" />
+                                        <button onClick={() => { setItemPhotoB64(''); setItemPhotoPreview(''); }}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                    </div>
+                                )}
+                            </div>
+                            <input ref={itemPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={e => {
+                                    const file = e.target.files?.[0]; if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = ev => { const b64 = ev.target?.result as string; setItemPhotoB64(b64); setItemPhotoPreview(b64); };
+                                    reader.readAsDataURL(file);
+                                }} />
+                        </div>
                         <button onClick={handleSubmitItem} disabled={submitting}
                             className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
                             {submitting ? 'Menyimpan...' : '✓ Daftarkan & Generate QR ID'}
@@ -460,160 +588,74 @@ function InventoryContent() {
                                 <div key={cat} className="space-y-3">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{cat === 'Material' ? '📦' : '🛠️'} {cat} ({group.length})</h3>
                                     {group.map((item: any) => (
-                                        <div key={item.qr_id} className={`bg-white rounded-2xl shadow-sm border-l-4 overflow-hidden ${editingQr === item.qr_id ? 'border-l-blue-500' : item.category === 'Material' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
-                                            {editingQr === item.qr_id ? (
-                                                /* EDIT MODE */
-                                                <div className="p-4 space-y-3">
-                                                    <div className="flex justify-between items-center">
-                                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Edit Item</p>
-                                                        <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                    </div>
-                                                    <input type="text" value={editForm.item_name} onChange={e => setEditForm({ ...editForm, item_name: e.target.value })}
-                                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <select value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })}
-                                                            className="p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm appearance-none">
-                                                            <option value="Material">Material</option>
-                                                            <option value="Tools">Tools</option>
-                                                        </select>
-                                                        <input type="text" value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
-                                                            className="p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
-                                                        <div className="space-y-2 mt-1">
-                                                            {(editForm.locations || []).map((fl: any, idx: number) => (
-                                                                <div key={idx} className="flex gap-2 items-center">
-                                                                    <select value={fl.location_id} onChange={e => { const u = [...editForm.locations]; u[idx].location_id = e.target.value; setEditForm({ ...editForm, locations: u }); }}
-                                                                        className="flex-1 p-2 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium appearance-none">
-                                                                        <option value="">-- Lokasi --</option>
-                                                                        {locations.map((l: any) => <option key={l.id} value={String(l.id)}>{l.location_name}</option>)}
-                                                                    </select>
-                                                                    <input type="number" min="0" value={fl.qty}
-                                                                        onChange={e => { const u = [...editForm.locations]; u[idx].qty = Number(e.target.value); setEditForm({ ...editForm, locations: u }); }}
-                                                                        className="w-14 p-2 bg-white border border-slate-200 rounded-lg outline-none font-bold text-center text-xs" />
-                                                                    {editForm.locations.length > 1 && <button onClick={() => setEditForm({ ...editForm, locations: editForm.locations.filter((_: any, i: number) => i !== idx) })} className="text-red-400 font-black text-sm">✕</button>}
-                                                                </div>
-                                                            ))}
-                                                            <button onClick={() => setEditForm({ ...editForm, locations: [...(editForm.locations || []), { location_id: '', qty: 0 }] })}
-                                                                className="text-[10px] font-black text-blue-500 uppercase">＋ Tambah Lokasi</button>
+                                        <div key={item.qr_id} className={`bg-white rounded-2xl shadow-sm border-l-4 overflow-hidden ${item.category === 'Material' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
+                                            <div className="p-4">
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <button onClick={() => openDetail(item)} className="flex-1 min-w-0 text-left">
+                                                        <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
+                                                            <button onClick={e => { e.stopPropagation(); handlePrintQr(item.qr_id, item.item_name); }}
+                                                                className="text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md active:scale-95">🖨️ Print</button>
                                                         </div>
-                                                    </div>
-                                                    <input type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })}
-                                                        placeholder="Catatan perubahan stok (opsional)..."
-                                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-
-                                                    {/* Upload foto item */}
-                                                    <div>
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
-                                                        <div className="flex items-center gap-3 mt-1.5">
-                                                            <button onClick={() => editPhotoRef.current?.click()}
-                                                                className="px-3 py-2 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95 transition-all">
-                                                                📷 Upload Foto
-                                                            </button>
-                                                            {editPhotoPreview && (
-                                                                <div className="relative">
-                                                                    <img src={editPhotoPreview} alt="preview"
-                                                                        className="w-14 h-14 object-cover rounded-xl border border-slate-200" />
-                                                                    <button onClick={() => { setEditPhotoB64(''); setEditPhotoPreview(''); }}
-                                                                        className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
-                                                                </div>
-                                                            )}
+                                                        {item.locations?.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                {item.locations.map((loc: any) => (
+                                                                    <span key={loc.location_id} className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${(loc.available_qty ?? loc.stock_qty) > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-400'}`}>
+                                                                        📍 {loc.location_name}: {loc.available_qty ?? loc.stock_qty}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                                        <div className="text-right">
+                                                            <p className={`text-lg font-black ${Number(item.available_qty) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                {item.available_qty}<span className="text-[10px] font-bold text-slate-400 ml-1">{item.unit}</span>
+                                                            </p>
+                                                            <p className="text-[9px] text-slate-400 font-bold">tersedia</p>
+                                                            {Number(item.reserved_qty) > 0 && <p className="text-[9px] text-orange-500 font-black">⏳ {item.reserved_qty} pending</p>}
                                                         </div>
-                                                        <input ref={editPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                                                            onChange={e => {
-                                                                const file = e.target.files?.[0];
-                                                                if (!file) return;
-                                                                const reader = new FileReader();
-                                                                reader.onload = ev => {
-                                                                    const b64 = ev.target?.result as string;
-                                                                    setEditPhotoB64(b64);
-                                                                    setEditPhotoPreview(b64);
-                                                                };
-                                                                reader.readAsDataURL(file);
-                                                            }} />
-                                                    </div>
-                                                    <div className="flex gap-2 pt-1">
-                                                        <button onClick={() => setEditingQr(null)} className="flex-1 bg-slate-100 text-slate-500 font-black py-2.5 rounded-xl text-xs">Batal</button>
-                                                        <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 bg-blue-600 text-white font-black py-2.5 rounded-xl text-xs shadow-md disabled:opacity-50">
-                                                            {savingEdit ? 'Menyimpan...' : '✓ Simpan'}
-                                                        </button>
+                                                        {user.role !== 'MANAGER' && (
+                                                            <button onClick={e => { e.stopPropagation(); handleStartEdit(item); }}
+                                                                className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">✏️ Edit</button>
+                                                        )}
+                                                        <button onClick={e => { e.stopPropagation(); fetchLog(item.qr_id); }}
+                                                            className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">📋 Log</button>
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                /* NORMAL MODE — klik area utama untuk buka detail */
-                                                <div className="p-4">
-                                                    <div className="flex justify-between items-start gap-2">
-                                                        {/* Klik item → buka detail */}
-                                                        <button onClick={() => openDetail(item)} className="flex-1 min-w-0 text-left">
-                                                            <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                                <button onClick={e => { e.stopPropagation(); handlePrintQr(item.qr_id, item.item_name); }}
-                                                                    className="text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md active:scale-95">🖨️ Print</button>
-                                                            </div>
-                                                            {/* Lokasi badges */}
-                                                            {item.locations?.length > 0 ? (
-                                                                <div className="flex flex-wrap gap-1 mt-1.5">
-                                                                    {item.locations.map((loc: any) => (
-                                                                        <span key={loc.location_id} className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${(loc.available_qty ?? loc.stock_qty) > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-400'}`}>
-                                                                            📍 {loc.location_name}: {loc.available_qty ?? loc.stock_qty}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            ) : null}
-                                                        </button>
-                                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                                            <div className="text-right">
-                                                                <p className={`text-lg font-black ${Number(item.available_qty) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                    {item.available_qty}<span className="text-[10px] font-bold text-slate-400 ml-1">{item.unit}</span>
-                                                                </p>
-                                                                <p className="text-[9px] text-slate-400 font-bold">tersedia</p>
-                                                                {Number(item.reserved_qty) > 0 && <p className="text-[9px] text-orange-500 font-black">⏳ {item.reserved_qty} pending</p>}
-                                                            </div>
-                                                            {user.role !== 'MANAGER' && (
-                                                                <button onClick={e => { e.stopPropagation(); handleStartEdit(item); }}
-                                                                    className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">✏️ Edit</button>
-                                                            )}
-                                                            <button onClick={e => { e.stopPropagation(); fetchLog(item.qr_id); }}
-                                                                className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">📋 Log</button>
-                                                        </div>
+                                                <div className="mt-3">
+                                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all ${Number(item.available_qty) > 0 ? 'bg-emerald-400' : 'bg-red-400'}`}
+                                                            style={{ width: `${Math.min(100, (Number(item.available_qty) / Math.max(Number(item.stock_qty), 1)) * 100)}%` }} />
                                                     </div>
-                                                    {/* Progress bar */}
-                                                    <div className="mt-3">
-                                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                            <div className={`h-full rounded-full transition-all ${Number(item.available_qty) > 0 ? 'bg-emerald-400' : 'bg-red-400'}`}
-                                                                style={{ width: `${Math.min(100, (Number(item.available_qty) / Math.max(Number(item.stock_qty), 1)) * 100)}%` }} />
-                                                        </div>
-                                                        <span className="text-[9px] text-slate-400 mt-1 block">Stok fisik: {item.stock_qty} {item.unit}</span>
-                                                    </div>
-                                                    {/* Log panel */}
-                                                    {logQr === item.qr_id && (
-                                                        <div className="mt-3 pt-3 border-t border-slate-100">
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📋 Riwayat Adjustment Stok</p>
-                                                            {loadingLog ? <p className="text-[10px] text-slate-400 animate-pulse py-2">Memuat...</p>
-                                                                : logs.length === 0 ? <p className="text-[10px] text-slate-300 italic py-2">Belum ada perubahan stok.</p>
-                                                                    : (
-                                                                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                                                                            {logs.map((log: any) => (
-                                                                                <div key={log.id} className="flex justify-between items-start gap-2 bg-slate-50 rounded-xl p-2.5">
-                                                                                    <div className="flex-1 min-w-0">
-                                                                                        <div className="flex items-center gap-1.5">
-                                                                                            <span className={`text-[10px] font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{log.diff > 0 ? `+${log.diff}` : log.diff}</span>
-                                                                                            <span className="text-[10px] text-slate-500">({log.stock_before} → {log.stock_after})</span>
-                                                                                        </div>
-                                                                                        <p className="text-[9px] text-slate-400 font-bold">{log.adjusted_by}</p>
-                                                                                        {log.note && <p className="text-[9px] text-slate-500 italic">"{log.note}"</p>}
+                                                    <span className="text-[9px] text-slate-400 mt-1 block">Stok fisik: {item.stock_qty} {item.unit}</span>
+                                                </div>
+                                                {logQr === item.qr_id && (
+                                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📋 Riwayat Adjustment Stok</p>
+                                                        {loadingLog ? <p className="text-[10px] text-slate-400 animate-pulse py-2">Memuat...</p>
+                                                            : logs.length === 0 ? <p className="text-[10px] text-slate-300 italic py-2">Belum ada perubahan stok.</p>
+                                                                : (
+                                                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                                        {logs.map((log: any) => (
+                                                                            <div key={log.id} className="flex justify-between items-start gap-2 bg-slate-50 rounded-xl p-2.5">
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        <span className={`text-[10px] font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{log.diff > 0 ? `+${log.diff}` : log.diff}</span>
+                                                                                        <span className="text-[10px] text-slate-500">({log.stock_before} → {log.stock_after})</span>
                                                                                     </div>
-                                                                                    <p className="text-[9px] text-slate-300 flex-shrink-0">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                                                                    <p className="text-[9px] text-slate-400 font-bold">{log.adjusted_by}</p>
+                                                                                    {log.note && <p className="text-[9px] text-slate-500 italic">"{log.note}"</p>}
                                                                                 </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                                                                <p className="text-[9px] text-slate-300 flex-shrink-0">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
