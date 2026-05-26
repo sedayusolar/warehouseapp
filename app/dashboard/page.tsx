@@ -32,6 +32,7 @@ export default function DashboardPage() {
     if (!user) return null;
 
     const s = data?.stok_summary || {};
+    const pendingCheckinCount = data?.pending_checkin_count || 0;
     const toolsBorrowed = data?.tools_borrowed || [];
     const stokHabis = data?.stok_habis || [];
     const pendingApproval = data?.pending_approval || [];
@@ -274,10 +275,25 @@ export default function DashboardPage() {
                             </div>
                         )}
                         {user.role === 'MANAGER' && (
-                            <button onClick={() => router.push('/transactions')}
-                                className="w-full bg-amber-500 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
-                                ⏳ Lihat Transaksi Pending Approval
-                            </button>
+                            <div className="space-y-3">
+                                <button onClick={() => router.push('/transactions')}
+                                    className="w-full bg-amber-500 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
+                                    ⏳ Approve Checkout Transaksi
+                                </button>
+                                <button onClick={() => router.push('/checkin-list')}
+                                    className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg relative">
+                                    ✅ Approve Check In Barang
+                                    {pendingCheckinCount > 0 && (
+                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center">
+                                            {pendingCheckinCount}
+                                        </span>
+                                    )}
+                                </button>
+                                <button onClick={() => router.push('/cost-report')}
+                                    className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
+                                    💰 Cost Report per Project
+                                </button>
+                            </div>
                         )}
                     </>
                 )}
