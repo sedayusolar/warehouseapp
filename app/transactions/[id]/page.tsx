@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, use } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import FloatingMenu from '../../components/FloatingMenu';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";

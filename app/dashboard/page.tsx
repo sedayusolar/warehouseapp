@@ -259,3 +259,8 @@ export default function DashboardPage() {
                     </>
                 )}
             </div>
+
+            <FloatingMenu />
+        </main>
+    );
+}
