@@ -125,15 +125,18 @@ function CostReportContent() {
                             <div className="bg-slate-900 text-white rounded-2xl p-4 col-span-2">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Cost (APPROVED)</p>
                                 <p className="text-3xl font-black mt-1">{formatRp(Number(gt.grand_total) || 0)}</p>
-                                <div className="flex gap-4 mt-2">
-                                    <div>
-                                        <p className="text-[9px] text-slate-400 uppercase">Material</p>
-                                        <p className="text-sm font-black text-emerald-400">{formatRp(Number(gt.total_material) || 0)}</p>
+                                {/* Material — primary cost */}
+                                <div className="mt-3 space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">📦 Material (Konsumsi)</p>
+                                        <p className="text-base font-black text-emerald-400">{formatRp(Number(gt.total_material) || 0)}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-[9px] text-slate-400 uppercase">Tools</p>
-                                        <p className="text-sm font-black text-amber-400">{formatRp(Number(gt.total_tools) || 0)}</p>
+                                    <div className="flex justify-between items-center opacity-60">
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">🛠️ Tools (Referensi)</p>
+                                        <p className="text-sm font-bold text-slate-400">{formatRp(Number(gt.total_tools) || 0)}</p>
                                     </div>
+                                </div>
+                                <div className="flex gap-4 mt-2 pt-2 border-t border-slate-700">
                                     <div>
                                         <p className="text-[9px] text-slate-400 uppercase">Transaksi</p>
                                         <p className="text-sm font-black text-white">{gt.total_transaksi || 0}</p>
@@ -185,7 +188,7 @@ function CostReportContent() {
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     <p className="font-black text-slate-900">{formatRp(Number(proj.total_cost))}</p>
-                                                    <p className="text-[9px] text-slate-400">{pct.toFixed(1)}% dari total</p>
+                                                    <p className="text-[9px] text-slate-400">{proj.total_transaksi} transaksi</p>
                                                 </div>
                                             </div>
                                             {/* Cost bar */}
