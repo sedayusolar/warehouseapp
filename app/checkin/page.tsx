@@ -143,24 +143,31 @@ function CheckInContent() {
 
         setSubmitting(true);
 
+        // --- UPDATE: Menyesuaikan payload untuk file checkin.php lo ---
+        const formattedItems: any[] = [];
+        cart.forEach(item => {
+            if (item.conditions.GOOD > 0) {
+                formattedItems.push({ qr_id: item.qr_id, location_id: item.location_id, qty: item.conditions.GOOD, condition: 'GOOD' });
+            }
+            if (item.conditions.DAMAGED > 0) {
+                formattedItems.push({ qr_id: item.qr_id, location_id: item.location_id, qty: item.conditions.DAMAGED, condition: 'DAMAGED' });
+            }
+            if (item.conditions.LOST > 0) {
+                formattedItems.push({ qr_id: item.qr_id, location_id: item.location_id, qty: item.conditions.LOST, condition: 'LOST' });
+            }
+        });
+
         const payload = {
-            checkout_id: checkoutId,
+            checkout_header_id: checkoutId,
             pic_name: picName,
             signature_base64: signatureBase64,
-            return_date: new Date().toISOString().split('T')[0],
-            manager_approval_status: 'PENDING', // <-- Info ke backend bahwa ini nunggu approval
-            items: cart.map(item => ({
-                qr_id: item.qr_id,
-                returned_qty: Number(item.qty),
-                condition_good: item.conditions.GOOD,
-                condition_damaged: item.conditions.DAMAGED,
-                condition_lost: item.conditions.LOST,
-                location_id: item.location_id
-            }))
+            checkin_date: new Date().toISOString().split('T')[0],
+            items: formattedItems
         };
 
         try {
-            const res = await fetch(`${BASE_URL}/submit_checkin.php`, {
+            // --- UPDATE: Target URL diubah ke checkin.php ---
+            const res = await fetch(`${BASE_URL}/checkin.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -171,7 +178,6 @@ function CheckInContent() {
 
             const result = await res.json();
             if (result.status === 'success') {
-                // UPDATE PESAN SUKSES
                 setSuccess('Check In berhasil disubmit! Menunggu Approval Manager untuk update stok gudang.');
                 setTimeout(() => router.push('/transactions'), 2500);
             } else {
@@ -294,15 +300,15 @@ function CheckInContent() {
             </div>
 
             {/* BOTTOM NAV */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 z-50 p-4 pb-6">
                 <div className="max-w-2xl mx-auto flex gap-3">
                     <button onClick={() => router.push('/')}
-                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">
+                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
                         🏠 Menu Utama
                     </button>
                     <button onClick={() => router.push('/transactions')}
-                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">
-                        📋 Riwayat Transaksi
+                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
+                        📋 Transaksi
                     </button>
                 </div>
             </div>
