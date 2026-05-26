@@ -162,7 +162,7 @@ export default function DashboardPage() {
                                                         <span className="font-black text-slate-700">{t.qty_borrowed} {t.unit}</span>
                                                         <p className={`text-[9px] font-bold mt-0.5 ${days > 7 ? 'text-red-500' : days > 3 ? 'text-orange-500' : 'text-slate-400'}`}>
                                                             {days === 0 ? 'Hari ini' : `${days} hari`}
-                                                        </span>
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </button>
@@ -208,7 +208,7 @@ export default function DashboardPage() {
                         {stokHabis.length > 0 && (
                             <div className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
                                 <div className="px-4 py-3 border-b border-red-200">
-                                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">❌ Stok Habis ({stokHabis.length} item)</span>
+                                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">❌ Stok Habis ({stokHabis.length} item)</p>
                                 </div>
                                 <div className="divide-y divide-red-100">
                                     {stokHabis.map((item: any) => (
