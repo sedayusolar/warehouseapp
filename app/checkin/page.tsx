@@ -59,7 +59,8 @@ function CheckInContent() {
     const fetchCheckoutData = async (id: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_checkout_for_checkin.php?checkout_id=${id}`, {
+            // --- REVISI: Mengubah endpoint ke get_transaction_detail.php ---
+            const res = await fetch(`${BASE_URL}/get_transaction_detail.php?id=${id}`, {
                 headers: { 'X-API-KEY': API_KEY }
             });
             const result = await res.json();
@@ -143,7 +144,6 @@ function CheckInContent() {
 
         setSubmitting(true);
 
-        // --- UPDATE: Menyesuaikan payload untuk file checkin.php lo ---
         const formattedItems: any[] = [];
         cart.forEach(item => {
             if (item.conditions.GOOD > 0) {
@@ -166,7 +166,6 @@ function CheckInContent() {
         };
 
         try {
-            // --- UPDATE: Target URL diubah ke checkin.php ---
             const res = await fetch(`${BASE_URL}/checkin.php`, {
                 method: 'POST',
                 headers: {
