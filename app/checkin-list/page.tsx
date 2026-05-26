@@ -12,12 +12,25 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string }
     REJECTED: { label: 'Ditolak', color: 'text-red-600', bg: 'bg-red-50 border-red-200' },
 };
 
-const COND_ICON: Record<string, string> = { GOOD: '✅', DAMAGED: '⚠️', LOST: '❌' };
-const COND_LABEL = (condition: string, category: string) => {
+const COND_ICON = (condition: string, category: string) => {
     if (category === 'Material') {
-        return condition === 'GOOD' ? '📦 Ada Sisa' : condition === 'DAMAGED' ? '✅ Terpakai' : '❌ Hilang';
+        if (condition === 'GOOD') return '📦';
+        if (condition === 'DAMAGED') return '⚠️';
+        if (condition === 'USED') return '✅';
+        return '❌';
     }
-    return condition === 'GOOD' ? '✅ Baik' : condition === 'DAMAGED' ? '⚠️ Rusak' : '❌ Hilang';
+    return condition === 'GOOD' ? '✅' : condition === 'DAMAGED' ? '⚠️' : '❌';
+};
+const COND_LABEL = (condition: string, category: string): string => {
+    if (category === 'Material') {
+        if (condition === 'GOOD') return '📦 Ada Sisa';
+        if (condition === 'DAMAGED') return '⚠️ Sisa Rusak';
+        if (condition === 'USED') return '✅ Terpakai';
+        return '❌ Hilang';
+    }
+    if (condition === 'GOOD') return '✅ Baik';
+    if (condition === 'DAMAGED') return '⚠️ Rusak';
+    return '❌ Hilang';
 };
 
 function CheckInListContent() {
@@ -158,7 +171,7 @@ function CheckInListContent() {
                                                     <div className="flex justify-between items-start gap-2">
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
-                                                                <span className="text-sm">{COND_ICON[item.condition] || '❓'}</span>
+                                                                <span className="text-sm">{COND_ICON(item.condition, item.category || '')}</span>
                                                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                                                     {item.category}
                                                                 </span>
@@ -169,8 +182,8 @@ function CheckInListContent() {
                                                                 📍 {item.location_name || '-'} · Qty: {item.qty} {item.unit}
                                                             </p>
                                                             <p className="text-[10px] text-slate-500">
-                                                                Kondisi: <span className="font-bold">{item.condition}</span>
-                                                                {item.condition === 'LOST' && <span className="text-red-500 font-black ml-1">— Stok tidak kembali</span>}
+                                                                Kondisi: <span className="font-bold">{COND_LABEL(item.condition, item.category || '')}</span>
+                                                                {(item.condition === 'LOST' || item.condition === 'USED') && <span className="text-red-500 font-black ml-1">— Stok tidak kembali</span>}
                                                             </p>
                                                             {item.note && <p className="text-[10px] italic text-slate-400 mt-0.5">"{item.note}"</p>}
                                                         </div>
@@ -224,7 +237,7 @@ function CheckInListContent() {
                                                 </div>
                                             )}
                                             <p className="text-[9px] text-slate-400 text-center">
-                                                Setelah Approve, stok barang yang kondisi GOOD & DAMAGED akan dikembalikan ke gudang.
+                                                Setelah Approve: Tools (Baik/Rusak) & Material (Ada Sisa/Sisa Rusak) kembali ke gudang. Material Terpakai/Hilang tidak kembali.
                                             </p>
                                         </div>
                                     )}

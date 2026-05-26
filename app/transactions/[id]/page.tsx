@@ -14,7 +14,8 @@ const COND_CONFIG: Record<string, { label: string, color: string }> = {
 const getCondLabel = (condition: string, category: string) => {
     if (category === 'Material') {
         if (condition === 'GOOD') return { label: 'Ada Sisa', color: 'bg-emerald-100 text-emerald-700' };
-        if (condition === 'DAMAGED') return { label: 'Terpakai', color: 'bg-blue-100 text-blue-700' };
+        if (condition === 'DAMAGED') return { label: 'Sisa Rusak', color: 'bg-orange-100 text-orange-600' };
+        if (condition === 'USED') return { label: 'Terpakai', color: 'bg-blue-100 text-blue-700' };
         return { label: 'Hilang', color: 'bg-red-100 text-red-600' };
     }
     return COND_CONFIG[condition] || { label: condition, color: 'bg-slate-100 text-slate-500' };

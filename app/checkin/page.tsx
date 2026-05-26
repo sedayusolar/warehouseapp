@@ -13,10 +13,11 @@ const CONDITION_TOOLS: Record<string, { label: string, color: string, icon: stri
     LOST: { label: 'Hilang', color: 'bg-red-100 text-red-600 border-red-300', icon: '❌' },
 };
 
-// Material: status pemakaian
+// Material: status pemakaian (4 kondisi)
 const CONDITION_MATERIAL: Record<string, { label: string, color: string, icon: string }> = {
     GOOD: { label: 'Ada Sisa', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', icon: '📦' },
-    DAMAGED: { label: 'Terpakai', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: '✅' },
+    DAMAGED: { label: 'Sisa Rusak', color: 'bg-orange-100 text-orange-600 border-orange-300', icon: '⚠️' },
+    USED: { label: 'Terpakai', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: '✅' },
     LOST: { label: 'Hilang', color: 'bg-red-100 text-red-600 border-red-300', icon: '❌' },
 };
 
@@ -91,7 +92,7 @@ function CheckInContent() {
                     qty: item.qty,
                     location_id: item.location_id || '',
                     location_name: item.location_name || '',
-                    condition: item.item_type === 'MATERIAL' ? 'DAMAGED' : 'GOOD',
+                    condition: item.item_type === 'MATERIAL' ? 'USED' : 'GOOD',
                     photo_base64: '',
                     note: '',
                 })));
@@ -128,7 +129,7 @@ function CheckInContent() {
     const handleSubmit = async () => {
         if (!checkoutId) { alert("Tidak ada transaksi yang dipilih."); return; }
         for (const item of cart) {
-            const needsLocation = !(item.type === 'MATERIAL' && (item.condition === 'DAMAGED' || item.condition === 'LOST')) && item.condition !== 'LOST';
+            const needsLocation = !(item.type === 'MATERIAL' && (item.condition === 'USED' || item.condition === 'LOST')) && item.condition !== 'LOST';
             if (needsLocation && !item.location_id) { alert(`Pilih lokasi pengembalian untuk: ${item.name}`); return; }
         }
         if (!picName) { alert("Nama PIC wajib diisi."); return; }
@@ -278,7 +279,7 @@ function CheckInContent() {
                                     {/* Lokasi kembalikan */}
                                     <div>
                                         {/* Lokasi hanya diperlukan jika barang kembali ke gudang */}
-                                        {!(item.type === 'MATERIAL' && (item.condition === 'DAMAGED' || item.condition === 'LOST')) && item.condition !== 'LOST' ? (
+                                        {!(item.type === 'MATERIAL' && (item.condition === 'USED' || item.condition === 'LOST')) && item.condition !== 'LOST' ? (
                                             <div>
                                                 <label className="text-[9px] font-black text-slate-400 uppercase">Kembalikan ke Lokasi *</label>
                                                 <select value={item.location_id} onChange={e => updateCart(item.qr_id, 'location_id', e.target.value)}
@@ -292,7 +293,7 @@ function CheckInContent() {
                                         ) : (
                                             <div className="bg-slate-50 rounded-xl p-3 text-center">
                                                 <p className="text-[10px] text-slate-400 font-bold">
-                                                    {item.condition === 'LOST' ? '❌ Barang hilang — stok tidak kembali' : '✅ Material terpakai — stok tidak kembali ke gudang'}
+                                                    {item.condition === 'LOST' ? '❌ Barang hilang — stok tidak kembali' : item.condition === 'USED' ? '✅ Material terpakai — stok tidak kembali ke gudang' : '❌ Barang hilang — stok tidak kembali'}
                                                 </p>
                                             </div>
                                         )}
