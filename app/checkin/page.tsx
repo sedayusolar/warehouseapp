@@ -14,7 +14,9 @@ const CONDITION_CONFIG = {
 function CheckInContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const checkoutId = searchParams.get('checkout_id');
+
+    // --- REVISI UTAMA: Bisa baca ?id= ATAU ?checkout_id= biar gak salah kirim ---
+    const checkoutId = searchParams.get('id') || searchParams.get('checkout_id');
 
     const [user, setUser] = useState<any>(null);
     const [locations, setLocations] = useState<any[]>([]);
@@ -36,7 +38,8 @@ function CheckInContent() {
         }
         setUser(JSON.parse(loggedInUser));
 
-        if (checkoutId) {
+        // --- REVISI: Proteksi ketat agar tidak menembak API jika id berisi string "null" atau "undefined" ---
+        if (checkoutId && checkoutId !== 'null' && checkoutId !== 'undefined') {
             fetchCheckoutData(checkoutId);
         } else {
             setLoading(false);
@@ -59,7 +62,6 @@ function CheckInContent() {
     const fetchCheckoutData = async (id: string) => {
         setLoading(true);
         try {
-            // --- REVISI: Mengubah endpoint ke get_transaction_detail.php ---
             const res = await fetch(`${BASE_URL}/get_transaction_detail.php?id=${id}`, {
                 headers: { 'X-API-KEY': API_KEY }
             });
@@ -190,7 +192,18 @@ function CheckInContent() {
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading Data...</div>;
-    if (!checkoutId || !checkoutInfo) return <div className="p-10 text-center font-bold text-red-500">Data Transaksi Tidak Ditemukan / ID Kosong.</div>;
+
+    // --- REVISI: Tampilan jika ID beneran kosong atau tidak valid ---
+    if (!checkoutId || checkoutId === 'null' || checkoutId === 'undefined' || !checkoutInfo) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                <div className="text-4xl">⚠️</div>
+                <p className="font-bold text-red-500 text-sm uppercase tracking-wider">ID Transaksi Tidak Valid atau Kosong</p>
+                <p className="text-xs text-slate-400 max-w-xs">Pastikan Anda membuka halaman ini melalui tombol Check In resmi di Riwayat Transaksi.</p>
+                <button onClick={() => router.push('/transactions')} className="bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-md">Kembali ke Transaksi</button>
+            </div>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-slate-50 pb-28 font-sans">
@@ -204,7 +217,7 @@ function CheckInContent() {
 
             <div className="p-4 max-w-2xl mx-auto space-y-6">
                 {success ? (
-                    <div className="bg-emerald-50 border-2 border-emerald-500 p-8 rounded-3xl text-center space-y-4 animate-bounce">
+                    <div className="bg-emerald-50 border-2 border-emerald-500 p-8 rounded-3xl text-center space-y-4">
                         <div className="text-5xl">✅</div>
                         <p className="font-black text-emerald-700 uppercase tracking-widest leading-relaxed">{success}</p>
                     </div>
