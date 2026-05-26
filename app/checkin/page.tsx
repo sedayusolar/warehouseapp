@@ -24,312 +24,267 @@ function CheckInContent() {
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState('');
     const [picName, setPicName] = useState('');
-    const [note, setNote] = useState('');
-    const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0]);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> =>
-        new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height;
-                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.src = e.target?.result as string;
-            };
-            reader.readAsDataURL(file);
-        });
-
     useEffect(() => {
-        const u = localStorage.getItem('user');
-        if (!u) { router.push('/login'); return; }
-        setUser(JSON.parse(u));
+        const loggedInUser = localStorage.getItem('user');
+        if (!loggedInUser) {
+            router.push('/login');
+            return;
+        }
+        setUser(JSON.parse(loggedInUser));
+
+        if (checkoutId) {
+            fetchCheckoutData(checkoutId);
+        } else {
+            setLoading(false);
+        }
         fetchLocations();
-        if (checkoutId) loadFromCheckout(Number(checkoutId));
-        else setLoading(false);
-    }, []);
+    }, [checkoutId]);
 
     const fetchLocations = async () => {
-        const res = await fetch(`${BASE_URL}/get_locations.php`, { headers: { 'X-API-KEY': API_KEY } });
-        const r = await res.json();
-        if (r.status === 'success') setLocations(r.data);
+        try {
+            const res = await fetch(`${BASE_URL}/get_locations.php`, {
+                headers: { 'X-API-KEY': API_KEY }
+            });
+            const result = await res.json();
+            if (result.status === 'success') setLocations(result.data);
+        } catch (error) {
+            console.error("Gagal load lokasi:", error);
+        }
     };
 
-    const loadFromCheckout = async (id: number) => {
+    const fetchCheckoutData = async (id: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_transaction_detail.php?id=${id}`, { headers: { 'X-API-KEY': API_KEY } });
-            const r = await res.json();
-            if (r.status === 'success') {
-                setCheckoutInfo(r.header);
-                setPicName(r.header.pic_name || '');
-                setCart(r.items.map((item: any) => ({
+            const res = await fetch(`${BASE_URL}/get_checkout_for_checkin.php?checkout_id=${id}`, {
+                headers: { 'X-API-KEY': API_KEY }
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                setCheckoutInfo(result.header);
+
+                const mappedItems = result.items.map((item: any) => ({
                     qr_id: item.qr_id,
-                    name: item.item_name,
-                    type: item.item_type,
-                    unit: item.unit || '',
-                    qty: item.qty,
-                    location_id: item.location_id || '',
-                    location_name: item.location_name || '',
-                    condition: 'GOOD',
-                    photo_base64: '',
-                    note: '',
-                })));
+                    item_name: item.item_name,
+                    item_type: item.item_type,
+                    checkout_qty: Number(item.qty),
+                    qty: Number(item.qty),
+                    location_id: '',
+                    conditions: { GOOD: Number(item.qty), DAMAGED: 0, LOST: 0 }
+                }));
+                setCart(mappedItems);
+            } else {
+                alert(result.message);
             }
-        } catch { }
+        } catch (error) {
+            alert("Gagal ambil data transaksi awal.");
+        }
         setLoading(false);
     };
 
-    const updateCart = (qr_id: string, field: string, value: any) => {
-        setCart(prev => prev.map(i => i.qr_id === qr_id ? { ...i, [field]: value } : i));
+    const handleConditionChange = (idx: number, type: 'GOOD' | 'DAMAGED' | 'LOST', val: number) => {
+        const newCart = [...cart];
+        newCart[idx].conditions[type] = val;
+
+        const total = Number(newCart[idx].conditions.GOOD) +
+            Number(newCart[idx].conditions.DAMAGED) +
+            Number(newCart[idx].conditions.LOST);
+
+        newCart[idx].qty = total;
+        setCart(newCart);
     };
 
-    // Signature
     const startDrawing = (e: any) => {
         const canvas = canvasRef.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        const x = ((e.clientX || e.touches?.[0]?.clientX) - rect.left) * (canvas.width / rect.width);
-        const y = ((e.clientY || e.touches?.[0]?.clientY) - rect.top) * (canvas.height / rect.height);
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        const x = (clientX - rect.left) * (canvas.width / rect.width);
+        const y = (clientY - rect.top) * (canvas.height / rect.height);
         ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
         ctx.beginPath(); ctx.moveTo(x, y); setIsDrawing(true);
     };
+
     const draw = (e: any) => {
         if (!isDrawing) return;
-        const canvas = canvasRef.current; const ctx = canvas?.getContext('2d');
-        if (!ctx || !canvas) return;
+        const canvas = canvasRef.current; const ctx = canvas?.getContext('2d'); if (!ctx || !canvas) return;
         const rect = canvas.getBoundingClientRect();
-        const x = ((e.clientX || e.touches?.[0]?.clientX) - rect.left) * (canvas.width / rect.width);
-        const y = ((e.clientY || e.touches?.[0]?.clientY) - rect.top) * (canvas.height / rect.height);
-        ctx.lineTo(x, y); ctx.stroke(); if (e.touches) e.preventDefault();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        const x = (clientX - rect.left) * (canvas.width / rect.width);
+        const y = (clientY - rect.top) * (canvas.height / rect.height);
+        ctx.lineTo(x, y); ctx.stroke();
+        if (e.touches) e.preventDefault();
     };
-    const clearSignature = () => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300);
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
 
     const handleSubmit = async () => {
-        if (!checkoutId) { alert("Tidak ada transaksi yang dipilih."); return; }
-        for (const item of cart) {
-            if (!item.location_id) { alert(`Pilih lokasi pengembalian untuk: ${item.name}`); return; }
+        const signatureBase64 = canvasRef.current?.toDataURL('image/png');
+        if (!picName || !signatureBase64 || signatureBase64.length < 2000) {
+            alert("Nama PIC dan Tanda Tangan wajib diisi!");
+            return;
         }
-        if (!picName) { alert("Nama PIC wajib diisi."); return; }
-        const sig = canvasRef.current?.toDataURL('image/png');
-        if (!sig || sig.length < 2000) { alert("Tanda tangan wajib diisi."); return; }
+
+        for (const item of cart) {
+            if (item.qty > item.checkout_qty) {
+                alert(`Total barang kembali (${item.item_name}) tidak boleh lebih dari yang dibawa (${item.checkout_qty})!`);
+                return;
+            }
+        }
 
         setSubmitting(true);
+
+        const payload = {
+            checkout_id: checkoutId,
+            pic_name: picName,
+            signature_base64: signatureBase64,
+            return_date: new Date().toISOString().split('T')[0],
+            manager_approval_status: 'PENDING', // <-- Info ke backend bahwa ini nunggu approval
+            items: cart.map(item => ({
+                qr_id: item.qr_id,
+                returned_qty: Number(item.qty),
+                condition_good: item.conditions.GOOD,
+                condition_damaged: item.conditions.DAMAGED,
+                condition_lost: item.conditions.LOST,
+                location_id: item.location_id
+            }))
+        };
+
         try {
-            const res = await fetch(`${BASE_URL}/checkin.php`, {
+            const res = await fetch(`${BASE_URL}/submit_checkin.php`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({
-                    checkout_header_id: Number(checkoutId),
-                    checkin_type: 'TOOLS_RETURN',
-                    project_name: checkoutInfo?.project_name || '',
-                    pic_name: picName,
-                    checkin_date: checkinDate,
-                    note,
-                    created_by: user?.name || 'unknown',
-                    signature_base64: sig,
-                    items: cart.map(i => ({
-                        qr_id: i.qr_id,
-                        location_id: i.location_id,
-                        qty: Number(i.qty),
-                        condition: i.condition,
-                        photo_base64: i.photo_base64,
-                        note: i.note,
-                    }))
-                })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': API_KEY
+                },
+                body: JSON.stringify(payload)
             });
-            const r = await res.json();
-            if (r.status === 'success') setSuccess(r.checkin_code);
-            else alert("Gagal: " + r.message);
-        } catch { alert("Gagal koneksi server."); }
-        setSubmitting(false);
+
+            const result = await res.json();
+            if (result.status === 'success') {
+                // UPDATE PESAN SUKSES
+                setSuccess('Check In berhasil disubmit! Menunggu Approval Manager untuk update stok gudang.');
+                setTimeout(() => router.push('/transactions'), 2500);
+            } else {
+                alert("Gagal: " + result.message);
+                setSubmitting(false);
+            }
+        } catch (error) {
+            alert("Kesalahan koneksi ke server.");
+            setSubmitting(false);
+        }
     };
 
-    if (!user) return null;
-
-    // No checkout_id — redirect user to transactions
-    if (!checkoutId && !loading) {
-        return (
-            <main className="min-h-screen bg-slate-50 font-sans flex flex-col items-center justify-center p-8 gap-6">
-                <div className="text-center space-y-3">
-                    <p className="text-5xl">📋</p>
-                    <h1 className="font-black text-xl text-slate-800">Check In via Transaksi</h1>
-                    <p className="text-sm text-slate-500">Pilih transaksi yang sudah APPROVED dari halaman Riwayat Transaksi, lalu klik tombol ✅ Check In.</p>
-                </div>
-                <button onClick={() => router.push('/transactions')}
-                    className="w-full max-w-xs bg-blue-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg active:scale-95 transition-all">
-                    📋 Ke Riwayat Transaksi
-                </button>
-                <button onClick={() => router.push('/dashboard')}
-                    className="text-slate-400 text-sm font-bold">← Dashboard</button>
-            </main>
-        );
-    }
+    if (loading) return <div className="min-h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading Data...</div>;
+    if (!checkoutId || !checkoutInfo) return <div className="p-10 text-center font-bold text-red-500">Data Transaksi Tidak Ditemukan / ID Kosong.</div>;
 
     return (
         <main className="min-h-screen bg-slate-50 pb-28 font-sans">
-            {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg p-5 flex justify-between items-center">
+            <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-20 flex justify-between items-center">
                 <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Check In Barang</p>
-                    <h1 className="text-xl font-black">{checkoutInfo?.project_name || 'Loading...'}</h1>
-                    <p className="text-[10px] text-slate-400">{checkoutInfo?.transaction_code} · {checkoutInfo?.checkout_date}</p>
+                    <h1 className="text-xl font-bold">Check In Barang</h1>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">{checkoutInfo.project_name}</p>
                 </div>
-                <button onClick={() => router.back()} className="bg-slate-800 px-3 py-2 rounded-xl text-xs font-black">← Kembali</button>
+                <button onClick={() => router.push('/transactions')} className="bg-slate-800 p-2 rounded-full text-xs font-black">✕</button>
             </div>
 
-            <div className="p-4 max-w-2xl mx-auto space-y-5">
-
-                {/* SUCCESS */}
-                {success && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-3">
-                        <p className="text-5xl">✅</p>
-                        <p className="font-black text-emerald-700 text-xl">Check In Berhasil!</p>
-                        <p className="font-mono text-emerald-600 font-bold text-sm">{success}</p>
-                        <p className="text-xs text-emerald-600">Stok sudah dikembalikan ke gudang.</p>
-                        <button onClick={() => router.push('/transactions')}
-                            className="w-full bg-emerald-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md mt-2">
-                            📋 Lihat Riwayat Transaksi
-                        </button>
+            <div className="p-4 max-w-2xl mx-auto space-y-6">
+                {success ? (
+                    <div className="bg-emerald-50 border-2 border-emerald-500 p-8 rounded-3xl text-center space-y-4 animate-bounce">
+                        <div className="text-5xl">✅</div>
+                        <p className="font-black text-emerald-700 uppercase tracking-widest leading-relaxed">{success}</p>
                     </div>
-                )}
-
-                {loading && (
-                    <div className="text-center py-20 text-slate-400 animate-pulse font-bold">Memuat data transaksi...</div>
-                )}
-
-                {!loading && !success && checkoutInfo && (
+                ) : (
                     <>
-                        {/* Info transaksi */}
-                        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 space-y-1">
-                            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Info Checkout</p>
-                            <p className="font-bold text-slate-800">{checkoutInfo.project_name}</p>
-                            <div className="flex gap-4 mt-1">
-                                <div>
-                                    <p className="text-[9px] text-slate-400 uppercase">PIC</p>
-                                    <p className="text-xs font-bold text-slate-600">{checkoutInfo.pic_name}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] text-slate-400 uppercase">Tanggal</p>
-                                    <p className="text-xs font-bold text-slate-600">{checkoutInfo.checkout_date}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] text-slate-400 uppercase">Item</p>
-                                    <p className="text-xs font-bold text-slate-600">{cart.length} barang</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ITEM LIST */}
-                        <div className="space-y-3">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Kondisi Barang Dikembalikan</p>
-                            {cart.map(item => (
-                                <div key={item.qr_id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
-                                    {/* Item header */}
-                                    <div className="flex justify-between items-start">
+                        {/* LIST BARANG */}
+                        <div className="space-y-6">
+                            {cart.map((item, idx) => (
+                                <div key={idx} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+                                    <div className="border-b pb-3 flex justify-between items-start">
                                         <div>
-                                            <p className="font-bold text-sm text-slate-800">{item.name}</p>
+                                            <p className="font-bold text-slate-800 text-sm">{item.item_name}</p>
                                             <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                            {item.location_name && (
-                                                <p className="text-[10px] text-slate-400 mt-0.5">📍 Diambil dari: {item.location_name}</p>
-                                            )}
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-black text-slate-800">{item.qty} <span className="text-[10px] text-slate-400">{item.unit}</span></p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase">Dibawa</p>
+                                            <p className="font-black text-blue-600 text-xl">{item.checkout_qty}</p>
                                         </div>
                                     </div>
 
-                                    {/* Kondisi */}
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Kondisi Saat Kembali *</label>
-                                        <div className="flex gap-2 mt-1.5">
-                                            {Object.entries(CONDITION_CONFIG).map(([key, cfg]) => (
-                                                <button key={key} onClick={() => updateCart(item.qr_id, 'condition', key)}
-                                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] border-2 transition-all active:scale-95
-                                                        ${item.condition === key ? cfg.color : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                                                    {cfg.icon}<br />{cfg.label}
-                                                </button>
-                                            ))}
-                                        </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(['GOOD', 'DAMAGED', 'LOST'] as const).map((cond) => (
+                                            <div key={cond} className={`p-2 rounded-xl border flex flex-col items-center gap-2 ${CONDITION_CONFIG[cond].color}`}>
+                                                <p className="text-[9px] font-black uppercase text-center flex items-center gap-1">
+                                                    <span>{CONDITION_CONFIG[cond].icon}</span> {CONDITION_CONFIG[cond].label}
+                                                </p>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={item.conditions[cond]}
+                                                    onChange={(e: any) => handleConditionChange(idx, cond, e.target.value)}
+                                                    className="w-full text-center bg-white border border-black/10 rounded-lg p-1 font-bold text-sm text-black"
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
 
-                                    {/* Lokasi kembalikan */}
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Kembalikan ke Lokasi *</label>
-                                        <select value={item.location_id} onChange={e => updateCart(item.qr_id, 'location_id', e.target.value)}
-                                            className="w-full mt-1.5 p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm appearance-none">
-                                            <option value="">-- Pilih Lokasi --</option>
-                                            {locations.map((l: any) => (
-                                                <option key={l.id} value={l.id}>{l.location_name}</option>
+                                    <div className="pt-2">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Simpan di Lokasi:</p>
+                                        <select
+                                            value={item.location_id}
+                                            onChange={(e) => {
+                                                const newCart = [...cart];
+                                                newCart[idx].location_id = e.target.value;
+                                                setCart(newCart);
+                                            }}
+                                            className="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold text-slate-700 outline-none"
+                                        >
+                                            <option value="">-- Pilih Rak / Lokasi --</option>
+                                            {locations.map(loc => (
+                                                <option key={loc.id} value={loc.id}>{loc.location_name}</option>
                                             ))}
                                         </select>
                                     </div>
-
-                                    {/* Foto kondisi */}
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Foto Kondisi (opsional)</label>
-                                        <div className="flex items-center gap-3 mt-1.5">
-                                            <label className="px-3 py-2 bg-slate-100 text-slate-500 font-black text-[10px] rounded-xl cursor-pointer active:scale-95">
-                                                📷 Upload
-                                                <input type="file" accept="image/*" capture="environment" className="hidden"
-                                                    onChange={async e => {
-                                                        const file = e.target.files?.[0]; if (!file) return;
-                                                        const b64 = await compressImage(file);
-                                                        updateCart(item.qr_id, 'photo_base64', b64);
-                                                    }} />
-                                            </label>
-                                            {item.photo_base64 && (
-                                                <div className="relative">
-                                                    <img src={item.photo_base64} className="w-14 h-14 object-cover rounded-xl border border-slate-200" alt="preview" />
-                                                    <button onClick={() => updateCart(item.qr_id, 'photo_base64', '')}
-                                                        className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Catatan per item */}
-                                    <input type="text" placeholder="Catatan kondisi (opsional)..."
-                                        value={item.note} onChange={e => updateCart(item.qr_id, 'note', e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 rounded-xl outline-none text-sm font-medium text-slate-700" />
                                 </div>
                             ))}
                         </div>
 
-                        {/* FORM SUBMIT */}
-                        <div className="bg-white rounded-3xl shadow-xl p-5 space-y-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail Check In</p>
-                            <input type="date" value={checkinDate} onChange={e => setCheckinDate(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            <input type="text" placeholder="Nama PIC yang mengembalikan *" value={picName}
-                                onChange={e => setPicName(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            <input type="text" placeholder="Catatan tambahan (opsional)" value={note}
-                                onChange={e => setNote(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                        {/* FORM PIC & TTD */}
+                        <div className="bg-white p-6 rounded-3xl shadow-xl space-y-5 border-2 border-blue-50">
+                            <input
+                                type="text"
+                                placeholder="Nama PIC Pengembali"
+                                value={picName}
+                                onChange={(e: any) => setPicName(e.target.value)}
+                                className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                            />
 
-                            {/* Signature */}
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase">Tanda Tangan PIC *</label>
-                                    <button onClick={clearSignature} className="text-[10px] text-blue-500 font-bold uppercase">Reset</button>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Tanda Tangan Teknisi</label>
+                                    <button onClick={clearCanvas} className="text-[10px] text-blue-500 font-bold">RESET</button>
                                 </div>
-                                <canvas ref={canvasRef} width={500} height={200}
+                                <canvas
+                                    ref={canvasRef}
+                                    width={500} height={300}
                                     onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
                                     onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)}
-                                    className="w-full h-40 bg-slate-50 rounded-2xl border-2 border-slate-200 touch-none" />
-                                <p className="text-[9px] text-slate-400 text-center mt-1">Tanda tangan di kotak di atas</p>
+                                    className="w-full h-48 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 touch-none shadow-inner"
+                                />
                             </div>
 
-                            <button onClick={handleSubmit} disabled={submitting}
+                            <button
+                                onClick={handleSubmit}
+                                disabled={submitting}
                                 className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
                                 {submitting ? 'Menyimpan...' : '✅ SUBMIT CHECK IN'}
                             </button>
@@ -339,15 +294,15 @@ function CheckInContent() {
             </div>
 
             {/* BOTTOM NAV */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 z-50 p-4 pb-6">
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
                 <div className="max-w-2xl mx-auto flex gap-3">
-                    <button onClick={() => router.push('/dashboard')}
-                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
-                        🏠 Dashboard
+                    <button onClick={() => router.push('/')}
+                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">
+                        🏠 Menu Utama
                     </button>
                     <button onClick={() => router.push('/transactions')}
-                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
-                        📋 Transaksi
+                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">
+                        📋 Riwayat Transaksi
                     </button>
                 </div>
             </div>
