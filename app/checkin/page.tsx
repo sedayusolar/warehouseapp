@@ -14,7 +14,7 @@ const CONDITION_CONFIG = {
 function CheckInContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const checkoutId = searchParams.get('checkout_id');
+    const checkoutId = searchParams.get('checkout_id') || searchParams.get('id');
 
     const [user, setUser] = useState<any>(null);
     const [locations, setLocations] = useState<any[]>([]);
@@ -194,7 +194,7 @@ function CheckInContent() {
                         <p className="text-5xl">✅</p>
                         <p className="font-black text-emerald-700 text-xl">Check In Berhasil!</p>
                         <p className="font-mono text-emerald-600 font-bold text-sm">{success}</p>
-                        <p className="text-xs text-emerald-600">Stok sudah dikembalikan ke gudang.</p>
+                        <p className="text-xs text-emerald-600">Menunggu approval Manager. Stok akan kembali setelah disetujui.</p>
                         <button onClick={() => router.push('/transactions')}
                             className="w-full bg-emerald-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md mt-2">
                             📋 Lihat Riwayat Transaksi
