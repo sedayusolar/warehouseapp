@@ -261,6 +261,7 @@ export default function DashboardPage() {
                                     { label: 'Check In', icon: '✅', path: '/checkin', color: 'bg-emerald-600' },
                                     { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
                                     { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-600' },
+                                    { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700' },
                                     { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
                                     ...(user.role === 'ADMIN' ? [{ label: 'Users', icon: '👥', path: '/users', color: 'bg-slate-500' }] : []),
                                 ].map(action => (
