@@ -29,10 +29,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const fetchDetail = async () => {
         try {
             const res = await fetch(`https://sedayu.com/api/warehouse/get_transaction_detail.php?id=${id}`, {
-                headers: {
-                    'X-API-KEY': API_KEY,
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
             });
             const result = await res.json();
             if (result.status === 'success') {
@@ -124,10 +121,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         try {
             const res = await fetch('https://sedayu.com/api/warehouse/update_approval.php', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': API_KEY
-                },
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
                     id: id,
                     status: status,
@@ -161,7 +155,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
 
             <div className="p-4 max-w-2xl mx-auto space-y-8">
 
-                {/* SUMMARY CARD DENGAN NAMA PROJECT */}
+                {/* SUMMARY CARD */}
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 grid grid-cols-2 gap-y-6 gap-x-4">
                     <div className="col-span-2">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">Nama Project</p>
@@ -182,6 +176,17 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         ) : <p className="text-xs italic text-slate-400">Tidak ada tanda tangan</p>}
                     </div>
                 </div>
+
+                {/* --- TOMBOL CHECK IN KHUSUS TEKNISI JIKA SUDAH APPROVED --- */}
+                {header.transaction_status === 'SUBMITTED' && header.manager_approval_status === 'APPROVED' && user?.role !== 'MANAGER' && (
+                    <div className="bg-blue-50 border-2 border-blue-200 p-6 rounded-3xl text-center space-y-3 shadow-sm">
+                        <h3 className="font-black text-blue-800 text-xs uppercase tracking-widest">Barang di Lapangan</h3>
+                        <p className="text-xs text-blue-600">Proses instalasi selesai? Lakukan Check In untuk melaporkan pemakaian dan mengembalikan sisa barang.</p>
+                        <button onClick={() => router.push(`/checkin?id=${header.id}`)} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg mt-2 text-[10px] uppercase tracking-widest active:scale-95 transition-all">
+                            📦 Lakukan Check In
+                        </button>
+                    </div>
+                )}
 
                 {/* --- LIST BARANG KELUAR (CHECKOUT) --- */}
                 <div className="space-y-8">

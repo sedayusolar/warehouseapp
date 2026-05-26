@@ -46,10 +46,7 @@ function TransactionListContent() {
         try {
             const res = await fetch(`https://sedayu.com/api/warehouse/delete_transaction.php?id=${id}`, {
                 method: 'DELETE',
-                headers: {
-                    'X-API-KEY': API_KEY,
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
             });
             const result = await res.json();
             if (result.status === 'success') {
@@ -67,7 +64,6 @@ function TransactionListContent() {
         if (filter === 'ALL') return true;
         if (filter === 'DRAFT') return item.transaction_status === 'DRAFT';
         if (filter === 'SUBMITTED') {
-            // Tampilkan yang nunggu approval Checkout ATAU nunggu approval Check-in
             return (item.transaction_status === 'SUBMITTED' && item.manager_approval_status === 'PENDING') || item.transaction_status === 'CHECKIN_PENDING';
         }
         return true;
@@ -104,47 +100,51 @@ function TransactionListContent() {
                 ) : filteredData.length === 0 ? (
                     <div className="text-center py-20 text-slate-300 italic text-sm">Tidak ada transaksi ditemukan.</div>
                 ) : (
-                    filteredData.map((trx) => (
-                        <div key={trx.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="space-y-1">
-                                    <span className="text-[10px] font-mono text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-lg border">{trx.transaction_code}</span>
-                                    <h3 className="font-bold text-slate-800 text-lg mt-1">{trx.project_name}</h3>
+                    filteredData.map((trx) => {
+                        // LOGIC PINTAR BUAT MUNCULIN TOMBOL CHECK-IN
+                        const isReadyForCheckin = trx.transaction_status === 'SUBMITTED' && trx.manager_approval_status === 'APPROVED';
+
+                        return (
+                            <div key={trx.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-mono text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-lg border">{trx.transaction_code}</span>
+                                        <h3 className="font-bold text-slate-800 text-lg mt-1">{trx.project_name}</h3>
+                                    </div>
+                                    {user.role === 'ADMIN' && (
+                                        <button onClick={() => handleDelete(trx.id)} className="text-red-400 p-2">🗑️</button>
+                                    )}
                                 </div>
-                                {user.role === 'ADMIN' && (
-                                    <button onClick={() => handleDelete(trx.id)} className="text-red-400 p-2">🗑️</button>
-                                )}
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4 text-xs mb-5 pt-4 border-t">
-                                <div className="flex flex-col"><span className="text-slate-400 font-black uppercase text-[9px] mb-1">PIC</span><span className="text-slate-700 font-bold">{trx.pic_name || '—'}</span></div>
-                                <div className="flex flex-col"><span className="text-slate-400 font-black uppercase text-[9px] mb-1">Tanggal</span><span className="text-slate-700 font-bold">{trx.checkout_date}</span></div>
-                            </div>
+                                <div className="grid grid-cols-2 gap-4 text-xs mb-5 pt-4 border-t">
+                                    <div className="flex flex-col"><span className="text-slate-400 font-black uppercase text-[9px] mb-1">PIC</span><span className="text-slate-700 font-bold">{trx.pic_name || '—'}</span></div>
+                                    <div className="flex flex-col"><span className="text-slate-400 font-black uppercase text-[9px] mb-1">Tanggal</span><span className="text-slate-700 font-bold">{trx.checkout_date}</span></div>
+                                </div>
 
-                            {/* --- KONTROL TOMBOL INTERAKTIF AGAR TIDAK DOUBLE CHECKIN --- */}
-                            <div className="flex gap-2">
-                                {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
-                                    <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">🚀 Lanjutkan Draft</button>
-                                ) : trx.transaction_status === 'APPROVED' && user.role !== 'MANAGER' ? (
-                                    <>
-                                        <button onClick={() => router.push(`/transactions/${trx.id}`)} className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">👁️ Detail</button>
-                                        <button onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">📦 Check In Kembali</button>
-                                    </>
-                                ) : (
-                                    <button onClick={() => router.push(`/transactions/${trx.id}`)} className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.transaction_status === 'CHECKIN_PENDING' || trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {trx.transaction_status === 'CHECKIN_PENDING' ? '⚠️ Cek Approval Check-In' : trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
-                                    </button>
-                                )}
-                            </div>
+                                <div className="flex gap-2">
+                                    {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
+                                        <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">🚀 Lanjutkan Draft</button>
+                                    ) : isReadyForCheckin && user.role !== 'MANAGER' ? (
+                                        <>
+                                            <button onClick={() => router.push(`/transactions/${trx.id}`)} className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">👁️ Detail</button>
+                                            <button onClick={() => router.push(`/checkin?id=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">📦 Check In</button>
+                                        </>
+                                    ) : (
+                                        <button onClick={() => router.push(`/transactions/${trx.id}`)} className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.transaction_status === 'CHECKIN_PENDING' || trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>
+                                            {trx.transaction_status === 'CHECKIN_PENDING' ? '⚠️ Cek Approval Check-In' : trx.manager_approval_status === 'PENDING' && user.role === 'MANAGER' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
+                                        </button>
+                                    )}
+                                </div>
 
-                            <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${trx.transaction_status === 'CHECKIN_APPROVED' ? 'bg-blue-500' : trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                                    <span>Status: {trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status : trx.transaction_status}</span>
+                                <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${trx.transaction_status === 'CHECKIN_APPROVED' ? 'bg-blue-500' : trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                                        <span>Status: {trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status : trx.transaction_status}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
 
