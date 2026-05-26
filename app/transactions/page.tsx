@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
+import FloatingMenu from '../components/FloatingMenu';
 import { useRouter } from 'next/navigation';
 
 function TransactionListContent() {
@@ -157,16 +158,7 @@ function TransactionListContent() {
                     })
                 )}
             </div>
-
-            {/* --- BOTTOM MENU BAR --- */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
-                <div className="max-w-4xl mx-auto flex gap-3">
-                    <button onClick={() => router.push('/')} className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">🏠 Menu Utama</button>
-                    {user.role !== 'MANAGER' && (
-                        <button onClick={() => router.push('/checkout')} className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">+ Baru</button>
-                    )}
-                </div>
-            </div>
+            <FloatingMenu />
         </main>
     );
 }

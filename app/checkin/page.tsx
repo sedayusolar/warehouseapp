@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
+import FloatingMenu from '../components/FloatingMenu';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -170,6 +171,7 @@ function CheckInContent() {
                 </button>
                 <button onClick={() => router.push('/dashboard')}
                     className="text-slate-400 text-sm font-bold">← Dashboard</button>
+                <FloatingMenu />
             </main>
         );
     }
@@ -337,20 +339,7 @@ function CheckInContent() {
                     </>
                 )}
             </div>
-
-            {/* BOTTOM NAV */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 z-50 p-4 pb-6">
-                <div className="max-w-2xl mx-auto flex gap-3">
-                    <button onClick={() => router.push('/dashboard')}
-                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
-                        🏠 Dashboard
-                    </button>
-                    <button onClick={() => router.push('/transactions')}
-                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
-                        📋 Transaksi
-                    </button>
-                </div>
-            </div>
+            <FloatingMenu />
         </main>
     );
 }

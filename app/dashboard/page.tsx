@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import FloatingMenu from '../components/FloatingMenu';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -11,7 +12,6 @@ export default function DashboardPage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-    const [showMenu, setShowMenu] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -259,70 +259,3 @@ export default function DashboardPage() {
                     </>
                 )}
             </div>
-
-            {/* FLOATING MENU */}
-            {showMenu && (
-                <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setShowMenu(false)} />
-            )}
-
-            {/* FLOATING MENU ITEMS */}
-            {showMenu && (
-                <div className="fixed bottom-24 right-4 z-50 flex flex-col-reverse gap-2 items-end">
-                    {[
-                        ...(user.role !== 'MANAGER' ? [
-                            { label: 'Checkout', icon: '📦', path: '/checkout', color: 'bg-blue-600' },
-                            { label: 'Check In', icon: '✅', path: '/checkin', color: 'bg-emerald-500' },
-                            { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
-                            { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-600' },
-                            { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700' },
-                            { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
-                            ...(user.role === 'ADMIN' ? [
-                                { label: 'Users', icon: '👥', path: '/users', color: 'bg-slate-500' },
-                            ] : []),
-                        ] : [
-                            { label: 'Approve Checkout', icon: '⏳', path: '/transactions', color: 'bg-amber-500' },
-                            { label: 'Approve Check In', icon: '✅', path: '/checkin-list', color: 'bg-emerald-600' },
-                            { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
-                            { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
-                        ]),
-                        { label: 'Transaksi', icon: '📋', path: '/transactions', color: 'bg-blue-700' },
-                    ].map((item, i) => (
-                        <button key={item.path}
-                            onClick={() => { setShowMenu(false); router.push(item.path); }}
-                            className={`${item.color} text-white font-black flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl active:scale-95 transition-all`}
-                            style={{ animationDelay: `${i * 30}ms` }}>
-                            <span className="text-base">{item.icon}</span>
-                            <span className="text-xs uppercase tracking-widest whitespace-nowrap">{item.label}</span>
-                            {item.path === '/checkin-list' && pendingCheckinCount > 0 && (
-                                <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center ml-1">
-                                    {pendingCheckinCount}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* FLOATING ACTION BUTTON */}
-            <div className="fixed bottom-6 right-4 z-50 flex flex-col items-end gap-3">
-                {/* Refresh + Logout row */}
-                <div className="flex gap-2">
-                    <button onClick={fetchDashboard}
-                        className="bg-slate-800 text-slate-300 font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
-                        🔄
-                    </button>
-                    <button onClick={() => { localStorage.removeItem('user'); router.push('/login'); }}
-                        className="bg-slate-800 text-red-400 font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
-                        Logout
-                    </button>
-                </div>
-                {/* Main FAB */}
-                <button onClick={() => setShowMenu(v => !v)}
-                    className={`w-14 h-14 rounded-full font-black text-white text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center
-                        ${showMenu ? 'bg-red-500 rotate-45' : 'bg-blue-600'}`}>
-                    {showMenu ? '✕' : '☰'}
-                </button>
-            </div>
-        </main>
-    );
-}

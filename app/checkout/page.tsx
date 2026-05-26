@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
+import FloatingMenu from '../components/FloatingMenu';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -592,6 +593,7 @@ function CheckoutContent() {
                     <button onClick={() => router.push('/transactions')} className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">📋 Riwayat Transaksi</button>
                 </div>
             </div>
+            <FloatingMenu />
         </main>
     );
 }
