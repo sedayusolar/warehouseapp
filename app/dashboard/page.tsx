@@ -11,6 +11,7 @@ export default function DashboardPage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+    const [showMenu, setShowMenu] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -254,63 +255,73 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* ===== QUICK ACTIONS ===== */}
-                        {user.role !== 'MANAGER' && (
-                            <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { label: 'Checkout', icon: '📦', path: '/checkout', color: 'bg-blue-600' },
-                                    { label: 'Check In', icon: '✅', path: '/checkin', color: 'bg-emerald-600' },
-                                    { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
-                                    { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-600' },
-                                    { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700' },
-                                    { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
-                                    ...(user.role === 'ADMIN' ? [{ label: 'Users', icon: '👥', path: '/users', color: 'bg-slate-500' }] : []),
-                                ].map(action => (
-                                    <button key={action.path} onClick={() => router.push(action.path)}
-                                        className={`${action.color} text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg`}>
-                                        <p className="text-xl mb-1">{action.icon}</p>
-                                        <p className="text-[10px]">{action.label}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        {user.role === 'MANAGER' && (
-                            <div className="space-y-3">
-                                <button onClick={() => router.push('/transactions')}
-                                    className="w-full bg-amber-500 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
-                                    ⏳ Approve Checkout Transaksi
-                                </button>
-                                <button onClick={() => router.push('/checkin-list')}
-                                    className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg relative">
-                                    ✅ Approve Check In Barang
-                                    {pendingCheckinCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center">
-                                            {pendingCheckinCount}
-                                        </span>
-                                    )}
-                                </button>
-                                <button onClick={() => router.push('/cost-report')}
-                                    className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
-                                    💰 Cost Report per Project
-                                </button>
-                            </div>
-                        )}
+
                     </>
                 )}
             </div>
 
-            {/* BOTTOM NAV */}
-            <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 z-50 p-4 pb-6">
-                <div className="max-w-2xl mx-auto flex gap-3">
+            {/* FLOATING MENU */}
+            {showMenu && (
+                <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setShowMenu(false)} />
+            )}
+
+            {/* FLOATING MENU ITEMS */}
+            {showMenu && (
+                <div className="fixed bottom-24 right-4 z-50 flex flex-col-reverse gap-2 items-end">
+                    {[
+                        ...(user.role !== 'MANAGER' ? [
+                            { label: 'Checkout', icon: '📦', path: '/checkout', color: 'bg-blue-600' },
+                            { label: 'Check In', icon: '✅', path: '/checkin', color: 'bg-emerald-500' },
+                            { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
+                            { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-600' },
+                            { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700' },
+                            { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
+                            ...(user.role === 'ADMIN' ? [
+                                { label: 'Users', icon: '👥', path: '/users', color: 'bg-slate-500' },
+                            ] : []),
+                        ] : [
+                            { label: 'Approve Checkout', icon: '⏳', path: '/transactions', color: 'bg-amber-500' },
+                            { label: 'Approve Check In', icon: '✅', path: '/checkin-list', color: 'bg-emerald-600' },
+                            { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
+                            { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
+                        ]),
+                        { label: 'Transaksi', icon: '📋', path: '/transactions', color: 'bg-blue-700' },
+                    ].map((item, i) => (
+                        <button key={item.path}
+                            onClick={() => { setShowMenu(false); router.push(item.path); }}
+                            className={`${item.color} text-white font-black flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl active:scale-95 transition-all`}
+                            style={{ animationDelay: `${i * 30}ms` }}>
+                            <span className="text-base">{item.icon}</span>
+                            <span className="text-xs uppercase tracking-widest whitespace-nowrap">{item.label}</span>
+                            {item.path === '/checkin-list' && pendingCheckinCount > 0 && (
+                                <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center ml-1">
+                                    {pendingCheckinCount}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* FLOATING ACTION BUTTON */}
+            <div className="fixed bottom-6 right-4 z-50 flex flex-col items-end gap-3">
+                {/* Refresh + Logout row */}
+                <div className="flex gap-2">
                     <button onClick={fetchDashboard}
-                        className="flex-1 bg-slate-800 text-slate-300 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
-                        🔄 Refresh
+                        className="bg-slate-800 text-slate-300 font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
+                        🔄
                     </button>
                     <button onClick={() => { localStorage.removeItem('user'); router.push('/login'); }}
-                        className="bg-slate-800 text-red-400 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
+                        className="bg-slate-800 text-red-400 font-black py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
                         Logout
                     </button>
                 </div>
+                {/* Main FAB */}
+                <button onClick={() => setShowMenu(v => !v)}
+                    className={`w-14 h-14 rounded-full font-black text-white text-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center
+                        ${showMenu ? 'bg-red-500 rotate-45' : 'bg-blue-600'}`}>
+                    {showMenu ? '✕' : '☰'}
+                </button>
             </div>
         </main>
     );
