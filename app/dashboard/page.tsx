@@ -189,9 +189,9 @@ export default function DashboardPage() {
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-sm font-bold text-slate-700">📍 {loc.location_name}</p>
                                                     <div className="text-right">
-                                                        <span className="font-black text-slate-800">{loc.total_stok}</p>
-                                                        <span className="text-[10px] text-slate-400 ml-1">unit</p>
-                                                        <span className="text-[9px] text-slate-400 ml-2">({loc.total_item} item)</p>
+                                                        <span className="font-black text-slate-800">{loc.total_stok}</span>
+                                                        <span className="text-[10px] text-slate-400 ml-1">unit</span>
+                                                        <span className="text-[9px] text-slate-400 ml-2">({loc.total_item} item)</span>
                                                     </div>
                                                 </div>
                                                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
