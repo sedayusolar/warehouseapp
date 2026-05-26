@@ -262,6 +262,7 @@ export default function DashboardPage() {
                                     { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-700' },
                                     { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-600' },
                                     { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
+                                    ...(user.role === 'ADMIN' ? [{ label: 'Users', icon: '👥', path: '/users', color: 'bg-slate-500' }] : []),
                                 ].map(action => (
                                     <button key={action.path} onClick={() => router.push(action.path)}
                                         className={`${action.color} text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg`}>
