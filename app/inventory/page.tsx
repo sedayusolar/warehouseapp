@@ -14,12 +14,10 @@ function InventoryContent() {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    // Filter
     const [filterLocation, setFilterLocation] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Register form
     const [form, setForm] = useState({ item_name: '', category: '', unit: '' });
     const [formLocations, setFormLocations] = useState<{ location_id: string, qty: number }[]>([{ location_id: '', qty: 0 }]);
     const [newItemQr, setNewItemQr] = useState('');
@@ -28,7 +26,6 @@ function InventoryContent() {
     const [itemPhotoPreview, setItemPhotoPreview] = useState('');
     const itemPhotoRef = useRef<HTMLInputElement>(null);
 
-    // Edit
     const [editingQr, setEditingQr] = useState<string | null>(null);
     const [editItem, setEditItem] = useState<any>(null);
     const [editForm, setEditForm] = useState<any>({});
@@ -37,20 +34,15 @@ function InventoryContent() {
     const [editPhotoPreview, setEditPhotoPreview] = useState('');
     const editPhotoRef = useRef<HTMLInputElement>(null);
 
-    // Log
     const [logQr, setLogQr] = useState<string | null>(null);
     const [logs, setLogs] = useState<any[]>([]);
     const [loadingLog, setLoadingLog] = useState(false);
 
-    // Detail modal
     const [detailItem, setDetailItem] = useState<any>(null);
     const [detailData, setDetailData] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
-
-    // Lightbox
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-    // Compress image before upload
     const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -104,11 +96,8 @@ function InventoryContent() {
         fetchItems(locId, cat);
     };
 
-    // Detail modal
     const openDetail = async (item: any) => {
-        setDetailItem(item);
-        setDetailData(null);
-        setLoadingDetail(true);
+        setDetailItem(item); setDetailData(null); setLoadingDetail(true);
         try {
             const res = await fetch(`${BASE_URL}/get_item_detail.php?qr_id=${item.qr_id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
@@ -120,15 +109,12 @@ function InventoryContent() {
     const closeDetail = () => { setDetailItem(null); setDetailData(null); };
 
     const handleSubmitItem = async () => {
-        if (!form.item_name || !form.category || !form.unit) {
-            alert("Nama, kategori, dan satuan wajib!"); return;
-        }
+        if (!form.item_name || !form.category || !form.unit) { alert("Nama, kategori, dan satuan wajib!"); return; }
         const validLocs = formLocations.filter(l => l.location_id && l.qty > 0);
         setSubmitting(true);
         try {
             const res = await fetch(`${BASE_URL}/add_item.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({ ...form, locations: validLocs, item_photo: itemPhotoB64 || null })
             });
             const r = await res.json();
@@ -170,14 +156,11 @@ function InventoryContent() {
     };
 
     const handleSaveEdit = async () => {
-        if (!editForm.item_name || !editForm.category || !editForm.unit) {
-            alert("Nama, kategori, satuan wajib."); return;
-        }
+        if (!editForm.item_name || !editForm.category || !editForm.unit) { alert("Nama, kategori, satuan wajib."); return; }
         setSavingEdit(true);
         try {
             const res = await fetch(`${BASE_URL}/update_item.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
                     qr_id: editingQr, item_name: editForm.item_name,
                     category: editForm.category, unit: editForm.unit,
@@ -230,7 +213,6 @@ function InventoryContent() {
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={closeDetail}>
                     <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
                         <div className="bg-white min-h-full rounded-t-3xl p-5 pb-28 space-y-5">
-                            {/* Header */}
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{detailItem.category}</p>
@@ -248,7 +230,6 @@ function InventoryContent() {
                                 <p className="text-center text-slate-400 animate-pulse py-10">Memuat detail...</p>
                             ) : detailData && (
                                 <>
-                                    {/* Stok summary */}
                                     <div className="grid grid-cols-3 gap-3">
                                         {[
                                             { label: 'Stok Fisik', val: detailData.total_stock, color: 'text-slate-800' },
@@ -263,14 +244,12 @@ function InventoryContent() {
                                         ))}
                                     </div>
 
-                                    {/* Foto item */}
-                                    {/* HPP info — only for admin/manager */}
-                                    {(user.role === 'ADMIN' || user.role === 'MANAGER') && detailData.item?.unit_price > 0 && (
-                                        <div className="bg-slate-50 rounded-2xl p-3">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Harga Beli / HPP</p>
-                                            <p className="font-black text-slate-800 text-lg mt-0.5">
+                                    {(user.role === 'ADMIN' || user.role === 'MANAGER') && Number(detailData.item?.unit_price) > 0 && (
+                                        <div className="bg-violet-50 rounded-2xl p-3">
+                                            <p className="text-[10px] font-black text-violet-400 uppercase">💰 Harga Beli / HPP</p>
+                                            <p className="font-black text-violet-800 text-lg mt-0.5">
                                                 {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(detailData.item.unit_price)}
-                                                <span className="text-[10px] text-slate-400 font-bold ml-1">/ {detailData.item.unit}</span>
+                                                <span className="text-[10px] text-violet-400 font-bold ml-1">/ {detailData.item.unit}</span>
                                             </p>
                                         </div>
                                     )}
@@ -287,7 +266,6 @@ function InventoryContent() {
                                         </div>
                                     )}
 
-                                    {/* Lokasi */}
                                     <div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Stok per Lokasi</p>
                                         <div className="space-y-2">
@@ -297,9 +275,7 @@ function InventoryContent() {
                                                 <div key={loc.location_id} className="flex justify-between items-center bg-slate-50 rounded-xl p-3">
                                                     <div>
                                                         <p className="font-bold text-sm text-slate-700">📍 {loc.location_name}</p>
-                                                        {loc.reserved_qty > 0 && (
-                                                            <p className="text-[10px] text-orange-500 font-bold">⏳ {loc.reserved_qty} pending</p>
-                                                        )}
+                                                        {loc.reserved_qty > 0 && <p className="text-[10px] text-orange-500 font-bold">⏳ {loc.reserved_qty} pending</p>}
                                                     </div>
                                                     <div className="text-right">
                                                         <p className={`font-black text-lg ${loc.available_qty > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{loc.available_qty}</p>
@@ -310,7 +286,6 @@ function InventoryContent() {
                                         </div>
                                     </div>
 
-                                    {/* Riwayat transaksi */}
                                     <div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Riwayat Checkout</p>
                                         {detailData.transactions?.length === 0 ? (
@@ -322,9 +297,7 @@ function InventoryContent() {
                                                         <div className="flex justify-between items-start gap-2">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 mb-1">
-                                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${statusColor(trx.manager_approval_status)}`}>
-                                                                        {trx.manager_approval_status}
-                                                                    </span>
+                                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${statusColor(trx.manager_approval_status)}`}>{trx.manager_approval_status}</span>
                                                                     <span className="text-[9px] text-slate-400 font-mono">{trx.transaction_code}</span>
                                                                 </div>
                                                                 <p className="font-bold text-sm text-slate-800 truncate">{trx.project_name}</p>
@@ -335,15 +308,13 @@ function InventoryContent() {
                                                             <div className="flex flex-col gap-1 flex-shrink-0">
                                                                 {trx.photo_path && (
                                                                     <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path}`)}>
-                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path}`}
-                                                                            className="w-12 h-12 object-cover rounded-lg border border-slate-100" alt="checkout" />
+                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path}`} className="w-12 h-12 object-cover rounded-lg border border-slate-100" alt="checkout" />
                                                                         <p className="text-[8px] text-slate-400 text-center mt-0.5">Checkout</p>
                                                                     </button>
                                                                 )}
                                                                 {trx.photo_path_checkin && (
                                                                     <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`)}>
-                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`}
-                                                                            className="w-12 h-12 object-cover rounded-lg border border-emerald-100" alt="checkin" />
+                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`} className="w-12 h-12 object-cover rounded-lg border border-emerald-100" alt="checkin" />
                                                                         <p className="text-[8px] text-emerald-500 text-center mt-0.5">Check In</p>
                                                                     </button>
                                                                 )}
@@ -355,7 +326,6 @@ function InventoryContent() {
                                         )}
                                     </div>
 
-                                    {/* Riwayat adjustment */}
                                     {detailData.adjustments?.length > 0 && (
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Riwayat Adjustment</p>
@@ -373,8 +343,7 @@ function InventoryContent() {
                                                         </div>
                                                         {adj.photo_path && (
                                                             <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${adj.photo_path}`)}>
-                                                                <img src={`https://sedayu.com/api/warehouse/${adj.photo_path}`}
-                                                                    className="w-10 h-10 object-cover rounded-lg border border-slate-200" alt="adj" />
+                                                                <img src={`https://sedayu.com/api/warehouse/${adj.photo_path}`} className="w-10 h-10 object-cover rounded-lg border border-slate-200" alt="adj" />
                                                             </button>
                                                         )}
                                                     </div>
@@ -383,7 +352,6 @@ function InventoryContent() {
                                         </div>
                                     )}
 
-                                    {/* Actions */}
                                     {user.role !== 'MANAGER' && (
                                         <div className="flex gap-2 pt-2">
                                             <button onClick={() => { closeDetail(); handleStartEdit(detailItem); }}
@@ -401,8 +369,7 @@ function InventoryContent() {
 
             {/* LIGHTBOX */}
             {lightboxUrl && (
-                <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4"
-                    onClick={() => setLightboxUrl(null)}>
+                <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
                     <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
                     <img src={lightboxUrl} alt="fullscreen" className="max-w-full max-h-full object-contain rounded-xl" />
                 </div>
@@ -435,6 +402,20 @@ function InventoryContent() {
                                     placeholder="Satuan *"
                                     className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                             </div>
+
+                            {/* UNIT PRICE — hanya Admin/Manager */}
+                            {(user.role === 'ADMIN' || user.role === 'MANAGER') && (
+                                <div>
+                                    <label className="text-[10px] font-black text-violet-500 uppercase ml-1">💰 Harga Beli / HPP (per satuan)</label>
+                                    <div className="relative mt-1">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+                                        <input type="number" min="0" value={editForm.unit_price || 0}
+                                            onChange={e => setEditForm({ ...editForm, unit_price: e.target.value })}
+                                            placeholder="0"
+                                            className="w-full p-3.5 pl-10 bg-violet-50 rounded-xl outline-none font-bold text-slate-700 focus:ring-2 ring-violet-200 transition-all" />
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
@@ -541,7 +522,6 @@ function InventoryContent() {
             </div>
 
             <div className="p-4 space-y-4 max-w-4xl mx-auto">
-                {/* FORM REGISTER */}
                 {showForm && (
                     <div className="bg-white rounded-3xl shadow-xl p-6 space-y-4 border border-blue-100">
                         <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Daftarkan Inventory Baru</h2>
@@ -619,7 +599,6 @@ function InventoryContent() {
                     </div>
                 )}
 
-                {/* LIST */}
                 {loading ? (
                     <div className="text-center py-20 text-slate-400 font-bold text-[10px] uppercase animate-pulse">Memuat Data...</div>
                 ) : filtered.length === 0 ? (
@@ -711,7 +690,6 @@ function InventoryContent() {
                 )}
             </div>
 
-            {/* BOTTOM NAV */}
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
                 <div className="max-w-4xl mx-auto flex gap-3">
                     <button onClick={() => router.push('/')} className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">🏠 Menu Utama</button>
