@@ -13,6 +13,12 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string }
 };
 
 const COND_ICON: Record<string, string> = { GOOD: '✅', DAMAGED: '⚠️', LOST: '❌' };
+const COND_LABEL = (condition: string, category: string) => {
+    if (category === 'Material') {
+        return condition === 'GOOD' ? '📦 Ada Sisa' : condition === 'DAMAGED' ? '✅ Terpakai' : '❌ Hilang';
+    }
+    return condition === 'GOOD' ? '✅ Baik' : condition === 'DAMAGED' ? '⚠️ Rusak' : '❌ Hilang';
+};
 
 function CheckInListContent() {
     const router = useRouter();

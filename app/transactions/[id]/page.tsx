@@ -11,6 +11,14 @@ const COND_CONFIG: Record<string, { label: string, color: string }> = {
     DAMAGED: { label: 'Rusak', color: 'bg-orange-100 text-orange-600' },
     LOST: { label: 'Hilang', color: 'bg-red-100 text-red-600' },
 };
+const getCondLabel = (condition: string, category: string) => {
+    if (category === 'Material') {
+        if (condition === 'GOOD') return { label: 'Ada Sisa', color: 'bg-emerald-100 text-emerald-700' };
+        if (condition === 'DAMAGED') return { label: 'Terpakai', color: 'bg-blue-100 text-blue-700' };
+        return { label: 'Hilang', color: 'bg-red-100 text-red-600' };
+    }
+    return COND_CONFIG[condition] || { label: condition, color: 'bg-slate-100 text-slate-500' };
+};
 
 export default function TransactionDetail({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -320,8 +328,8 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     <div className="flex justify-between items-start gap-2">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${COND_CONFIG[item.condition]?.color || 'bg-slate-100 text-slate-500'}`}>
-                                                    {COND_CONFIG[item.condition]?.label || item.condition}
+                                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${getCondLabel(item.condition, item.category || '').color || 'bg-slate-100 text-slate-500'}`}>
+                                                    {getCondLabel(item.condition, item.category || '').label || item.condition}
                                                     {item.condition === 'LOST' && ' — Stok tidak kembali'}
                                                 </span>
                                             </div>

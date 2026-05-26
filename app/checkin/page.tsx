@@ -6,11 +6,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
 
-const CONDITION_CONFIG = {
+// Tools: kondisi fisik alat
+const CONDITION_TOOLS: Record<string, { label: string, color: string, icon: string }> = {
     GOOD: { label: 'Baik', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', icon: '✅' },
     DAMAGED: { label: 'Rusak', color: 'bg-orange-100 text-orange-600 border-orange-300', icon: '⚠️' },
     LOST: { label: 'Hilang', color: 'bg-red-100 text-red-600 border-red-300', icon: '❌' },
 };
+
+// Material: status pemakaian
+const CONDITION_MATERIAL: Record<string, { label: string, color: string, icon: string }> = {
+    GOOD: { label: 'Ada Sisa', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', icon: '📦' },
+    DAMAGED: { label: 'Terpakai', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: '✅' },
+    LOST: { label: 'Hilang', color: 'bg-red-100 text-red-600 border-red-300', icon: '❌' },
+};
+
+const getConditionConfig = (type: string) =>
+    type === 'MATERIAL' ? CONDITION_MATERIAL : CONDITION_TOOLS;
 
 function CheckInContent() {
     const router = useRouter();
@@ -80,7 +91,7 @@ function CheckInContent() {
                     qty: item.qty,
                     location_id: item.location_id || '',
                     location_name: item.location_name || '',
-                    condition: 'GOOD',
+                    condition: item.item_type === 'MATERIAL' ? 'DAMAGED' : 'GOOD',
                     photo_base64: '',
                     note: '',
                 })));
@@ -253,7 +264,7 @@ function CheckInContent() {
                                     <div>
                                         <label className="text-[9px] font-black text-slate-400 uppercase">Kondisi Saat Kembali *</label>
                                         <div className="flex gap-2 mt-1.5">
-                                            {Object.entries(CONDITION_CONFIG).map(([key, cfg]) => (
+                                            {Object.entries(getConditionConfig(item.type)).map(([key, cfg]) => (
                                                 <button key={key} onClick={() => updateCart(item.qr_id, 'condition', key)}
                                                     className={`flex-1 py-2.5 rounded-xl font-black text-[10px] border-2 transition-all active:scale-95
                                                         ${item.condition === key ? cfg.color : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
