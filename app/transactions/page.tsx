@@ -9,10 +9,8 @@ function TransactionListContent() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');
 
-    // --- KONFIGURASI API KEY ---
     const API_KEY = "SedayuSolar_TopSecret_2026";
 
-    // --- ROLE & AUTH CHECK ---
     useEffect(() => {
         const loggedInUser = localStorage.getItem('user');
         if (!loggedInUser) {
@@ -26,7 +24,6 @@ function TransactionListContent() {
     const fetchTransactions = async () => {
         setLoading(true);
         try {
-            // Mengirim kunci lewat headers
             const res = await fetch('https://sedayu.com/api/warehouse/get_transactions.php', {
                 headers: {
                     'X-API-KEY': API_KEY,
@@ -35,7 +32,6 @@ function TransactionListContent() {
             });
             const result = await res.json();
             if (result.status === 'success') {
-                // SORT TERBARU DI ATAS
                 const sorted = result.data.sort((a: any, b: any) => b.id - a.id);
                 setTransactions(sorted);
             }
@@ -48,7 +44,6 @@ function TransactionListContent() {
     const handleDelete = async (id: number) => {
         if (!confirm("Hapus transaksi ini secara permanen?")) return;
         try {
-            // Mengirim kunci lewat headers
             const res = await fetch(`https://sedayu.com/api/warehouse/delete_transaction.php?id=${id}`, {
                 method: 'DELETE',
                 headers: {
@@ -72,7 +67,8 @@ function TransactionListContent() {
         if (filter === 'ALL') return true;
         if (filter === 'DRAFT') return item.transaction_status === 'DRAFT';
         if (filter === 'SUBMITTED') {
-            return item.transaction_status === 'SUBMITTED' && item.manager_approval_status === 'PENDING';
+            // Tampilkan yang nunggu approval Checkout ATAU nunggu approval Check-in
+            return (item.transaction_status === 'SUBMITTED' && item.manager_approval_status === 'PENDING') || item.transaction_status === 'CHECKIN_PENDING';
         }
         return true;
     });
@@ -125,30 +121,27 @@ function TransactionListContent() {
                                 <div className="flex flex-col"><span className="text-slate-400 font-black uppercase text-[9px] mb-1">Tanggal</span><span className="text-slate-700 font-bold">{trx.checkout_date}</span></div>
                             </div>
 
+                            {/* --- KONTROL TOMBOL INTERAKTIF AGAR TIDAK DOUBLE CHECKIN --- */}
                             <div className="flex gap-2">
                                 {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
                                     <button onClick={() => router.push(`/checkout?edit=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">🚀 Lanjutkan Draft</button>
-                                ) : (
+                                ) : trx.transaction_status === 'APPROVED' && user.role !== 'MANAGER' ? (
                                     <>
-                                        <button
-                                            onClick={() => router.push(`/transactions/${trx.id}`)}
-                                            className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}
-                                        >
-                                            {trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
-                                        </button>
-                                        {trx.manager_approval_status === 'APPROVED' && user.role !== 'MANAGER' && (
-                                            <button
-                                                onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)}
-                                                className="flex-1 bg-emerald-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-emerald-100"
-                                            >✅ Check In</button>
-                                        )}
+                                        <button onClick={() => router.push(`/transactions/${trx.id}`)} className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">👁️ Detail</button>
+                                        <button onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">📦 Check In Kembali</button>
                                     </>
+                                ) : (
+                                    <button onClick={() => router.push(`/transactions/${trx.id}`)} className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.transaction_status === 'CHECKIN_PENDING' || trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        {trx.transaction_status === 'CHECKIN_PENDING' ? '⚠️ Cek Approval Check-In' : trx.manager_approval_status === 'PENDING' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
+                                    </button>
                                 )}
                             </div>
 
-                            <div className="mt-4 flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Status: {trx.manager_approval_status}</span>
+                            <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${trx.transaction_status === 'CHECKIN_APPROVED' ? 'bg-blue-500' : trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                                    <span>Status: {trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status : trx.transaction_status}</span>
+                                </div>
                             </div>
                         </div>
                     ))
@@ -158,19 +151,9 @@ function TransactionListContent() {
             {/* --- BOTTOM MENU BAR --- */}
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] z-50 p-4 pb-6">
                 <div className="max-w-4xl mx-auto flex gap-3">
-                    <button
-                        onClick={() => router.push('/')}
-                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-                    >
-                        🏠 Menu Utama
-                    </button>
+                    <button onClick={() => router.push('/')} className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">🏠 Menu Utama</button>
                     {user.role !== 'MANAGER' && (
-                        <button
-                            onClick={() => router.push('/checkout')}
-                            className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all"
-                        >
-                            + Baru
-                        </button>
+                        <button onClick={() => router.push('/checkout')} className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">+ Baru</button>
                     )}
                 </div>
             </div>
