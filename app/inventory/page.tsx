@@ -161,6 +161,7 @@ function InventoryContent() {
         setEditPhotoB64(''); setEditPhotoPreview('');
         setEditForm({
             item_name: item.item_name, category: item.category, unit: item.unit,
+            unit_price: item.unit_price || 0,
             locations: item.locations?.length
                 ? item.locations.map((l: any) => ({ location_id: String(l.location_id), qty: l.stock_qty }))
                 : [{ location_id: '', qty: 0 }],
@@ -181,6 +182,7 @@ function InventoryContent() {
                     qr_id: editingQr, item_name: editForm.item_name,
                     category: editForm.category, unit: editForm.unit,
                     locations: editForm.locations.filter((l: any) => l.location_id),
+                    unit_price: Number(editForm.unit_price) || 0,
                     adjusted_by: user?.name || 'unknown', note: editForm.note,
                     item_photo: editPhotoB64 || null,
                 })
@@ -262,6 +264,17 @@ function InventoryContent() {
                                     </div>
 
                                     {/* Foto item */}
+                                    {/* HPP info — only for admin/manager */}
+                                    {(user.role === 'ADMIN' || user.role === 'MANAGER') && detailData.item?.unit_price > 0 && (
+                                        <div className="bg-slate-50 rounded-2xl p-3">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase">Harga Beli / HPP</p>
+                                            <p className="font-black text-slate-800 text-lg mt-0.5">
+                                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(detailData.item.unit_price)}
+                                                <span className="text-[10px] text-slate-400 font-bold ml-1">/ {detailData.item.unit}</span>
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {detailData.item?.photo_path && (
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Foto Barang</p>
