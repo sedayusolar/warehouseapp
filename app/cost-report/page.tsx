@@ -46,7 +46,7 @@ function CostReportContent() {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (projId) params.append('project_id', projId);
+            if (projId) params.append('project_name', projId);
             if (from) params.append('date_from', from);
             if (to) params.append('date_to', to);
             const res = await fetch(`${BASE_URL}/get_cost_report.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
@@ -93,7 +93,7 @@ function CostReportContent() {
                     <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
                         className="w-full p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-sm font-medium appearance-none">
                         <option value="">Semua Project</option>
-                        {projects.map((p: any) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                        {projects.map((p: any) => <option key={p.id} value={p.project_name}>{p.project_name}</option>)}
                     </select>
                     <div className="flex gap-2">
                         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -173,9 +173,9 @@ function CostReportContent() {
                                     return (
                                         <button key={proj.project_id || proj.project_name}
                                             onClick={() => {
-                                                setSelectedProject(String(proj.project_id || ''));
+                                                setSelectedProject(proj.project_name);
                                                 setActiveTab('detail');
-                                                fetchReport(String(proj.project_id || ''), dateFrom, dateTo);
+                                                fetchReport(proj.project_name, dateFrom, dateTo);
                                             }}
                                             className="w-full bg-white rounded-2xl p-4 shadow-sm text-left hover:shadow-md transition-all active:scale-[0.99]">
                                             <div className="flex justify-between items-start gap-2 mb-2">
