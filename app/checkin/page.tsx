@@ -128,7 +128,8 @@ function CheckInContent() {
     const handleSubmit = async () => {
         if (!checkoutId) { alert("Tidak ada transaksi yang dipilih."); return; }
         for (const item of cart) {
-            if (!item.location_id) { alert(`Pilih lokasi pengembalian untuk: ${item.name}`); return; }
+            const needsLocation = !(item.type === 'MATERIAL' && (item.condition === 'DAMAGED' || item.condition === 'LOST')) && item.condition !== 'LOST';
+            if (needsLocation && !item.location_id) { alert(`Pilih lokasi pengembalian untuk: ${item.name}`); return; }
         }
         if (!picName) { alert("Nama PIC wajib diisi."); return; }
         const sig = canvasRef.current?.toDataURL('image/png');
@@ -276,14 +277,25 @@ function CheckInContent() {
 
                                     {/* Lokasi kembalikan */}
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Kembalikan ke Lokasi *</label>
-                                        <select value={item.location_id} onChange={e => updateCart(item.qr_id, 'location_id', e.target.value)}
-                                            className="w-full mt-1.5 p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm appearance-none">
-                                            <option value="">-- Pilih Lokasi --</option>
-                                            {locations.map((l: any) => (
-                                                <option key={l.id} value={l.id}>{l.location_name}</option>
-                                            ))}
-                                        </select>
+                                        {/* Lokasi hanya diperlukan jika barang kembali ke gudang */}
+                                        {!(item.type === 'MATERIAL' && (item.condition === 'DAMAGED' || item.condition === 'LOST')) && item.condition !== 'LOST' ? (
+                                            <div>
+                                                <label className="text-[9px] font-black text-slate-400 uppercase">Kembalikan ke Lokasi *</label>
+                                                <select value={item.location_id} onChange={e => updateCart(item.qr_id, 'location_id', e.target.value)}
+                                                    className="w-full mt-1.5 p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm appearance-none">
+                                                    <option value="">-- Pilih Lokasi --</option>
+                                                    {locations.map((l: any) => (
+                                                        <option key={l.id} value={l.id}>{l.location_name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                                <p className="text-[10px] text-slate-400 font-bold">
+                                                    {item.condition === 'LOST' ? '❌ Barang hilang — stok tidak kembali' : '✅ Material terpakai — stok tidak kembali ke gudang'}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Foto kondisi */}
