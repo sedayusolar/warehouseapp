@@ -17,7 +17,9 @@ function TransactionListContent() {
             router.push('/login');
             return;
         }
-        setUser(JSON.parse(loggedInUser));
+        const parsed = JSON.parse(loggedInUser);
+        setUser(parsed);
+        if (parsed.role === 'MANAGER') setFilter('SUBMITTED');
         fetchTransactions();
     }, []);
 
@@ -61,6 +63,9 @@ function TransactionListContent() {
     };
 
     const filteredData = transactions.filter(item => {
+        // Manager tidak pernah lihat DRAFT
+        if (user?.role === 'MANAGER' && item.transaction_status === 'DRAFT') return false;
+
         if (filter === 'ALL') return true;
         if (filter === 'DRAFT') return item.transaction_status === 'DRAFT';
         if (filter === 'SUBMITTED') {
@@ -82,7 +87,10 @@ function TransactionListContent() {
                 </div>
 
                 <div className="flex gap-2 mt-6 max-w-4xl mx-auto">
-                    {['ALL', 'DRAFT', 'SUBMITTED'].map((tab) => (
+                    {(user?.role === 'MANAGER'
+                        ? ['ALL', 'SUBMITTED']
+                        : ['ALL', 'DRAFT', 'SUBMITTED']
+                    ).map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setFilter(tab)}
@@ -103,6 +111,8 @@ function TransactionListContent() {
                     filteredData.map((trx) => {
                         // LOGIC PINTAR BUAT MUNCULIN TOMBOL CHECK-IN
                         const isReadyForCheckin = trx.transaction_status === 'SUBMITTED' && trx.manager_approval_status === 'APPROVED';
+                        const isCheckinPending = trx.transaction_status === 'CHECKIN_PENDING';
+                        const isCheckinApproved = trx.transaction_status === 'CHECKIN_APPROVED';
 
                         return (
                             <div key={trx.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative">
@@ -127,11 +137,11 @@ function TransactionListContent() {
                                     ) : isReadyForCheckin && user.role !== 'MANAGER' ? (
                                         <>
                                             <button onClick={() => router.push(`/transactions/${trx.id}`)} className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">👁️ Detail</button>
-                                            <button onClick={() => router.push(`/checkin?id=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">📦 Check In</button>
+                                            <button onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)} className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">📦 Check In</button>
                                         </>
                                     ) : (
                                         <button onClick={() => router.push(`/transactions/${trx.id}`)} className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest ${trx.transaction_status === 'CHECKIN_PENDING' || trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>
-                                            {trx.transaction_status === 'CHECKIN_PENDING' ? '⚠️ Cek Approval Check-In' : trx.manager_approval_status === 'PENDING' && user.role === 'MANAGER' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
+                                            {trx.transaction_status === 'CHECKIN_PENDING' ? '⏳ Cek Approval Check-In' : trx.manager_approval_status === 'PENDING' && user.role === 'MANAGER' ? '👁️ Cek Detail & Approve' : '👁️ Lihat Detail'}
                                         </button>
                                     )}
                                 </div>
@@ -139,7 +149,7 @@ function TransactionListContent() {
                                 <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
                                     <div className="flex items-center gap-2">
                                         <div className={`w-2 h-2 rounded-full ${trx.transaction_status === 'CHECKIN_APPROVED' ? 'bg-blue-500' : trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' : trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                                        <span>Status: {trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status : trx.transaction_status}</span>
+                                        <span>Status: {isCheckinApproved ? '✅ SELESAI' : isCheckinPending ? '⏳ CHECKIN MENUNGGU' : trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status : trx.transaction_status}</span>
                                     </div>
                                 </div>
                             </div>
