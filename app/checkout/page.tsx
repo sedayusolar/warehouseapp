@@ -76,35 +76,31 @@ function CheckoutContent() {
     const importFromPO = async () => {
         if (!poDetail) return;
         setImporting(true);
-        let imported = 0;
         let skipped = 0;
+        const newItems: any[] = [];
 
-        // Hanya proses item yang dicentang
         const selectedItems = poDetail.items.filter((item: any) => poSelection[item.id]?.checked);
 
         for (const item of selectedItems) {
             const qty = poSelection[item.id]?.qty || item.qty;
             if (qty <= 0) continue;
             try {
-                // Pakai search_inventory yang sudah return locations
                 const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(item.qr_id)}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 if (r.status !== 'success' || !r.data?.length) { skipped++; continue; }
 
                 const inv = r.data.find((d: any) => d.qr_id === item.qr_id) || r.data[0];
 
-                // Cari lokasi: prioritas lokasi di PO, fallback ke yang ada stok
                 const loc = inv.locations?.find((l: any) => String(l.location_id) === String(item.location_id) && l.available_qty > 0)
                     || inv.locations?.find((l: any) => l.available_qty > 0);
 
                 if (!loc) { skipped++; continue; }
 
-                // Skip kalau sudah ada di cart dengan lokasi yang sama
-                if (cart.find(c => c.qr_id === item.qr_id && String(c.location_id) === String(loc.location_id))) {
-                    skipped++; continue;
-                }
+                const alreadyInCart = cart.find(c => c.qr_id === inv.qr_id && String(c.location_id) === String(loc.location_id));
+                const alreadyInNew = newItems.find(c => c.qr_id === inv.qr_id && String(c.location_id) === String(loc.location_id));
+                if (alreadyInCart || alreadyInNew) { skipped++; continue; }
 
-                setCart(prev => [...prev, {
+                newItems.push({
                     qr_id: inv.qr_id,
                     name: inv.item_name,
                     type: inv.category,
@@ -116,16 +112,18 @@ function CheckoutContent() {
                     locations: inv.locations,
                     qty: qty,
                     photo_base64: '',
-                }]);
-                imported++;
+                });
             } catch { skipped++; }
         }
+
+        // Batch setCart sekali — ini yang fix UI tidak update
+        if (newItems.length > 0) setCart(prev => [...prev, ...newItems]);
 
         setImporting(false);
         setShowPoModal(false); setSelectedPo(null); setPoDetail(null); setPoSelection({});
 
-        if (imported > 0) alert(`✅ ${imported} item berhasil diimport!${skipped > 0 ? `\n⚠️ ${skipped} item dilewati (tidak ada stok atau sudah di cart).` : ''}`);
-        else alert("Tidak ada item yang bisa diimport. Cek stok atau item mungkin sudah ada di cart.");
+        if (newItems.length > 0) alert(`✅ ${newItems.length} item berhasil diimport!${skipped > 0 ? `\n⚠️ ${skipped} item dilewati.` : ''}`);
+        else alert("Tidak ada item yang bisa diimport. Cek stok atau item sudah ada di cart.");
     };
 
     // Compress image
