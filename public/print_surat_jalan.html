@@ -33,30 +33,6 @@
             margin-bottom: 14px;
         }
 
-        .logo-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 6px;
-        }
-
-        .logo-icon {
-            width: 52px;
-            height: 52px;
-        }
-
-        .company-name {
-            font-size: 28px;
-            font-weight: bold;
-            color: #1a6b3c;
-            letter-spacing: 1px;
-        }
-
-        .company-name span {
-            color: #f59e0b;
-        }
-
         .company-address {
             font-size: 10px;
             color: #444;
@@ -178,7 +154,7 @@
         }
 
         .project-info .key {
-            width: 100px;
+            width: 110px;
             font-weight: bold;
         }
 
@@ -193,7 +169,7 @@
             min-height: 20px;
         }
 
-        /* SIGNATURES */
+        /* SIGNATURES — 4 kolom */
         .signatures {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -208,7 +184,25 @@
         .sig-box .sig-label {
             font-size: 10px;
             font-weight: bold;
-            margin-bottom: 60px;
+            margin-bottom: 4px;
+        }
+
+        .sig-box .sig-img-area {
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 4px;
+        }
+
+        .sig-box .sig-img-area img {
+            max-height: 65px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+
+        .sig-box .sig-blank {
+            height: 70px;
         }
 
         .sig-box .sig-line {
@@ -219,6 +213,12 @@
         .sig-box .sig-name {
             font-size: 10px;
             min-height: 16px;
+            font-weight: bold;
+        }
+
+        .sig-box .sig-role {
+            font-size: 9px;
+            color: #666;
         }
 
         /* FOOTER */
@@ -249,7 +249,7 @@
 
 <body>
 
-    <!-- PRINT BUTTON (hidden on print) -->
+    <!-- PRINT BUTTON -->
     <div class="no-print"
         style="text-align:center; padding: 16px; background: #f1f5f9; position: sticky; top: 0; z-index: 10; display: flex; gap: 12px; justify-content: center;">
         <button onclick="window.print()"
@@ -261,9 +261,10 @@
     </div>
 
     <div class="page" id="sj-content">
+
         <!-- HEADER -->
         <div class="header">
-            <div class="logo-row">
+            <div style="margin-bottom: 6px;">
                 <img src="https://sedayu.com/wp-content/uploads/2021/10/cropped-new-sedayu.png"
                     style="height: 64px; width: auto; object-fit: contain;" alt="SEDAYUSolar" />
             </div>
@@ -313,9 +314,7 @@
                     <th class="td-check">Ceklis</th>
                 </tr>
             </thead>
-            <tbody id="sj-items">
-                <!-- filled by JS -->
-            </tbody>
+            <tbody id="sj-items"></tbody>
         </table>
 
         <!-- PROJECT INFO -->
@@ -326,7 +325,7 @@
                 <span class="val" id="sj-proj-val"></span>
             </div>
             <div class="row" style="margin-top:6px;">
-                <span class="key">Alamat</span>
+                <span class="key">Alamat Pengiriman</span>
                 <span class="colon">:</span>
                 <span class="val" id="sj-addr-val"></span>
             </div>
@@ -337,28 +336,49 @@
             </div>
         </div>
 
-        <!-- SIGNATURES -->
+        <!-- SIGNATURES — 4 kolom: Penerima (PIC), Pengirim (Staff), Supir, Keamanan -->
         <div class="signatures">
+
+            <!-- Penerima / PIC Engineer -->
             <div class="sig-box">
                 <div class="sig-label">Penerima</div>
+                <div class="sig-img-area" id="sig-pic-area">
+                    <!-- TTD PIC Engineer diisi JS jika ada -->
+                </div>
                 <div class="sig-line"></div>
-                <div class="sig-name" id="sj-penerima"></div>
+                <div class="sig-name" id="sj-penerima">—</div>
+                <div class="sig-role">PIC / Engineer</div>
             </div>
+
+            <!-- Pengirim / Staff Gudang -->
             <div class="sig-box">
                 <div class="sig-label">Pengirim</div>
+                <div class="sig-img-area" id="sig-staff-area">
+                    <!-- TTD Staff diisi JS -->
+                </div>
                 <div class="sig-line"></div>
-                <div class="sig-name" id="sj-pengirim"></div>
+                <div class="sig-name" id="sj-pengirim">—</div>
+                <div class="sig-role">Staff Gudang</div>
             </div>
+
+            <!-- Supir -->
             <div class="sig-box">
                 <div class="sig-label">Supir</div>
+                <div class="sig-blank"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+                <div class="sig-role">&nbsp;</div>
             </div>
+
+            <!-- Keamanan -->
             <div class="sig-box">
                 <div class="sig-label">Keamanan</div>
+                <div class="sig-blank"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+                <div class="sig-role">&nbsp;</div>
             </div>
+
         </div>
 
         <!-- FOOTER -->
@@ -370,28 +390,23 @@
     </div>
 
     <script>
-        // Parse URL params
         const p = new URLSearchParams(window.location.search);
         const trxCode = p.get('code') || '—';
         const project = p.get('project') || '—';
         const pic = p.get('pic') || '—';
         const date = p.get('date') || '—';
         const pengirim = p.get('pengirim') || '—';
+        const staffSigUrl = p.get('staff_sig') || '';   // URL path TTD staff
+        const picSigUrl = p.get('pic_sig') || '';   // URL path TTD PIC/Engineer
+        const baseUrl = p.get('base_url') || 'https://sedayu.com/api/warehouse';
 
-        // URLSearchParams sudah auto-decode, jangan double decode
         let items = [];
         try {
-            const raw = p.get('items') || '[]';
-            items = JSON.parse(raw);
+            items = JSON.parse(p.get('items') || '[]');
         } catch (e) {
-            try {
-                items = JSON.parse(decodeURIComponent(p.get('items') || '[]'));
-            } catch (e2) {
-                console.error('Failed to parse items:', e2);
-            }
+            try { items = JSON.parse(decodeURIComponent(p.get('items') || '[]')); } catch (e2) { }
         }
 
-        // Format tanggal Indonesia
         function formatDate(d) {
             if (!d) return '—';
             const [y, m, day] = d.split('-');
@@ -405,28 +420,50 @@
         document.getElementById('sj-pic').textContent = pic;
         document.getElementById('sj-project').textContent = 'Project: ' + project;
         document.getElementById('sj-proj-val').textContent = project;
-        document.getElementById('sj-penerima').textContent = '( ' + pic + ' )';
-        document.getElementById('sj-pengirim').textContent = '( ' + pengirim + ' )';
         document.getElementById('sj-ref-text').textContent = 'Ref: ' + trxCode + ' — Asli harap dikembalikan ke PT. SELARAS DAYA UTAMA';
+        document.getElementById('sj-penerima').textContent = pic || '—';
+        document.getElementById('sj-pengirim').textContent = pengirim || '—';
 
-        // Fill table rows
+        // TTD Staff — gambar dari server
+        if (staffSigUrl) {
+            const area = document.getElementById('sig-staff-area');
+            const img = document.createElement('img');
+            img.src = baseUrl + '/' + staffSigUrl;
+            img.alt = 'TTD Pengirim';
+            area.appendChild(img);
+        }
+
+        // TTD PIC/Engineer — gambar dari server (mungkin belum ada saat print)
+        if (picSigUrl) {
+            const area = document.getElementById('sig-pic-area');
+            const img = document.createElement('img');
+            img.src = baseUrl + '/' + picSigUrl;
+            img.alt = 'TTD Penerima';
+            area.appendChild(img);
+        }
+
+        // Fill table
         const tbody = document.getElementById('sj-items');
         items.forEach((item, idx) => {
             const tr = document.createElement('tr');
+            // Lokasi — gunakan field location_name (dari transaction_details)
+            const lokasiText = item.location_name || item.location || '—';
             tr.innerHTML = `
-    <td class="td-no">${idx + 1}</td>
-    <td><strong>${item.name}</strong>${item.qr_id ? '<br><span style="font-size:9px;color:#999;font-family:monospace">' + item.qr_id + '</span>' : ''}</td>
-    <td class="td-qty">${item.qty}</td>
-    <td class="td-unit">${item.unit || 'pcs'}</td>
-    <td style="font-size:10px;color:#555">${item.location || '—'}</td>
-    <td class="td-check">✓</td>
-  `;
+                <td class="td-no">${idx + 1}</td>
+                <td>
+                    <strong>${item.name}</strong>
+                    ${item.qr_id ? '<br><span style="font-size:9px;color:#999;font-family:monospace">' + item.qr_id + '</span>' : ''}
+                </td>
+                <td class="td-qty">${item.qty}</td>
+                <td class="td-unit">${item.unit || 'pcs'}</td>
+                <td style="font-size:10px;color:#333">${lokasiText}</td>
+                <td class="td-check">✓</td>
+            `;
             tbody.appendChild(tr);
         });
 
-        // Add empty rows (min 8 rows total)
-        const minRows = 8;
-        for (let i = items.length; i < minRows; i++) {
+        // Empty rows (min 8)
+        for (let i = items.length; i < 8; i++) {
             const tr = document.createElement('tr');
             tr.className = 'empty-row';
             tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
