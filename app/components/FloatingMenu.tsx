@@ -11,6 +11,7 @@ export default function FloatingMenu() {
     const [showMenu, setShowMenu] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [pendingCheckin, setPendingCheckin] = useState(0);
+    const [pendingPurchase, setPendingPurchase] = useState(0);
     const [pendingCheckout, setPendingCheckout] = useState(0);
 
     useEffect(() => {
@@ -27,6 +28,7 @@ export default function FloatingMenu() {
             const r = await res.json();
             if (r.status === 'success') {
                 setPendingCheckin(r.pending_checkin_count || 0);
+                setPendingPurchase(r.pending_purchase_count || 0);
                 setPendingCheckout(r.pending_approval?.length || 0);
             }
         } catch { }
@@ -48,6 +50,7 @@ export default function FloatingMenu() {
         { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-600' },
         { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-500' },
         { label: 'Input PO', icon: '🛒', path: '/purchase', color: 'bg-teal-600' },
+        { label: 'Status PO', icon: '📋', path: '/purchase-list', color: 'bg-teal-700' },
         { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700', badge: pendingCheckin },
         { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
         ...(user.role === 'ADMIN' ? [

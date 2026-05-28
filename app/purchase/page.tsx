@@ -359,6 +359,10 @@ function PurchaseContent() {
                         <p className="text-4xl">✅</p>
                         <p className="font-black text-emerald-700 text-lg">PO Berhasil Diinput!</p>
                         <p className="text-sm text-emerald-600">{success.message}</p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                            <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Menunggu Approval Manager</p>
+                            <p className="text-xs text-amber-600 mt-0.5">Stok akan masuk ke inventory setelah disetujui Manager.</p>
+                        </div>
                         <div className="space-y-1">
                             {success.items?.map((item: any) => (
                                 <div key={item.qr_id} className="flex justify-between items-center bg-white rounded-xl px-3 py-2">
@@ -374,9 +378,9 @@ function PurchaseContent() {
                                 className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase">
                                 ＋ Input PO Baru
                             </button>
-                            <button onClick={() => router.push('/inventory')}
-                                className="flex-1 bg-emerald-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">
-                                🗃️ Lihat Inventory
+                            <button onClick={() => router.push('/purchase-list')}
+                                className="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">
+                                📋 Lihat Status PO
                             </button>
                         </div>
                     </div>
