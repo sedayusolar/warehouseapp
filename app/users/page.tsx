@@ -157,7 +157,7 @@ function UserManagementContent() {
         <select value={value} onChange={e => onChange(e.target.value)}
             className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
             <option value="STAFF">Staff</option>
-            <option value="ENGINEER">Engineer (Project)</option>
+            <option value="ENGINEER">Engineer</option>
             <option value="MANAGER">Manager</option>
             <option value="ADMIN">Admin</option>
         </select>
