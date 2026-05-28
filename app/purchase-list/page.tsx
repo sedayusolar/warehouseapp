@@ -186,20 +186,20 @@ function PurchaseListContent() {
                                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                             <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
                                                             <p className="text-[10px] text-slate-500">📍 {item.location_name}</p>
-                                                            {Number(item.unit_price) > 0 && (
-                                                                <p className="text-[10px] text-violet-500 font-bold">
-                                                                    HPP: {formatRp(Number(item.unit_price))} / {item.unit}
-                                                                </p>
-                                                            )}
+                                                            <p className="text-[10px] text-violet-500 font-bold">
+                                                                {Number(item.unit_price) > 0
+                                                                    ? `HPP: ${formatRp(Number(item.unit_price))} / ${item.unit}`
+                                                                    : <span className="text-slate-300 italic">HPP belum diisi</span>}
+                                                            </p>
                                                         </div>
                                                         <div className="text-right flex-shrink-0">
                                                             <p className="font-black text-lg text-blue-600">{item.qty}</p>
                                                             <p className="text-[10px] text-slate-400">{item.unit}</p>
-                                                            {Number(item.unit_price) > 0 && (
-                                                                <p className="text-[10px] font-bold text-slate-500">
-                                                                    = {formatRp(Number(item.qty) * Number(item.unit_price))}
-                                                                </p>
-                                                            )}
+                                                            <p className="text-[10px] font-bold text-slate-500">
+                                                                {Number(item.unit_price) > 0
+                                                                    ? `= ${formatRp(Number(item.qty) * Number(item.unit_price))}`
+                                                                    : '—'}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -207,14 +207,19 @@ function PurchaseListContent() {
                                         </div>
 
                                         {/* Total value */}
-                                        {detail.items?.some((i: any) => Number(i.unit_price) > 0) && (
-                                            <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
+                                        <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
+                                            <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
-                                                <p className="font-black text-lg">
-                                                    {formatRp(detail.items.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.unit_price), 0))}
-                                                </p>
+                                                {detail.items?.some((i: any) => Number(i.unit_price) === 0) && (
+                                                    <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>
+                                                )}
                                             </div>
-                                        )}
+                                            <p className="font-black text-lg">
+                                                {detail.items?.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.unit_price), 0) > 0
+                                                    ? formatRp(detail.items.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.unit_price), 0))
+                                                    : <span className="text-slate-400 text-sm italic">Harga belum diisi</span>}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     {/* APPROVAL ACTIONS — Manager/Admin, PO masih PENDING */}
