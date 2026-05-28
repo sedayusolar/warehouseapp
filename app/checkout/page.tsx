@@ -557,7 +557,6 @@ function CheckoutContent() {
                 </div>
             )}
 
-/div>
 
             <div className="p-4 space-y-6">
                 {fetchingDraft ? (

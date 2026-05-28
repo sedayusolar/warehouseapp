@@ -285,7 +285,6 @@ function StockAdjustmentContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
-/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
 

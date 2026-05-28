@@ -178,7 +178,6 @@ function TransactionListContent() {
                     </button>
                 </div>
             </div>
-/div>
 
             <div className="p-4 max-w-4xl mx-auto space-y-4">
                 {loading ? (
@@ -269,10 +268,10 @@ function TransactionListContent() {
 
                                 <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isCheckinApproved ? 'bg-blue-500' :
-                                            isDelivered ? 'bg-blue-400' :
-                                                trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
-                                                    trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
-                                                        'bg-orange-500 animate-pulse'}`} />
+                                        isDelivered ? 'bg-blue-400' :
+                                            trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
+                                                trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
+                                                    'bg-orange-500 animate-pulse'}`} />
                                     <span>Status: {
                                         isCheckinApproved ? '✅ SELESAI' :
                                             isCheckinPending ? '⏳ CHECKIN MENUNGGU' :

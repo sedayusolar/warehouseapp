@@ -271,7 +271,6 @@ function CheckInListContent() {
                     ))}
                 </div>
             </div>
-/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-3">
                 {loading ? (
