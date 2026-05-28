@@ -36,6 +36,72 @@ function CheckoutContent() {
     // Location picker — item pending pilih lokasi
     const [pendingItem, setPendingItem] = useState<any>(null);
 
+    // Import dari PO
+    const [showPoModal, setShowPoModal] = useState(false);
+    const [poList, setPoList] = useState<any[]>([]);
+    const [loadingPo, setLoadingPo] = useState(false);
+    const [selectedPo, setSelectedPo] = useState<any>(null);
+    const [poDetail, setPoDetail] = useState<any>(null);
+    const [loadingPoDetail, setLoadingPoDetail] = useState(false);
+
+    // Fetch approved PO list
+    const fetchApprovedPO = async () => {
+        setLoadingPo(true);
+        try {
+            const res = await fetch(`${BASE}/get_purchase_list.php?status=APPROVED`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            if (r.status === 'success') setPoList(r.data);
+        } catch { }
+        setLoadingPo(false);
+    };
+
+    const fetchPoDetail = async (po: any) => {
+        setSelectedPo(po); setPoDetail(null); setLoadingPoDetail(true);
+        try {
+            const res = await fetch(`${BASE}/get_purchase_list.php?id=${po.id}`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            if (r.status === 'success') setPoDetail(r);
+        } catch { }
+        setLoadingPoDetail(false);
+    };
+
+    const importFromPO = async () => {
+        if (!poDetail) return;
+        let imported = 0;
+        for (const item of poDetail.items) {
+            // Cek stok dan lokasi item
+            try {
+                const res = await fetch(`${BASE}/get_item_detail.php?qr_id=${item.qr_id}`, { headers: { 'X-API-KEY': API_KEY } });
+                const r = await res.json();
+                if (r.status !== 'success') continue;
+                const inv = r.data;
+                // Cari lokasi yang ada stok
+                const loc = inv.locations?.find((l: any) => String(l.location_id) === String(item.location_id))
+                    || inv.locations?.find((l: any) => l.available_qty > 0);
+                if (!loc) continue;
+                // Skip kalau sudah ada di cart
+                if (cart.find(c => c.qr_id === item.qr_id && String(c.location_id) === String(loc.location_id))) continue;
+                setCart(prev => [...prev, {
+                    qr_id: item.qr_id,
+                    name: item.item_name,
+                    type: item.category,
+                    stock_qty: inv.stock_qty,
+                    available_qty: loc.available_qty,
+                    reserved_qty: loc.reserved_qty || 0,
+                    location_id: String(loc.location_id),
+                    location_name: loc.location_name,
+                    locations: inv.locations,
+                    qty: item.qty,
+                    photo_base64: '',
+                }]);
+                imported++;
+            } catch { }
+        }
+        setShowPoModal(false); setSelectedPo(null); setPoDetail(null);
+        if (imported > 0) alert(`✅ ${imported} item berhasil diimport dari PO!`);
+        else alert("Semua item dari PO sudah ada di cart atau tidak ada stok.");
+    };
+
     // Compress image
     const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
         return new Promise((resolve) => {
@@ -386,6 +452,88 @@ function CheckoutContent() {
     return (
         <main className="min-h-screen bg-slate-50 pb-28 font-sans relative">
 
+            {/* PO IMPORT MODAL */}
+            {showPoModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setShowPoModal(false); setSelectedPo(null); setPoDetail(null); }}>
+                    <div className="flex-1 overflow-y-auto mt-12" onClick={e => e.stopPropagation()}>
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-32 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Import Item</p>
+                                    <h2 className="font-black text-lg text-slate-900">Pilih Purchase Order</h2>
+                                </div>
+                                <button onClick={() => { setShowPoModal(false); setSelectedPo(null); setPoDetail(null); }}
+                                    className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                            </div>
+
+                            {!selectedPo ? (
+                                // List PO
+                                loadingPo ? (
+                                    <p className="text-center animate-pulse text-slate-400 py-8">Memuat PO...</p>
+                                ) : poList.length === 0 ? (
+                                    <p className="text-center text-slate-400 italic py-8">Tidak ada PO yang sudah diapprove.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {poList.map((po: any) => (
+                                            <button key={po.id} onClick={() => fetchPoDetail(po)}
+                                                className="w-full bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left hover:bg-teal-50 hover:border-teal-300 transition-all active:scale-[0.99]">
+                                                <p className="font-bold text-sm text-slate-800">{po.po_code}</p>
+                                                {po.po_number && <p className="text-[10px] font-mono text-slate-400">No. PO: {po.po_number}</p>}
+                                                {po.supplier && <p className="text-[10px] text-slate-500">🏪 {po.supplier}</p>}
+                                                <p className="text-[10px] text-slate-400">{po.po_date} · {po.total_items} item · {po.total_qty} pcs</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )
+                            ) : (
+                                // Detail PO + item list
+                                <div className="space-y-4">
+                                    <button onClick={() => { setSelectedPo(null); setPoDetail(null); }}
+                                        className="text-[10px] font-black text-blue-500 uppercase">← Kembali ke Daftar PO</button>
+                                    <div className="bg-teal-50 rounded-2xl p-4 border border-teal-200">
+                                        <p className="font-black text-teal-800">{selectedPo.po_code}</p>
+                                        {selectedPo.supplier && <p className="text-xs text-teal-600">🏪 {selectedPo.supplier}</p>}
+                                        <p className="text-xs text-teal-600">{selectedPo.po_date}</p>
+                                    </div>
+
+                                    {loadingPoDetail ? (
+                                        <p className="text-center animate-pulse text-slate-400 py-4">Memuat detail...</p>
+                                    ) : poDetail && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Item ({poDetail.items?.length})</p>
+                                                {poDetail.items?.map((item: any) => (
+                                                    <div key={item.id} className={`rounded-2xl p-3.5 border-l-4 bg-slate-50 ${item.category === 'Tools' ? 'border-l-amber-400' : 'border-l-emerald-400'}`}>
+                                                        <div className="flex justify-between items-center gap-2">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                                <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
+                                                                <p className="text-[10px] text-slate-400">📍 {item.location_name}</p>
+                                                            </div>
+                                                            <div className="text-right flex-shrink-0">
+                                                                <p className="font-black text-lg text-blue-600">{item.qty}</p>
+                                                                <p className="text-[10px] text-slate-400">{item.unit}</p>
+                                                            </div>
+                                                        </div>
+                                                        {cart.find(c => c.qr_id === item.qr_id) && (
+                                                            <p className="text-[9px] font-black text-blue-500 mt-1">✓ Sudah ada di cart</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button onClick={importFromPO}
+                                                className="w-full bg-teal-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
+                                                ✓ Import Semua Item ke Checkout
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* LOCATION PICKER MODAL */}
             {pendingItem && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setPendingItem(null)}>
@@ -457,7 +605,12 @@ function CheckoutContent() {
                                 </div>
                             )}
                             {!showScanner && (
-                                <div>
+                                <div className="space-y-2">
+                                    {/* Import dari PO */}
+                                    <button onClick={() => { setShowPoModal(true); fetchApprovedPO(); setShowSearch(false); }}
+                                        className="w-full bg-teal-600 text-white font-black py-3 rounded-2xl active:scale-95 transition-all uppercase tracking-widest text-xs shadow-md">
+                                        📋 IMPORT DARI PO
+                                    </button>
                                     <button onClick={() => setShowSearch(v => !v)}
                                         className="w-full bg-slate-200 text-slate-700 font-black py-3 rounded-2xl active:scale-95 transition-all uppercase tracking-widest text-xs">
                                         🔍 {showSearch ? 'TUTUP PENCARIAN' : 'CARI BARANG MANUAL'}
