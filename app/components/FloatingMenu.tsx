@@ -1,4 +1,6 @@
 'use client';
-// Re-export Navbar sebagai FloatingMenu
-// Supaya semua page lama tidak perlu diubah satu per satu
-export { default } from './Navbar';
+import Navbar from './Navbar';
+
+export default function FloatingMenu() {
+    return <Navbar />;
+}
