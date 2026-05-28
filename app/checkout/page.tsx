@@ -43,6 +43,8 @@ function CheckoutContent() {
     const [selectedPo, setSelectedPo] = useState<any>(null);
     const [poDetail, setPoDetail] = useState<any>(null);
     const [loadingPoDetail, setLoadingPoDetail] = useState(false);
+    const [poSelection, setPoSelection] = useState<Record<number, { checked: boolean, qty: number }>>({});
+    const [importing, setImporting] = useState(false);
 
     // Fetch approved PO list
     const fetchApprovedPO = async () => {
@@ -56,50 +58,74 @@ function CheckoutContent() {
     };
 
     const fetchPoDetail = async (po: any) => {
-        setSelectedPo(po); setPoDetail(null); setLoadingPoDetail(true);
+        setSelectedPo(po); setPoDetail(null); setLoadingPoDetail(true); setPoSelection({});
         try {
             const res = await fetch(`${BASE}/get_purchase_list.php?id=${po.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            if (r.status === 'success') setPoDetail(r);
+            if (r.status === 'success') {
+                setPoDetail(r);
+                // Init semua item terselect dengan qty dari PO
+                const sel: Record<number, { checked: boolean, qty: number }> = {};
+                r.items?.forEach((item: any) => { sel[item.id] = { checked: true, qty: item.qty }; });
+                setPoSelection(sel);
+            }
         } catch { }
         setLoadingPoDetail(false);
     };
 
     const importFromPO = async () => {
         if (!poDetail) return;
+        setImporting(true);
         let imported = 0;
-        for (const item of poDetail.items) {
-            // Cek stok dan lokasi item
+        let skipped = 0;
+
+        // Hanya proses item yang dicentang
+        const selectedItems = poDetail.items.filter((item: any) => poSelection[item.id]?.checked);
+
+        for (const item of selectedItems) {
+            const qty = poSelection[item.id]?.qty || item.qty;
+            if (qty <= 0) continue;
             try {
-                const res = await fetch(`${BASE}/get_item_detail.php?qr_id=${item.qr_id}`, { headers: { 'X-API-KEY': API_KEY } });
+                // Pakai search_inventory yang sudah return locations
+                const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(item.qr_id)}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
-                if (r.status !== 'success') continue;
-                const inv = r.data;
-                // Cari lokasi yang ada stok
-                const loc = inv.locations?.find((l: any) => String(l.location_id) === String(item.location_id))
+                if (r.status !== 'success' || !r.data?.length) { skipped++; continue; }
+
+                const inv = r.data.find((d: any) => d.qr_id === item.qr_id) || r.data[0];
+
+                // Cari lokasi: prioritas lokasi di PO, fallback ke yang ada stok
+                const loc = inv.locations?.find((l: any) => String(l.location_id) === String(item.location_id) && l.available_qty > 0)
                     || inv.locations?.find((l: any) => l.available_qty > 0);
-                if (!loc) continue;
-                // Skip kalau sudah ada di cart
-                if (cart.find(c => c.qr_id === item.qr_id && String(c.location_id) === String(loc.location_id))) continue;
+
+                if (!loc) { skipped++; continue; }
+
+                // Skip kalau sudah ada di cart dengan lokasi yang sama
+                if (cart.find(c => c.qr_id === item.qr_id && String(c.location_id) === String(loc.location_id))) {
+                    skipped++; continue;
+                }
+
                 setCart(prev => [...prev, {
-                    qr_id: item.qr_id,
-                    name: item.item_name,
-                    type: item.category,
+                    qr_id: inv.qr_id,
+                    name: inv.item_name,
+                    type: inv.category,
                     stock_qty: inv.stock_qty,
                     available_qty: loc.available_qty,
                     reserved_qty: loc.reserved_qty || 0,
                     location_id: String(loc.location_id),
                     location_name: loc.location_name,
                     locations: inv.locations,
-                    qty: item.qty,
+                    qty: qty,
                     photo_base64: '',
                 }]);
                 imported++;
-            } catch { }
+            } catch { skipped++; }
         }
-        setShowPoModal(false); setSelectedPo(null); setPoDetail(null);
-        if (imported > 0) alert(`✅ ${imported} item berhasil diimport dari PO!`);
-        else alert("Semua item dari PO sudah ada di cart atau tidak ada stok.");
+
+        setImporting(false);
+        setShowPoModal(false); setSelectedPo(null); setPoDetail(null); setPoSelection({});
+
+        if (imported > 0) alert(`✅ ${imported} item berhasil diimport!${skipped > 0 ? `\n⚠️ ${skipped} item dilewati (tidak ada stok atau sudah di cart).` : ''}`);
+        else alert("Tidak ada item yang bisa diimport. Cek stok atau item mungkin sudah ada di cart.");
     };
 
     // Compress image
@@ -500,30 +526,70 @@ function CheckoutContent() {
                                         <p className="text-center animate-pulse text-slate-400 py-4">Memuat detail...</p>
                                     ) : poDetail && (
                                         <>
+                                            {/* Select all toggle */}
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">
+                                                    Item ({poDetail.items?.length}) · {Object.values(poSelection).filter((s: any) => s.checked).length} dipilih
+                                                </p>
+                                                <button onClick={() => {
+                                                    const allChecked = poDetail.items.every((i: any) => poSelection[i.id]?.checked);
+                                                    const sel: Record<number, { checked: boolean, qty: number }> = {};
+                                                    poDetail.items.forEach((i: any) => { sel[i.id] = { checked: !allChecked, qty: poSelection[i.id]?.qty || i.qty }; });
+                                                    setPoSelection(sel);
+                                                }} className="text-[10px] font-black text-blue-500 uppercase">
+                                                    {poDetail.items.every((i: any) => poSelection[i.id]?.checked) ? 'Batal Semua' : 'Pilih Semua'}
+                                                </button>
+                                            </div>
+
                                             <div className="space-y-2">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase">Item ({poDetail.items?.length})</p>
-                                                {poDetail.items?.map((item: any) => (
-                                                    <div key={item.id} className={`rounded-2xl p-3.5 border-l-4 bg-slate-50 ${item.category === 'Tools' ? 'border-l-amber-400' : 'border-l-emerald-400'}`}>
-                                                        <div className="flex justify-between items-center gap-2">
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                                                <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                                <p className="text-[10px] text-slate-400">📍 {item.location_name}</p>
-                                                            </div>
-                                                            <div className="text-right flex-shrink-0">
-                                                                <p className="font-black text-lg text-blue-600">{item.qty}</p>
-                                                                <p className="text-[10px] text-slate-400">{item.unit}</p>
+                                                {poDetail.items?.map((item: any) => {
+                                                    const sel = poSelection[item.id] || { checked: true, qty: item.qty };
+                                                    const inCart = cart.find(c => c.qr_id === item.qr_id);
+                                                    return (
+                                                        <div key={item.id}
+                                                            className={`rounded-2xl p-3.5 border-2 transition-all ${sel.checked ? (item.category === 'Tools' ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50') : 'border-slate-100 bg-slate-50 opacity-50'}`}>
+                                                            <div className="flex items-start gap-3">
+                                                                {/* Checkbox */}
+                                                                <button onClick={() => setPoSelection(prev => ({
+                                                                    ...prev,
+                                                                    [item.id]: { ...sel, checked: !sel.checked }
+                                                                }))} className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center font-black text-sm mt-0.5 transition-all
+                                                                    ${sel.checked ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                                    {sel.checked ? '✓' : ''}
+                                                                </button>
+
+                                                                {/* Item info */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                                    <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
+                                                                    <p className="text-[10px] text-slate-500">📍 {item.location_name}</p>
+                                                                    {inCart && <p className="text-[9px] font-black text-blue-500 mt-0.5">✓ Sudah ada di cart</p>}
+                                                                </div>
+
+                                                                {/* Qty editor */}
+                                                                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                                                                    <button onClick={() => setPoSelection(prev => ({
+                                                                        ...prev, [item.id]: { checked: sel.checked, qty: Math.max(1, sel.qty + 1) }
+                                                                    }))} className="w-7 h-7 bg-slate-200 rounded-lg font-black text-slate-600 text-sm active:bg-slate-300">＋</button>
+                                                                    <input type="number" min="1" value={sel.qty}
+                                                                        onChange={e => setPoSelection(prev => ({
+                                                                            ...prev, [item.id]: { checked: sel.checked, qty: Math.max(1, Number(e.target.value)) }
+                                                                        }))}
+                                                                        className="w-12 text-center font-black text-blue-600 text-sm border border-slate-200 rounded-lg py-0.5 outline-none" />
+                                                                    <p className="text-[9px] text-slate-400">{item.unit}</p>
+                                                                    <button onClick={() => setPoSelection(prev => ({
+                                                                        ...prev, [item.id]: { checked: sel.checked, qty: Math.max(1, sel.qty - 1) }
+                                                                    }))} className="w-7 h-7 bg-slate-200 rounded-lg font-black text-slate-600 text-sm active:bg-slate-300">－</button>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        {cart.find(c => c.qr_id === item.qr_id) && (
-                                                            <p className="text-[9px] font-black text-blue-500 mt-1">✓ Sudah ada di cart</p>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
-                                            <button onClick={importFromPO}
-                                                className="w-full bg-teal-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
-                                                ✓ Import Semua Item ke Checkout
+
+                                            <button onClick={importFromPO} disabled={importing || Object.values(poSelection).every((s: any) => !s.checked)}
+                                                className="w-full bg-teal-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50 transition-all">
+                                                {importing ? '⏳ Mengimport...' : `✓ Import ${Object.values(poSelection).filter((s: any) => s.checked).length} Item ke Checkout`}
                                             </button>
                                         </>
                                     )}
