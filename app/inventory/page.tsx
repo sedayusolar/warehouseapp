@@ -36,6 +36,7 @@ function InventoryContent() {
     const editPhotoRef = useRef<HTMLInputElement>(null);
 
     const [logQr, setLogQr] = useState<string | null>(null);
+    const [deletingQr, setDeletingQr] = useState<string | null>(null);
     const [logs, setLogs] = useState<any[]>([]);
     const [loadingLog, setLoadingLog] = useState(false);
 
@@ -176,6 +177,26 @@ function InventoryContent() {
             else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setSavingEdit(false);
+    };
+
+    const handleDelete = async (item: any) => {
+        if (!confirm(`Hapus "${item.item_name}" (${item.qr_id})? \nStok: ${item.stock_qty} ${item.unit}\n\nAksi ini tidak bisa dibatalkan.`)) return;
+        setDeletingQr(item.qr_id);
+        try {
+            const res = await fetch('https://sedayu.com/api/warehouse/delete_inventory.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': 'SedayuSolar_TopSecret_2026' },
+                body: JSON.stringify({ qr_id: item.qr_id })
+            });
+            const r = await res.json();
+            if (r.status === 'success') {
+                alert(r.message);
+                fetchItems(filterLocation, filterCategory);
+            } else {
+                alert('Gagal: ' + r.message);
+            }
+        } catch { alert('Gagal koneksi.'); }
+        setDeletingQr(null);
     };
 
     const fetchLog = async (qrId: string) => {
@@ -648,6 +669,13 @@ function InventoryContent() {
                                                         )}
                                                         <button onClick={e => { e.stopPropagation(); fetchLog(item.qr_id); }}
                                                             className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">📋 Log</button>
+                                                        {user.role === 'ADMIN' && (
+                                                            <button onClick={e => { e.stopPropagation(); handleDelete(item); }}
+                                                                disabled={deletingQr === item.qr_id}
+                                                                className="text-[9px] font-black text-red-400 bg-red-50 px-2 py-1 rounded-lg active:scale-95 disabled:opacity-50">
+                                                                {deletingQr === item.qr_id ? '...' : '🗑️'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="mt-3">
