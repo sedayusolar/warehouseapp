@@ -11,7 +11,7 @@ const BOTTOM_STAFF = [
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Profil', icon: '👤', path: '/profile' },
+    { label: 'Input PO', icon: '🛍️', path: '/purchase' },
 ];
 
 const BOTTOM_MANAGER = [
