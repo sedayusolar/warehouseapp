@@ -69,7 +69,9 @@ function PurchaseListContent() {
             });
             const r = await res.json();
             if (r.status === 'success') {
-                alert(r.message); setSelected(null); setDetail(null); fetchList(filterStatus);
+                alert(r.message);
+                setSelected(null); setDetail(null);
+                fetchList(filterStatus);
             } else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
@@ -85,7 +87,9 @@ function PurchaseListContent() {
             });
             const r = await res.json();
             if (r.status === 'success') {
-                alert(r.message); setSelected(null); setDetail(null); setShowReject(false); fetchList(filterStatus);
+                alert(r.message);
+                setSelected(null); setDetail(null); setShowReject(false);
+                fetchList(filterStatus);
             } else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
@@ -111,6 +115,7 @@ function PurchaseListContent() {
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setSelected(null); setDetail(null); }}>
                     <div className="flex-1 overflow-y-auto mt-12" onClick={e => e.stopPropagation()}>
                         <div className="bg-white min-h-full rounded-t-3xl p-5 pb-32 space-y-5">
+                            {/* Header */}
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border ${STATUS_CONFIG[selected.approval_status]?.bg} ${STATUS_CONFIG[selected.approval_status]?.color}`}>
@@ -146,6 +151,7 @@ function PurchaseListContent() {
                                     className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
                             </div>
 
+                            {/* Foto SJ */}
                             {selected.sj_photo_path && (
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalan / PO</p>
@@ -161,6 +167,7 @@ function PurchaseListContent() {
                                 <p className="text-center animate-pulse text-slate-400 py-8">Memuat detail...</p>
                             ) : detail && (
                                 <>
+                                    {/* Item list */}
                                     <div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Item ({detail.items?.length})</p>
                                         <div className="space-y-2">
@@ -198,6 +205,8 @@ function PurchaseListContent() {
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {/* Total value */}
                                         <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
@@ -213,6 +222,7 @@ function PurchaseListContent() {
                                         </div>
                                     </div>
 
+                                    {/* APPROVAL ACTIONS — Manager/Admin, PO masih PENDING */}
                                     {selected.approval_status === 'PENDING' && (user.role === 'MANAGER' || user.role === 'ADMIN') && (
                                         <div className="space-y-3 pt-2">
                                             {showReject ? (
@@ -253,27 +263,8 @@ function PurchaseListContent() {
                 </div>
             )}
 
-            {/* TAB FILTER — sticky di bawah top navbar */}
-            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
-                <div className="max-w-2xl mx-auto flex gap-2">
-                    {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
-                        <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }}
-                            className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all
-                                ${filterStatus === s
-                                    ? s === 'PENDING' ? 'bg-orange-500 text-white shadow-sm'
-                                        : s === 'APPROVED' ? 'bg-emerald-500 text-white shadow-sm'
-                                            : 'bg-red-500 text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-400'}`}>
-                            {s === 'PENDING' ? '⏳' : s === 'APPROVED' ? '✅' : '❌'} {s}
-                            {s === 'PENDING' && pendingCount > 0 && (
-                                <span className="ml-1 bg-white text-orange-500 text-[8px] font-black px-1 py-0.5 rounded-full">{pendingCount}</span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            </div>
+/div>
 
-            {/* LIST */}
             <div className="p-4 max-w-2xl mx-auto space-y-3">
                 {loading ? (
                     <div className="text-center py-20 animate-pulse text-slate-400 font-bold">Memuat...</div>
@@ -295,7 +286,7 @@ function PurchaseListContent() {
                                 </div>
                                 <p className="font-bold text-sm text-slate-800">{item.po_code}</p>
                                 {item.po_number && <p className="text-[10px] font-mono text-slate-400">No. PO: {item.po_number}</p>}
-                                {item.supplier && <p className="text-[10px] text-slate-500 font-bold">🏪 {item.supplier}</p>}
+                                {item.supplier && <p className="text-[10px] text-slate-400">🏪 {item.supplier}</p>}
                                 <p className="text-[10px] text-slate-400">{item.po_date} · {item.created_by}</p>
                                 <p className="text-[10px] text-slate-400">{item.total_items} item · {item.total_qty} pcs</p>
                             </div>

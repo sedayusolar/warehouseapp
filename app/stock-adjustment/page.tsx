@@ -285,16 +285,7 @@ function StockAdjustmentContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-xl font-bold">Stock Adjustment</h1>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{user.name} · {user.role}</p>
-                    </div>
-                    <button onClick={() => router.push('/inventory')} className="bg-slate-800 px-3 py-2 rounded-xl text-xs font-black">← Inventory</button>
-                </div>
-            </div>
+/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
 

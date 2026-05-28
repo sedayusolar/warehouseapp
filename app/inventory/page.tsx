@@ -230,6 +230,37 @@ function InventoryContent() {
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
 
+            {/* SEARCH + FILTER BAR */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm">
+                <div className="p-3 space-y-2 max-w-4xl mx-auto">
+                    <div className="flex gap-2 items-center">
+                        <input type="text" placeholder="🔍 Cari nama / QR ID..." value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="flex-1 p-2.5 bg-slate-100 text-slate-700 placeholder-slate-400 rounded-xl outline-none text-sm font-medium" />
+                        {user.role !== 'MANAGER' && (
+                            <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); }}
+                                className={`px-3 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex-shrink-0 ${showForm ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-sm'}`}>
+                                {showForm ? '✕' : '＋'}
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        <select value={filterLocation} onChange={e => handleFilterChange(e.target.value, filterCategory)}
+                            className="flex-1 p-2 bg-slate-100 text-slate-600 rounded-xl outline-none text-xs font-bold appearance-none">
+                            <option value="">Semua Lokasi</option>
+                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+                        </select>
+                        <select value={filterCategory} onChange={e => handleFilterChange(filterLocation, e.target.value)}
+                            className="flex-1 p-2 bg-slate-100 text-slate-600 rounded-xl outline-none text-xs font-bold appearance-none">
+                            <option value="">Semua Kategori</option>
+                            <option value="Material">Material</option>
+                            <option value="Tools">Tools</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+
             {/* DETAIL MODAL */}
             {detailItem && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={closeDetail}>
@@ -509,39 +540,7 @@ function InventoryContent() {
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-xl font-bold">Inventory List</h1>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{user.name} · {user.role}</p>
-                    </div>
-                    {user.role !== 'MANAGER' && (
-                        <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); }}
-                            className={`px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${showForm ? 'bg-slate-700 text-slate-300' : 'bg-blue-600 text-white shadow-lg'}`}>
-                            {showForm ? '✕ Tutup' : '＋ Daftarkan'}
-                        </button>
-                    )}
-                </div>
-                <div className="px-4 pb-4 space-y-2">
-                    <input type="text" placeholder="🔍 Cari nama / QR ID..." value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full p-3 bg-slate-800 text-white placeholder-slate-500 rounded-xl outline-none text-sm font-medium" />
-                    <div className="flex gap-2">
-                        <select value={filterLocation} onChange={e => handleFilterChange(e.target.value, filterCategory)}
-                            className="flex-1 p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-xs font-bold appearance-none">
-                            <option value="">Semua Lokasi</option>
-                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
-                        </select>
-                        <select value={filterCategory} onChange={e => handleFilterChange(filterLocation, e.target.value)}
-                            className="flex-1 p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-xs font-bold appearance-none">
-                            <option value="">Semua Kategori</option>
-                            <option value="Material">Material</option>
-                            <option value="Tools">Tools</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+/div>
 
             <div className="p-4 space-y-4 max-w-4xl mx-auto">
                 {showForm && (

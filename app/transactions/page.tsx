@@ -159,37 +159,26 @@ function TransactionListContent() {
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="flex justify-between items-center max-w-4xl mx-auto">
-                    <div>
-                        <h1 className="text-xl font-bold">Warehouse Transactions</h1>
-                        <p className="text-slate-400 text-[10px] tracking-widest uppercase font-black">
-                            Logged as: {user.name} ({user.role})
-                        </p>
-                    </div>
-                    {/* Tombol Scan QR */}
-                    <button
-                        onClick={() => setShowScanner(true)}
-                        className="bg-blue-600 text-white font-black px-3 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-1.5">
-                        <span>📷</span>
-                        <span>Scan QR</span>
-                    </button>
-                </div>
-
-                <div className="flex gap-2 mt-4 max-w-4xl mx-auto">
+            {/* TAB FILTER + SCAN QR */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
+                <div className="max-w-4xl mx-auto flex gap-2 items-center">
                     {(user?.role === 'MANAGER'
                         ? ['ALL', 'SUBMITTED']
                         : ['ALL', 'DRAFT', 'SUBMITTED']
                     ).map((tab) => (
                         <button key={tab} onClick={() => setFilter(tab)}
-                            className={`flex-1 py-2.5 text-[10px] font-black rounded-xl uppercase tracking-widest transition-all
-                                ${filter === tab ? 'bg-white text-slate-900 shadow-md scale-105' : 'bg-slate-800 text-slate-500'}`}>
-                            {tab === 'SUBMITTED' ? 'MENUNGGU APPROVAL' : tab}
+                            className={`flex-1 py-2 text-[10px] font-black rounded-xl uppercase tracking-widest transition-all
+                                ${filter === tab ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
+                            {tab === 'SUBMITTED' ? 'APPROVAL' : tab}
                         </button>
                     ))}
+                    <button onClick={() => setShowScanner(true)} disabled={scanning}
+                        className="bg-blue-600 text-white font-black px-3 py-2 rounded-xl text-xs uppercase flex items-center gap-1 flex-shrink-0 disabled:opacity-50">
+                        <span>📷</span>
+                    </button>
                 </div>
             </div>
+/div>
 
             <div className="p-4 max-w-4xl mx-auto space-y-4">
                 {loading ? (

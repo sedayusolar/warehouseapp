@@ -308,20 +308,17 @@ function UserManagementContent() {
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Admin Panel</p>
-                        <h1 className="text-xl font-black">User Management</h1>
-                        <p className="text-[10px] text-slate-400">{users.length} user terdaftar</p>
-                    </div>
+            {/* ACTION BAR */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
+                <div className="max-w-2xl mx-auto flex justify-between items-center">
+                    <p className="text-sm font-black text-slate-600">{users.length} user terdaftar</p>
                     <button onClick={openCreate}
-                        className="bg-blue-600 text-white font-black px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                        className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-widest shadow-sm active:scale-95">
                         ＋ Tambah
                     </button>
                 </div>
             </div>
+/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
                 {loading ? (

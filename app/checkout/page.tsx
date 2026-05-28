@@ -557,14 +557,7 @@ function CheckoutContent() {
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="hidden">
-                <div>
-                    <h1 className="text-xl font-bold">{editId ? 'Lanjutkan Draft' : 'Checkout'}</h1>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">User: {user.name} ({user.role})</p>
-                </div>
-                <button onClick={() => router.push('/transactions')} className="bg-slate-800 p-2 rounded-full text-xs font-black">✕</button>
-            </div>
+/div>
 
             <div className="p-4 space-y-6">
                 {fetchingDraft ? (

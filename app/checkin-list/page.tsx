@@ -256,32 +256,22 @@ function CheckInListContent() {
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Approval</p>
-                        <h1 className="text-xl font-black">Check In Barang</h1>
-                        <p className="text-[10px] text-slate-400">{user.name} · {user.role}</p>
-                    </div>
-                    {pendingCount > 0 && filterStatus === 'PENDING' && (
-                        <div className="bg-orange-500 text-white font-black text-sm w-8 h-8 rounded-full flex items-center justify-center">
-                            {pendingCount}
-                        </div>
-                    )}
-                </div>
-
-                {/* Filter tabs */}
-                <div className="px-4 pb-4 flex gap-2">
-                    {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
+            {/* TAB FILTER */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
+                <div className="max-w-2xl mx-auto flex gap-2">
+                    {['PENDING', 'APPROVED', 'ALL'].map(s => (
                         <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }}
                             className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all
-                                ${filterStatus === s ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-400'}`}>
-                            {s === 'PENDING' ? '⏳' : s === 'APPROVED' ? '✅' : '❌'} {s}
+                                ${filterStatus === s ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
+                            {s === 'PENDING' ? '⏳' : s === 'APPROVED' ? '✅' : '📋'} {s}
+                            {s === 'PENDING' && pendingCount > 0 && (
+                                <span className="ml-1 bg-white text-blue-600 text-[8px] font-black px-1 py-0.5 rounded-full">{pendingCount}</span>
+                            )}
                         </button>
                     ))}
                 </div>
             </div>
+/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-3">
                 {loading ? (

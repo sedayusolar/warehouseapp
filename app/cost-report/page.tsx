@@ -76,43 +76,32 @@ function CostReportContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
-            {/* HEADER */}
-            <div className="hidden">
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">REPORT</p>
-                        <h1 className="text-xl font-black">Cost per Project</h1>
-                        <p className="text-[10px] text-slate-400">{user.name} · {user.role}</p>
-                    </div>
-                    <button onClick={() => router.push('/dashboard')}
-                        className="bg-slate-800 px-3 py-2 rounded-xl text-xs font-black">← Dashboard</button>
-                </div>
 
-                {/* FILTER */}
-                <div className="px-4 pb-4 space-y-2">
-                    <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
-                        className="w-full p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-sm font-medium appearance-none">
-                        <option value="">Semua Project</option>
-                        {projects.map((p: any) => <option key={p.id} value={p.project_name}>{p.project_name}</option>)}
-                    </select>
+            {/* FILTER BAR */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
+                <div className="max-w-2xl mx-auto space-y-2">
                     <div className="flex gap-2">
                         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                            className="flex-1 p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-xs" />
+                            className="flex-1 p-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-600" />
                         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                            className="flex-1 p-2.5 bg-slate-800 text-slate-200 rounded-xl outline-none text-xs" />
+                            className="flex-1 p-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-600" />
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={handleFilter} disabled={loading}
-                            className="flex-1 bg-blue-600 text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-widest active:scale-95 disabled:opacity-50">
-                            {loading ? 'Memuat...' : '🔍 Filter'}
-                        </button>
-                        <button onClick={handleReset}
-                            className="bg-slate-700 text-slate-300 font-black py-2.5 px-4 rounded-xl text-xs uppercase active:scale-95">
-                            Reset
+                        <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)}
+                            className="flex-1 p-2 bg-slate-100 text-slate-600 rounded-xl outline-none text-xs font-bold appearance-none">
+                            <option value="">Semua Project</option>
+                            {projects.map((p: any) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                        </select>
+                        <button onClick={() => fetchReport(selectedProject, dateFrom, dateTo)}
+                            disabled={loading}
+                            className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase disabled:opacity-50 flex-shrink-0">
+                            {loading ? '...' : '🔍'}
                         </button>
                     </div>
                 </div>
             </div>
+
+/div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-4">
 
