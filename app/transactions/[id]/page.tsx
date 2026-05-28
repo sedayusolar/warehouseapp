@@ -91,12 +91,13 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         }));
         const params = new URLSearchParams({
             code: header.transaction_code,
+            trx_id: String(header.id),                   // ← untuk QR code URL
             project: header.project_name || '—',
             pic: header.pic_name || '—',
             date: header.checkout_date,
             pengirim: header.staff_name || user?.name || '—',
-            staff_sig: header.staff_signature_path || '',   // path TTD staff
-            pic_sig: header.signature_pic_path || '',      // path TTD PIC/Engineer
+            staff_sig: header.staff_signature_path || '',
+            pic_sig: header.signature_pic_path || '',
             base_url: BASE_URL,
             items: JSON.stringify(itemsData),
         });

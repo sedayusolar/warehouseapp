@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Surat Jalan - SEDAYUSolar</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -25,7 +26,6 @@
             margin: 0 auto;
         }
 
-        /* HEADER */
         .header {
             text-align: center;
             border-bottom: 3px solid #000;
@@ -39,7 +39,6 @@
             line-height: 1.6;
         }
 
-        /* TITLE */
         .doc-title {
             text-align: center;
             margin: 12px 0 6px;
@@ -60,36 +59,61 @@
             margin-top: 4px;
         }
 
-        /* META */
+        /* META — 3 kolom */
         .meta-row {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             margin: 14px 0 10px;
+            gap: 12px;
         }
 
         .meta-left {
             font-size: 11px;
             line-height: 1.8;
+            flex: 1;
         }
 
-        .meta-right {
+        .meta-center {
             text-align: right;
             font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        .meta-qr {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .meta-qr #qr-canvas {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 3px;
+            background: #fff;
+        }
+
+        .meta-qr .qr-label {
+            font-size: 8px;
+            color: #888;
+            text-align: center;
+            line-height: 1.3;
+            max-width: 80px;
         }
 
         .doc-number {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #000;
         }
 
-        .meta-right .label {
+        .meta-center .label {
             font-size: 10px;
             color: #666;
         }
 
-        /* TABLE */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -141,7 +165,6 @@
             height: 28px;
         }
 
-        /* PROJECT INFO */
         .project-info {
             margin: 8px 0 16px;
             font-size: 11px;
@@ -169,7 +192,6 @@
             min-height: 20px;
         }
 
-        /* SIGNATURES — 4 kolom */
         .signatures {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -221,7 +243,6 @@
             color: #666;
         }
 
-        /* FOOTER */
         .footer-note {
             margin-top: 16px;
             font-size: 9px;
@@ -249,7 +270,6 @@
 
 <body>
 
-    <!-- PRINT BUTTON -->
     <div class="no-print"
         style="text-align:center; padding: 16px; background: #f1f5f9; position: sticky; top: 0; z-index: 10; display: flex; gap: 12px; justify-content: center;">
         <button onclick="window.print()"
@@ -262,7 +282,6 @@
 
     <div class="page" id="sj-content">
 
-        <!-- HEADER -->
         <div class="header">
             <div style="margin-bottom: 6px;">
                 <img src="https://sedayu.com/wp-content/uploads/2021/10/cropped-new-sedayu.png"
@@ -277,24 +296,29 @@
             </div>
         </div>
 
-        <!-- TITLE -->
         <div class="doc-title">
             <h2>SURAT JALAN (DELIVERY ORDER)</h2>
             <div class="doc-subtitle" id="sj-ref-text">Dokumen pengeluaran barang dari gudang</div>
         </div>
 
-        <!-- META -->
+        <!-- META: kiri, tengah (no+tgl), kanan (QR) -->
         <div class="meta-row">
             <div class="meta-left">
                 Kepada Yang Terhormat,<br>
                 <strong id="sj-pic">—</strong><br>
                 <span id="sj-project" style="color:#1a6b3c; font-weight:bold;">Project: —</span>
             </div>
-            <div class="meta-right">
+
+            <div class="meta-center">
                 <div class="label">No</div>
                 <div class="doc-number" id="sj-no">—</div>
                 <div class="label" style="margin-top:6px;">Tanggal</div>
                 <div style="font-size:13px; font-weight:bold;" id="sj-date">—</div>
+            </div>
+
+            <div class="meta-qr">
+                <div id="qr-canvas"></div>
+                <div class="qr-label">Scan untuk<br>cek dokumen</div>
             </div>
         </div>
 
@@ -302,7 +326,6 @@
             Bersama ini kami kirimkan detail barang - barang seperti tercantum di bawah ini :
         </div>
 
-        <!-- TABLE -->
         <table id="sj-table">
             <thead>
                 <tr>
@@ -317,7 +340,6 @@
             <tbody id="sj-items"></tbody>
         </table>
 
-        <!-- PROJECT INFO -->
         <div class="project-info">
             <div class="row">
                 <span class="key">Project</span>
@@ -336,32 +358,21 @@
             </div>
         </div>
 
-        <!-- SIGNATURES — 4 kolom: Penerima (PIC), Pengirim (Staff), Supir, Keamanan -->
         <div class="signatures">
-
-            <!-- Penerima / PIC Engineer -->
             <div class="sig-box">
                 <div class="sig-label">Penerima</div>
-                <div class="sig-img-area" id="sig-pic-area">
-                    <!-- TTD PIC Engineer diisi JS jika ada -->
-                </div>
+                <div class="sig-img-area" id="sig-pic-area"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name" id="sj-penerima">—</div>
                 <div class="sig-role">PIC / Engineer</div>
             </div>
-
-            <!-- Pengirim / Staff Gudang -->
             <div class="sig-box">
                 <div class="sig-label">Pengirim</div>
-                <div class="sig-img-area" id="sig-staff-area">
-                    <!-- TTD Staff diisi JS -->
-                </div>
+                <div class="sig-img-area" id="sig-staff-area"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name" id="sj-pengirim">—</div>
                 <div class="sig-role">Staff Gudang</div>
             </div>
-
-            <!-- Supir -->
             <div class="sig-box">
                 <div class="sig-label">Supir</div>
                 <div class="sig-blank"></div>
@@ -369,8 +380,6 @@
                 <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
                 <div class="sig-role">&nbsp;</div>
             </div>
-
-            <!-- Keamanan -->
             <div class="sig-box">
                 <div class="sig-label">Keamanan</div>
                 <div class="sig-blank"></div>
@@ -378,10 +387,8 @@
                 <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
                 <div class="sig-role">&nbsp;</div>
             </div>
-
         </div>
 
-        <!-- FOOTER -->
         <div class="footer-note">
             * Dokumen ini merupakan bukti pengeluaran barang yang sah dari gudang SEDAYUSolar.<br>
             * Barang yang sudah keluar tidak dapat dikembalikan tanpa persetujuan Manager.<br>
@@ -392,12 +399,13 @@
     <script>
         const p = new URLSearchParams(window.location.search);
         const trxCode = p.get('code') || '—';
+        const trxId = p.get('trx_id') || '';
         const project = p.get('project') || '—';
         const pic = p.get('pic') || '—';
         const date = p.get('date') || '—';
         const pengirim = p.get('pengirim') || '—';
-        const staffSigUrl = p.get('staff_sig') || '';   // URL path TTD staff
-        const picSigUrl = p.get('pic_sig') || '';   // URL path TTD PIC/Engineer
+        const staffSigUrl = p.get('staff_sig') || '';
+        const picSigUrl = p.get('pic_sig') || '';
         const baseUrl = p.get('base_url') || 'https://sedayu.com/api/warehouse';
 
         let items = [];
@@ -424,7 +432,21 @@
         document.getElementById('sj-penerima').textContent = pic || '—';
         document.getElementById('sj-pengirim').textContent = pengirim || '—';
 
-        // TTD Staff — gambar dari server
+        // ── QR Code — URL detail transaksi ──
+        const qrUrl = trxId
+            ? 'https://warehouse.sedayu.com/transactions/' + trxId
+            : 'https://warehouse.sedayu.com/transactions';
+
+        new QRCode(document.getElementById('qr-canvas'), {
+            text: qrUrl,
+            width: 80,
+            height: 80,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        // TTD Staff
         if (staffSigUrl) {
             const area = document.getElementById('sig-staff-area');
             const img = document.createElement('img');
@@ -433,7 +455,7 @@
             area.appendChild(img);
         }
 
-        // TTD PIC/Engineer — gambar dari server (mungkin belum ada saat print)
+        // TTD PIC/Engineer
         if (picSigUrl) {
             const area = document.getElementById('sig-pic-area');
             const img = document.createElement('img');
@@ -446,7 +468,6 @@
         const tbody = document.getElementById('sj-items');
         items.forEach((item, idx) => {
             const tr = document.createElement('tr');
-            // Lokasi — gunakan field location_name (dari transaction_details)
             const lokasiText = item.location_name || item.location || '—';
             tr.innerHTML = `
                 <td class="td-no">${idx + 1}</td>
@@ -462,7 +483,6 @@
             tbody.appendChild(tr);
         });
 
-        // Empty rows (min 8)
         for (let i = items.length; i < 8; i++) {
             const tr = document.createElement('tr');
             tr.className = 'empty-row';
