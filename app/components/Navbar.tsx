@@ -11,7 +11,7 @@ const BOTTOM_STAFF = [
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Profil', icon: '👤', path: '/profile' },
+    { label: 'Input PO', icon: '🛍️', path: '/purchase' },
 ];
 
 const BOTTOM_MANAGER = [
@@ -93,12 +93,15 @@ export default function Navbar() {
             <div className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-slate-100 shadow-sm">
                 <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-2">
-                        {/* Hamburger → open drawer */}
+                        {/* Grid icon → open drawer */}
                         <button onClick={() => setShowDrawer(true)}
-                            className="w-9 h-9 flex flex-col justify-center items-center gap-1.5 rounded-xl active:bg-slate-100 transition-all">
-                            <span className="w-5 h-0.5 bg-slate-700 rounded-full"></span>
-                            <span className="w-5 h-0.5 bg-slate-700 rounded-full"></span>
-                            <span className="w-4 h-0.5 bg-slate-700 rounded-full self-start"></span>
+                            className="w-9 h-9 flex items-center justify-center rounded-xl active:bg-slate-100 transition-all">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <rect x="2" y="2" width="7" height="7" rx="1.5" fill="#1e3a5f" />
+                                <rect x="11" y="2" width="7" height="7" rx="1.5" fill="#1e3a5f" />
+                                <rect x="2" y="11" width="7" height="7" rx="1.5" fill="#1e3a5f" />
+                                <rect x="11" y="11" width="7" height="7" rx="1.5" fill="#3b82f6" />
+                            </svg>
                         </button>
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">SEDAYU SOLAR</p>
