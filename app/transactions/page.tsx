@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import FloatingMenu from '../components/FloatingMenu';
 import { useRouter } from 'next/navigation';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
@@ -13,6 +14,10 @@ function TransactionListContent() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');
 
+    // QR Scanner
+    const [showScanner, setShowScanner] = useState(false);
+    const [scanError, setScanError] = useState('');
+
     useEffect(() => {
         const loggedInUser = localStorage.getItem('user');
         if (!loggedInUser) { router.push('/login'); return; }
@@ -21,6 +26,37 @@ function TransactionListContent() {
         if (parsed.role === 'MANAGER') setFilter('SUBMITTED');
         fetchTransactions();
     }, []);
+
+    // QR Scanner lifecycle
+    useEffect(() => {
+        let scanner: any = null;
+        if (showScanner) {
+            setScanError('');
+            scanner = new Html5QrcodeScanner("trx-qr-reader", { fps: 10, qrbox: 220 }, false);
+            scanner.render(
+                (text: string) => {
+                    // QR isinya: https://warehouse.sedayu.com/transactions/123
+                    // Ekstrak ID dari URL
+                    const match = text.match(/\/transactions\/(\d+)/);
+                    if (match) {
+                        setShowScanner(false);
+                        router.push(`/transactions/${match[1]}`);
+                    } else {
+                        // Coba langsung pakai sebagai ID kalau isinya angka
+                        const numMatch = text.match(/^(\d+)$/);
+                        if (numMatch) {
+                            setShowScanner(false);
+                            router.push(`/transactions/${numMatch[1]}`);
+                        } else {
+                            setScanError(`QR tidak dikenali: ${text}`);
+                        }
+                    }
+                },
+                () => { /* error diabaikan */ }
+            );
+        }
+        return () => { if (scanner) scanner.clear().catch(() => { }); };
+    }, [showScanner]);
 
     const fetchTransactions = async () => {
         setLoading(true);
@@ -49,7 +85,6 @@ function TransactionListContent() {
         } catch { alert("Terjadi kesalahan sistem saat menghapus."); }
     };
 
-    // Print surat jalan langsung dari list — perlu fetch detail dulu
     const handlePrintSJ = async (trx: any) => {
         try {
             const res = await fetch(`${BASE_URL}/get_transaction_detail.php?id=${trx.id}`, {
@@ -57,26 +92,20 @@ function TransactionListContent() {
             });
             const r = await res.json();
             if (r.status !== 'success') { alert("Gagal ambil detail transaksi."); return; }
-
             const { header, items } = r;
             const itemsData = items.map((item: any) => ({
-                name: item.item_name,
-                qr_id: item.qr_id,
-                qty: item.qty,
-                unit: item.unit || 'pcs',
+                name: item.item_name, qr_id: item.qr_id,
+                qty: item.qty, unit: item.unit || 'pcs',
                 location_name: item.location_name || '—',
             }));
             const params = new URLSearchParams({
-                code: header.transaction_code,
-                trx_id: String(header.id),
-                project: header.project_name || '—',
-                pic: header.pic_name || '—',
+                code: header.transaction_code, trx_id: String(header.id),
+                project: header.project_name || '—', pic: header.pic_name || '—',
                 date: header.checkout_date,
                 pengirim: header.staff_name || user?.name || '—',
                 staff_sig: header.staff_signature_path || '',
                 pic_sig: header.signature_pic_path || '',
-                base_url: BASE_URL,
-                items: JSON.stringify(itemsData),
+                base_url: BASE_URL, items: JSON.stringify(itemsData),
             });
             window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
         } catch { alert("Gagal koneksi."); }
@@ -97,14 +126,58 @@ function TransactionListContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900 relative">
+
+            {/* QR SCANNER MODAL */}
+            {showScanner && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-6"
+                    onClick={() => setShowScanner(false)}>
+                    <div className="bg-white rounded-3xl w-full max-w-sm p-5 space-y-4"
+                        onClick={e => e.stopPropagation()}>
+                        <div className="text-center">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scan QR Surat Jalan</p>
+                            <p className="font-black text-slate-900 text-base mt-0.5">Arahkan ke QR Code</p>
+                            <p className="text-[10px] text-slate-400 mt-1">QR yang ada di pojok kanan atas surat jalan</p>
+                        </div>
+
+                        <div id="trx-qr-reader" className="overflow-hidden rounded-2xl border-2 border-blue-500 bg-black min-h-[220px]"></div>
+
+                        {scanError && (
+                            <div className="bg-red-50 rounded-xl p-3 border border-red-100">
+                                <p className="text-[10px] font-bold text-red-600 text-center">{scanError}</p>
+                                <button onClick={() => setScanError('')}
+                                    className="w-full mt-2 text-[10px] font-black text-red-500 uppercase">
+                                    Coba Lagi
+                                </button>
+                            </div>
+                        )}
+
+                        <button onClick={() => setShowScanner(false)}
+                            className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">
+                            Batal
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* HEADER */}
             <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-20">
                 <div className="flex justify-between items-center max-w-4xl mx-auto">
                     <div>
                         <h1 className="text-xl font-bold">Warehouse Transactions</h1>
-                        <p className="text-slate-400 text-[10px] tracking-widest uppercase font-black">Logged as: {user.name} ({user.role})</p>
+                        <p className="text-slate-400 text-[10px] tracking-widest uppercase font-black">
+                            Logged as: {user.name} ({user.role})
+                        </p>
                     </div>
+                    {/* Tombol Scan QR */}
+                    <button
+                        onClick={() => setShowScanner(true)}
+                        className="bg-blue-600 text-white font-black px-3 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-1.5">
+                        <span>📷</span>
+                        <span>Scan QR</span>
+                    </button>
                 </div>
-                <div className="flex gap-2 mt-6 max-w-4xl mx-auto">
+
+                <div className="flex gap-2 mt-4 max-w-4xl mx-auto">
                     {(user?.role === 'MANAGER'
                         ? ['ALL', 'SUBMITTED']
                         : ['ALL', 'DRAFT', 'SUBMITTED']
@@ -129,7 +202,6 @@ function TransactionListContent() {
                         const isCheckinPending = trx.transaction_status === 'CHECKIN_PENDING';
                         const isCheckinApproved = trx.transaction_status === 'CHECKIN_APPROVED';
                         const isDelivered = trx.transaction_status === 'DELIVERED';
-                        // Bisa print surat jalan kalau sudah APPROVED manager
                         const canPrintSJ = trx.manager_approval_status === 'APPROVED';
 
                         return (
@@ -142,10 +214,8 @@ function TransactionListContent() {
                                         <h3 className="font-bold text-slate-800 text-lg mt-1">{trx.project_name}</h3>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {/* Tombol Print Surat Jalan langsung dari list */}
                                         {canPrintSJ && (
-                                            <button
-                                                onClick={() => handlePrintSJ(trx)}
+                                            <button onClick={() => handlePrintSJ(trx)}
                                                 className="bg-emerald-50 text-emerald-700 font-black text-[9px] px-2 py-1.5 rounded-lg border border-emerald-200 active:scale-95 transition-all"
                                                 title="Print Surat Jalan">
                                                 🖨️ SJ
@@ -198,7 +268,9 @@ function TransactionListContent() {
                                     ) : (
                                         <button onClick={() => router.push(`/transactions/${trx.id}`)}
                                             className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest
-                                                ${trx.manager_approval_status === 'PENDING' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>
+                                                ${trx.manager_approval_status === 'PENDING'
+                                                    ? 'bg-slate-900 text-white shadow-lg'
+                                                    : 'bg-slate-100 text-slate-500'}`}>
                                             {trx.manager_approval_status === 'PENDING' && user.role === 'MANAGER'
                                                 ? '👁️ Cek Detail & Approve'
                                                 : '👁️ Lihat Detail'}
@@ -206,21 +278,19 @@ function TransactionListContent() {
                                     )}
                                 </div>
 
-                                <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${isCheckinApproved ? 'bg-blue-500' :
-                                                isDelivered ? 'bg-blue-400' :
-                                                    trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
-                                                        trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
-                                                            'bg-orange-500 animate-pulse'}`}></div>
-                                        <span>Status: {
-                                            isCheckinApproved ? '✅ SELESAI' :
-                                                isCheckinPending ? '⏳ CHECKIN MENUNGGU' :
-                                                    isDelivered ? '📦 DELIVERED' :
-                                                        trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status :
-                                                            trx.transaction_status
-                                        }</span>
-                                    </div>
+                                <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isCheckinApproved ? 'bg-blue-500' :
+                                            isDelivered ? 'bg-blue-400' :
+                                                trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
+                                                    trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
+                                                        'bg-orange-500 animate-pulse'}`} />
+                                    <span>Status: {
+                                        isCheckinApproved ? '✅ SELESAI' :
+                                            isCheckinPending ? '⏳ CHECKIN MENUNGGU' :
+                                                isDelivered ? '📦 DELIVERED' :
+                                                    trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status :
+                                                        trx.transaction_status
+                                    }</span>
                                 </div>
                             </div>
                         );
