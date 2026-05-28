@@ -14,7 +14,6 @@ function TransactionListContent() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('ALL');
 
-    // QR Scanner
     const [showScanner, setShowScanner] = useState(false);
     const [scanError, setScanError] = useState('');
 
@@ -27,7 +26,6 @@ function TransactionListContent() {
         fetchTransactions();
     }, []);
 
-    // QR Scanner lifecycle
     useEffect(() => {
         let scanner: any = null;
         if (showScanner) {
@@ -35,14 +33,11 @@ function TransactionListContent() {
             scanner = new Html5QrcodeScanner("trx-qr-reader", { fps: 10, qrbox: 220 }, false);
             scanner.render(
                 (text: string) => {
-                    // QR isinya: https://warehouse.sedayu.com/transactions/123
-                    // Ekstrak ID dari URL
                     const match = text.match(/\/transactions\/(\d+)/);
                     if (match) {
                         setShowScanner(false);
                         router.push(`/transactions/${match[1]}`);
                     } else {
-                        // Coba langsung pakai sebagai ID kalau isinya angka
                         const numMatch = text.match(/^(\d+)$/);
                         if (numMatch) {
                             setShowScanner(false);
@@ -52,7 +47,7 @@ function TransactionListContent() {
                         }
                     }
                 },
-                () => { /* error diabaikan */ }
+                () => { }
             );
         }
         return () => { if (scanner) scanner.clear().catch(() => { }); };
@@ -136,11 +131,9 @@ function TransactionListContent() {
                         <div className="text-center">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scan QR Surat Jalan</p>
                             <p className="font-black text-slate-900 text-base mt-0.5">Arahkan ke QR Code</p>
-                            <p className="text-[10px] text-slate-400 mt-1">QR yang ada di pojok kanan atas surat jalan</p>
+                            <p className="text-[10px] text-slate-400 mt-1">QR di pojok kanan atas surat jalan</p>
                         </div>
-
                         <div id="trx-qr-reader" className="overflow-hidden rounded-2xl border-2 border-blue-500 bg-black min-h-[220px]"></div>
-
                         {scanError && (
                             <div className="bg-red-50 rounded-xl p-3 border border-red-100">
                                 <p className="text-[10px] font-bold text-red-600 text-center">{scanError}</p>
@@ -150,7 +143,6 @@ function TransactionListContent() {
                                 </button>
                             </div>
                         )}
-
                         <button onClick={() => setShowScanner(false)}
                             className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">
                             Batal
@@ -172,8 +164,9 @@ function TransactionListContent() {
                             {tab === 'SUBMITTED' ? 'APPROVAL' : tab}
                         </button>
                     ))}
-                    <button onClick={() => setShowScanner(true)} disabled={scanning}
-                        className="bg-blue-600 text-white font-black px-3 py-2 rounded-xl text-xs uppercase flex items-center gap-1 flex-shrink-0 disabled:opacity-50">
+                    {/* Tombol Scan QR — tanpa disabled */}
+                    <button onClick={() => setShowScanner(true)}
+                        className="bg-blue-600 text-white font-black px-3 py-2 rounded-xl text-xs uppercase flex items-center gap-1 flex-shrink-0 active:scale-95">
                         <span>📷</span>
                     </button>
                 </div>
@@ -187,10 +180,10 @@ function TransactionListContent() {
                 ) : (
                     filteredData.map((trx) => {
                         const isReadyForCheckin = trx.transaction_status === 'SUBMITTED' && trx.manager_approval_status === 'APPROVED';
-                        const isCheckinPending = trx.transaction_status === 'CHECKIN_PENDING';
+                        const isCheckinPending  = trx.transaction_status === 'CHECKIN_PENDING';
                         const isCheckinApproved = trx.transaction_status === 'CHECKIN_APPROVED';
-                        const isDelivered = trx.transaction_status === 'DELIVERED';
-                        const canPrintSJ = trx.manager_approval_status === 'APPROVED';
+                        const isDelivered       = trx.transaction_status === 'DELIVERED';
+                        const canPrintSJ        = trx.manager_approval_status === 'APPROVED';
 
                         return (
                             <div key={trx.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative">
@@ -204,7 +197,7 @@ function TransactionListContent() {
                                     <div className="flex items-center gap-2">
                                         {canPrintSJ && (
                                             <button onClick={() => handlePrintSJ(trx)}
-                                                className="bg-emerald-50 text-emerald-700 font-black text-[9px] px-2 py-1.5 rounded-lg border border-emerald-200 active:scale-95 transition-all"
+                                                className="bg-emerald-50 text-emerald-700 font-black text-[9px] px-2 py-1.5 rounded-lg border border-emerald-200 active:scale-95"
                                                 title="Print Surat Jalan">
                                                 🖨️ SJ
                                             </button>
@@ -229,7 +222,7 @@ function TransactionListContent() {
                                 <div className="flex gap-2">
                                     {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
                                         <button onClick={() => router.push(`/checkout?edit=${trx.id}`)}
-                                            className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg shadow-blue-100">
+                                            className="flex-1 bg-blue-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg">
                                             🚀 Lanjutkan Draft
                                         </button>
                                     ) : isCheckinPending ? (
@@ -267,17 +260,18 @@ function TransactionListContent() {
                                 </div>
 
                                 <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isCheckinApproved ? 'bg-blue-500' :
-                                        isDelivered ? 'bg-blue-400' :
-                                            trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
-                                                trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
-                                                    'bg-orange-500 animate-pulse'}`} />
+                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                        isCheckinApproved ? 'bg-blue-500' :
+                                        isDelivered       ? 'bg-blue-400' :
+                                        trx.manager_approval_status === 'APPROVED' ? 'bg-emerald-500' :
+                                        trx.manager_approval_status === 'REJECTED'  ? 'bg-red-500' :
+                                        'bg-orange-500 animate-pulse'}`} />
                                     <span>Status: {
                                         isCheckinApproved ? '✅ SELESAI' :
-                                            isCheckinPending ? '⏳ CHECKIN MENUNGGU' :
-                                                isDelivered ? '📦 DELIVERED' :
-                                                    trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status :
-                                                        trx.transaction_status
+                                        isCheckinPending  ? '⏳ CHECKIN MENUNGGU' :
+                                        isDelivered       ? '📦 DELIVERED' :
+                                        trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status :
+                                        trx.transaction_status
                                     }</span>
                                 </div>
                             </div>
