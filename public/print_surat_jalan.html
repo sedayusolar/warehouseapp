@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Surat Jalan - SEDAYUSolar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #000;
+            background: #fff;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm 15mm 10mm 15mm;
+            margin: 0 auto;
+        }
+
+        /* HEADER */
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .logo-icon {
+            width: 52px;
+            height: 52px;
+        }
+
+        .company-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1a6b3c;
+            letter-spacing: 1px;
+        }
+
+        .company-name span {
+            color: #f59e0b;
+        }
+
+        .company-address {
+            font-size: 10px;
+            color: #444;
+            line-height: 1.6;
+        }
+
+        /* TITLE */
+        .doc-title {
+            text-align: center;
+            margin: 12px 0 6px;
+        }
+
+        .doc-title h2 {
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border: 2px solid #000;
+            display: inline-block;
+            padding: 4px 20px;
+        }
+
+        .doc-subtitle {
+            font-size: 10px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        /* META */
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin: 14px 0 10px;
+        }
+
+        .meta-left {
+            font-size: 11px;
+            line-height: 1.8;
+        }
+
+        .meta-right {
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .doc-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .meta-right .label {
+            font-size: 10px;
+            color: #666;
+        }
+
+        /* TABLE */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 6px 0 14px;
+        }
+
+        th {
+            background: #1a6b3c;
+            color: #fff;
+            font-size: 11px;
+            padding: 7px 6px;
+            text-align: center;
+            border: 1px solid #1a6b3c;
+        }
+
+        td {
+            border: 1px solid #999;
+            padding: 7px 8px;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+
+        tr:nth-child(even) td {
+            background: #f8fafb;
+        }
+
+        .td-no {
+            text-align: center;
+            width: 32px;
+        }
+
+        .td-qty {
+            text-align: center;
+            width: 60px;
+            font-weight: bold;
+        }
+
+        .td-unit {
+            text-align: center;
+            width: 60px;
+        }
+
+        .td-check {
+            text-align: center;
+            width: 50px;
+        }
+
+        .empty-row td {
+            height: 28px;
+        }
+
+        /* PROJECT INFO */
+        .project-info {
+            margin: 8px 0 16px;
+            font-size: 11px;
+            line-height: 2.2;
+        }
+
+        .project-info .row {
+            display: flex;
+            gap: 0;
+        }
+
+        .project-info .key {
+            width: 100px;
+            font-weight: bold;
+        }
+
+        .project-info .colon {
+            width: 10px;
+        }
+
+        .project-info .val {
+            border-bottom: 1px solid #333;
+            flex: 1;
+            padding-left: 4px;
+            min-height: 20px;
+        }
+
+        /* SIGNATURES */
+        .signatures {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .sig-box {
+            text-align: center;
+        }
+
+        .sig-box .sig-label {
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 60px;
+        }
+
+        .sig-box .sig-line {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+        }
+
+        .sig-box .sig-name {
+            font-size: 10px;
+            min-height: 16px;
+        }
+
+        /* FOOTER */
+        .footer-note {
+            margin-top: 16px;
+            font-size: 9px;
+            color: #666;
+            border-top: 1px dashed #ccc;
+            padding-top: 8px;
+            line-height: 1.6;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .page {
+                padding: 10mm 12mm;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- PRINT BUTTON (hidden on print) -->
+    <div class="no-print"
+        style="text-align:center; padding: 16px; background: #f1f5f9; position: sticky; top: 0; z-index: 10; display: flex; gap: 12px; justify-content: center;">
+        <button onclick="window.print()"
+            style="background:#1a6b3c; color:#fff; border:none; padding: 10px 32px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">🖨️
+            Print / Save PDF</button>
+        <button onclick="window.close()"
+            style="background:#64748b; color:#fff; border:none; padding: 10px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">✕
+            Tutup</button>
+    </div>
+
+    <div class="page" id="sj-content">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="logo-row">
+                <svg class="logo-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="40" cy="28" r="18" fill="#f59e0b" />
+                    <path d="M40 46 C20 46 8 60 8 72 L72 72 C72 60 60 46 40 46" fill="#1a6b3c" />
+                    <path d="M28 42 C32 36 48 36 52 42" fill="#22c55e" opacity="0.7" />
+                </svg>
+                <div>
+                    <div class="company-name">SEDAYU<span>Solar</span></div>
+                    <div style="font-size:10px; color:#1a6b3c; font-weight:bold; letter-spacing:2px;">⚡ PT. SELARAS DAYA
+                        UTAMA</div>
+                </div>
+            </div>
+            <div class="company-address">
+                Jl. Raya Kebayoran Lama No. 156 Kebon Jeruk - Jakarta Barat 11560<br>
+                Tlp : (021) 5321490 | Email : info@sedayusolar.com
+            </div>
+        </div>
+
+        <!-- TITLE -->
+        <div class="doc-title">
+            <h2>SURAT JALAN (DELIVERY ORDER)</h2>
+            <div class="doc-subtitle" id="sj-ref-text">Dokumen pengeluaran barang dari gudang</div>
+        </div>
+
+        <!-- META -->
+        <div class="meta-row">
+            <div class="meta-left">
+                Kepada Yang Terhormat,<br>
+                <strong id="sj-pic">—</strong><br>
+                <span id="sj-project" style="color:#1a6b3c; font-weight:bold;">Project: —</span>
+            </div>
+            <div class="meta-right">
+                <div class="label">No</div>
+                <div class="doc-number" id="sj-no">—</div>
+                <div class="label" style="margin-top:6px;">Tanggal</div>
+                <div style="font-size:13px; font-weight:bold;" id="sj-date">—</div>
+            </div>
+        </div>
+
+        <div style="font-size:11px; margin-bottom: 8px;">
+            Bersama ini kami kirimkan detail barang - barang seperti tercantum di bawah ini :
+        </div>
+
+        <!-- TABLE -->
+        <table id="sj-table">
+            <thead>
+                <tr>
+                    <th class="td-no">No</th>
+                    <th>Nama Barang</th>
+                    <th class="td-qty">Jumlah</th>
+                    <th class="td-unit">Satuan</th>
+                    <th>Lokasi Ambil</th>
+                    <th class="td-check">Ceklis</th>
+                </tr>
+            </thead>
+            <tbody id="sj-items">
+                <!-- filled by JS -->
+            </tbody>
+        </table>
+
+        <!-- PROJECT INFO -->
+        <div class="project-info">
+            <div class="row">
+                <span class="key">Project</span>
+                <span class="colon">:</span>
+                <span class="val" id="sj-proj-val"></span>
+            </div>
+            <div class="row" style="margin-top:6px;">
+                <span class="key">Alamat</span>
+                <span class="colon">:</span>
+                <span class="val" id="sj-addr-val"></span>
+            </div>
+            <div class="row" style="margin-top:6px;">
+                <span class="key">Tanggal Terima</span>
+                <span class="colon">:</span>
+                <span class="val"></span>
+            </div>
+        </div>
+
+        <!-- SIGNATURES -->
+        <div class="signatures">
+            <div class="sig-box">
+                <div class="sig-label">Penerima</div>
+                <div class="sig-line"></div>
+                <div class="sig-name" id="sj-penerima"></div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-label">Pengirim</div>
+                <div class="sig-line"></div>
+                <div class="sig-name" id="sj-pengirim"></div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-label">Supir</div>
+                <div class="sig-line"></div>
+                <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-label">Keamanan</div>
+                <div class="sig-line"></div>
+                <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer-note">
+            * Dokumen ini merupakan bukti pengeluaran barang yang sah dari gudang SEDAYUSolar.<br>
+            * Barang yang sudah keluar tidak dapat dikembalikan tanpa persetujuan Manager.<br>
+            * Harap periksa barang sesuai daftar sebelum tanda tangan.
+        </div>
+    </div>
+
+    <script>
+        // Parse URL params
+        const p = new URLSearchParams(window.location.search);
+        const trxCode = p.get('code') || '—';
+        const project = p.get('project') || '—';
+        const pic = p.get('pic') || '—';
+        const date = p.get('date') || '—';
+        const pengirim = p.get('pengirim') || '—';
+
+        // URLSearchParams sudah auto-decode, jangan double decode
+        let items = [];
+        try {
+            const raw = p.get('items') || '[]';
+            items = JSON.parse(raw);
+        } catch (e) {
+            try {
+                items = JSON.parse(decodeURIComponent(p.get('items') || '[]'));
+            } catch (e2) {
+                console.error('Failed to parse items:', e2);
+            }
+        }
+
+        // Format tanggal Indonesia
+        function formatDate(d) {
+            if (!d) return '—';
+            const [y, m, day] = d.split('-');
+            const months = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return `${parseInt(day)} ${months[parseInt(m)]} ${y}`;
+        }
+
+        // Fill meta
+        document.getElementById('sj-no').textContent = trxCode;
+        document.getElementById('sj-date').textContent = formatDate(date);
+        document.getElementById('sj-pic').textContent = pic;
+        document.getElementById('sj-project').textContent = 'Project: ' + project;
+        document.getElementById('sj-proj-val').textContent = project;
+        document.getElementById('sj-penerima').textContent = '( ' + pic + ' )';
+        document.getElementById('sj-pengirim').textContent = '( ' + pengirim + ' )';
+        document.getElementById('sj-ref-text').textContent = 'Ref: ' + trxCode + ' — Asli harap dikembalikan ke PT. SELARAS DAYA UTAMA';
+
+        // Fill table rows
+        const tbody = document.getElementById('sj-items');
+        items.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+    <td class="td-no">${idx + 1}</td>
+    <td><strong>${item.name}</strong>${item.qr_id ? '<br><span style="font-size:9px;color:#999;font-family:monospace">' + item.qr_id + '</span>' : ''}</td>
+    <td class="td-qty">${item.qty}</td>
+    <td class="td-unit">${item.unit || 'pcs'}</td>
+    <td style="font-size:10px;color:#555">${item.location || '—'}</td>
+    <td class="td-check">✓</td>
+  `;
+            tbody.appendChild(tr);
+        });
+
+        // Add empty rows (min 8 rows total)
+        const minRows = 8;
+        for (let i = items.length; i < minRows; i++) {
+            const tr = document.createElement('tr');
+            tr.className = 'empty-row';
+            tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+            tbody.appendChild(tr);
+        }
+    </script>
+</body>
+
+</html>

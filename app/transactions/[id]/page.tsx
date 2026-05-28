@@ -92,7 +92,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
             pic: header.pic_name || '—',
             date: header.checkout_date,
             pengirim: user?.name || '—',
-            items: encodeURIComponent(JSON.stringify(itemsData)),
+            items: JSON.stringify(itemsData),
         });
         window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
     };
