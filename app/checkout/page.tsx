@@ -343,6 +343,7 @@ function CheckoutContent() {
         ctx.lineTo(x, y); ctx.stroke(); if (e.touches) e.preventDefault();
     };
 
+    // --- FUNGSI SUBMIT (UPDATED) ---
     const handleSubmit = async (isDraft = false) => {
         const sig = canvasRef.current?.toDataURL('image/png');
         if (!projectName || !selectedProjectId || !checkoutDate || cart.length === 0) {
@@ -355,7 +356,7 @@ function CheckoutContent() {
                     alert(`❌ STOK TIDAK CUKUP: ${item.name}\nTersedia: ${item.available_qty}`); return;
                 }
             }
-            if (!picName || !sig || sig.length < 2000) { alert("PIC & TTD wajib!"); return; }
+            if (!picName) { alert("Nama PIC / Penerima wajib diisi!"); return; }
         }
         setLoading(true);
         try {
@@ -365,7 +366,8 @@ function CheckoutContent() {
                 body: JSON.stringify({
                     id: editId, project_id: selectedProjectId, project_name: projectName,
                     pic_name: picName, checkout_date: checkoutDate,
-                    signature_base64: isDraft ? '' : sig,
+                    // TTD hanya dikirim kalau dicoret, jadi tidak wajib
+                    signature_base64: (sig && sig.length > 2000) ? sig : '',
                     transaction_status: isDraft ? 'DRAFT' : 'SUBMITTED',
                     items: cart.map(i => ({
                         qr_id: i.qr_id, qty: i.qty,
@@ -375,7 +377,10 @@ function CheckoutContent() {
                 })
             });
             const r = await res.json();
-            if (r.status === 'success') { alert(isDraft ? "Draft tersimpan!" : "Submit Berhasil!"); router.push('/transactions'); }
+            if (r.status === 'success') {
+                alert(isDraft ? "Draft tersimpan!" : "Submit Berhasil! Menunggu Approval Manager & TTD PIC di Site.");
+                router.push('/transactions');
+            }
             else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setLoading(false);
@@ -788,9 +793,11 @@ function CheckoutContent() {
                                 <input type="text" placeholder="Nama PIC Penerima" value={picName}
                                     onChange={(e: any) => setPicName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+
+                                {/* TANDA TANGAN (OPSIONAL UNTUK STAF GUDANG) */}
                                 <div className="space-y-2 pt-2">
                                     <div className="flex justify-between">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase">TTD PIC</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase">TTD PIC (Opsional jika di-site)</label>
                                         <button onClick={() => canvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)}
                                             className="text-[10px] text-blue-500 font-bold">RESET</button>
                                     </div>
