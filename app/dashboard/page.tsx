@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -33,7 +33,7 @@ export default function DashboardPage() {
     if (!user) return null;
 
     const s = data?.stok_summary || {};
-    const pendingCheckinCount = data?.pending_checkin_count || 0;
+    const pendingCheckin = data?.pending_checkin_count || 0;
     const toolsBorrowed = data?.tools_borrowed || [];
     const stokHabis = data?.stok_habis || [];
     const pendingApproval = data?.pending_approval || [];
@@ -48,89 +48,101 @@ export default function DashboardPage() {
     };
 
     return (
-        <main className="min-h-screen bg-slate-900 font-sans pb-24">
-            {/* HEADER */}
-            <div className="bg-slate-900 p-5 pt-8">
-                <div className="flex justify-between items-start">
+        <main className="min-h-screen bg-slate-50 font-sans pb-24 pt-16">
+
+            {/* HERO HEADER */}
+            <div className="bg-white px-5 pt-5 pb-6 border-b border-slate-100">
+                <div className="max-w-2xl mx-auto flex justify-between items-center">
                     <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">SEDAYU SOLAR</p>
-                        <h1 className="text-2xl font-black text-white mt-0.5">Dashboard</h1>
-                        <p className="text-[10px] text-slate-500 mt-1">
-                            {user?.name} · {lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Selamat datang,</p>
+                        <h1 className="text-2xl font-black text-slate-800 mt-0.5">{user?.name}</h1>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                            {user?.role} · {lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                     </div>
                     <button onClick={fetchDashboard} disabled={loading}
-                        className={`bg-slate-800 text-slate-300 px-3 py-2 rounded-xl text-xs font-black active:scale-95 transition-all ${loading ? 'animate-pulse' : ''}`}>
-                        {loading ? '...' : '🔄'}
+                        className={`w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 active:scale-95 transition-all ${loading ? 'animate-spin' : ''}`}>
+                        🔄
                     </button>
                 </div>
             </div>
 
             <div className="p-4 space-y-4 max-w-2xl mx-auto">
-
                 {loading && !data ? (
-                    <div className="text-center py-20 text-slate-500 font-bold animate-pulse text-sm">Memuat dashboard...</div>
+                    <div className="text-center py-20 text-slate-400 font-bold animate-pulse text-sm">Memuat dashboard...</div>
                 ) : (
                     <>
-                        {/* ===== SUMMARY CARDS ===== */}
+                        {/* ── SUMMARY CARDS ── */}
                         <div className="grid grid-cols-2 gap-3">
-                            {[
-                                { label: 'Total Item', val: s.total_item || 0, icon: '🗃️', sub: `${s.total_material || 0} material · ${s.total_tools || 0} tools`, color: 'from-blue-600 to-blue-700' },
-                                { label: 'Total Stok', val: s.total_stok || 0, icon: '📦', sub: 'unit di semua lokasi', color: 'from-emerald-600 to-emerald-700' },
-                                { label: 'Stok Habis', val: s.stok_habis || 0, icon: '⚠️', sub: 'item perlu restock', color: (s.stok_habis > 0) ? 'from-red-600 to-red-700' : 'from-slate-600 to-slate-700' },
-                                { label: 'Pending Approve', val: pendingApproval.length, icon: '⏳', sub: 'menunggu manager', color: pendingApproval.length > 0 ? 'from-amber-500 to-amber-600' : 'from-slate-600 to-slate-700' },
-                            ].map(card => (
-                                <div key={card.label} className={`bg-gradient-to-br ${card.color} rounded-2xl p-4 text-white`}>
-                                    <p className="text-2xl">{card.icon}</p>
-                                    <p className="text-3xl font-black mt-2">{card.val}</p>
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mt-0.5">{card.label}</p>
-                                    <p className="text-[9px] opacity-60 mt-0.5">{card.sub}</p>
-                                </div>
-                            ))}
+
+                            {/* Total Item */}
+                            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl mb-3">🗃️</div>
+                                <p className="text-3xl font-black text-slate-800">{s.total_item || 0}</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mt-0.5">Total Item</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">{s.total_material || 0} material · {s.total_tools || 0} tools</p>
+                            </div>
+
+                            {/* Total Stok */}
+                            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl mb-3">📦</div>
+                                <p className="text-3xl font-black text-slate-800">{s.total_stok || 0}</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mt-0.5">Total Stok</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">unit di semua lokasi</p>
+                            </div>
+
+                            {/* Stok Habis */}
+                            <div className={`rounded-2xl p-4 border shadow-sm ${s.stok_habis > 0 ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 ${s.stok_habis > 0 ? 'bg-red-100' : 'bg-slate-50'}`}>⚠️</div>
+                                <p className={`text-3xl font-black ${s.stok_habis > 0 ? 'text-red-600' : 'text-slate-800'}`}>{s.stok_habis || 0}</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mt-0.5">Stok Habis</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">item perlu restock</p>
+                            </div>
+
+                            {/* Pending Approve */}
+                            <div className={`rounded-2xl p-4 border shadow-sm ${pendingApproval.length > 0 ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 ${pendingApproval.length > 0 ? 'bg-amber-100' : 'bg-slate-50'}`}>⏳</div>
+                                <p className={`text-3xl font-black ${pendingApproval.length > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{pendingApproval.length}</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-wide mt-0.5">Pending Approve</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">menunggu manager</p>
+                            </div>
                         </div>
 
-                        {/* Trend bulan ini */}
-                        <div className="bg-slate-800 rounded-2xl p-4 flex justify-between items-center">
+                        {/* ── TREND ── */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex justify-between items-center">
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Checkout Bulan Ini</p>
-                                <p className="text-3xl font-black text-white mt-1">{trend.bulan_ini || 0}</p>
+                                <p className="text-3xl font-black text-slate-800 mt-1">{trend.bulan_ini || 0}</p>
                                 <p className="text-[10px] text-slate-400 mt-0.5">vs bulan lalu: {trend.bulan_lalu || 0} transaksi</p>
                             </div>
-                            <div className="text-right">
-                                {(trend.bulan_ini || 0) >= (trend.bulan_lalu || 0) ? (
-                                    <p className="text-emerald-400 font-black text-lg">▲</p>
-                                ) : (
-                                    <p className="text-red-400 font-black text-lg">▼</p>
-                                )}
-                                <p className="text-[10px] text-slate-400">
-                                    {trend.bulan_lalu > 0
-                                        ? `${Math.round(((trend.bulan_ini - trend.bulan_lalu) / trend.bulan_lalu) * 100)}%`
-                                        : '—'}
-                                </p>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl
+                                ${(trend.bulan_ini || 0) >= (trend.bulan_lalu || 0) ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                                {(trend.bulan_ini || 0) >= (trend.bulan_lalu || 0) ? '📈' : '📉'}
                             </div>
                         </div>
 
-                        {/* ===== PENDING APPROVAL ===== */}
+                        {/* ── PENDING APPROVAL ── */}
                         {pendingApproval.length > 0 && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
-                                <div className="px-4 py-3 border-b border-amber-200 flex justify-between items-center">
+                            <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden shadow-sm">
+                                <div className="px-4 py-3 border-b border-amber-100 flex justify-between items-center bg-amber-50">
                                     <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Menunggu Approval ({pendingApproval.length})</p>
-                                    {user.role === 'MANAGER' && (
-                                        <button onClick={() => router.push('/transactions')}
-                                            className="text-[10px] font-black text-amber-700 underline">Lihat Semua</button>
-                                    )}
+                                    <button onClick={() => router.push('/transactions')}
+                                        className="text-[10px] font-black text-amber-600">Lihat Semua</button>
                                 </div>
-                                <div className="divide-y divide-amber-100">
+                                <div className="divide-y divide-slate-50">
                                     {pendingApproval.map((trx: any) => (
                                         <button key={trx.id} onClick={() => router.push(`/transactions/${trx.id}`)}
-                                            className="w-full text-left px-4 py-3 hover:bg-amber-100 transition-colors active:bg-amber-200">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-bold text-sm text-slate-800">{trx.project_name}</p>
-                                                    <p className="text-[10px] text-slate-500">{trx.transaction_code} · {trx.pic_name}</p>
+                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-slate-800 truncate">{trx.project_name}</p>
+                                                    <p className="text-[10px] text-slate-400">{trx.transaction_code} · {trx.pic_name}</p>
                                                     <p className="text-[10px] text-slate-400">{trx.checkout_date}</p>
                                                 </div>
-                                                <p className="text-[10px] font-black text-amber-600">→ Approve</p>
+                                                <div className="flex flex-col gap-1 flex-shrink-0">
+                                                    <span className="text-[9px] font-black bg-blue-600 text-white px-2.5 py-1 rounded-lg">Approve</span>
+                                                    <span className="text-[9px] font-black bg-red-50 text-red-500 border border-red-200 px-2.5 py-1 rounded-lg text-center">Reject</span>
+                                                </div>
                                             </div>
                                         </button>
                                     ))}
@@ -138,10 +150,10 @@ export default function DashboardPage() {
                             </div>
                         )}
 
-                        {/* ===== TOOLS DIPINJAM ===== */}
-                        <div className="bg-white rounded-2xl overflow-hidden">
+                        {/* ── TOOLS DIPINJAM ── */}
+                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🛠️ Tools Sedang Dipinjam ({toolsBorrowed.length})</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">🛠️ Tools Sedang Dipinjam ({toolsBorrowed.length})</p>
                                 <button onClick={() => router.push('/transactions')}
                                     className="text-[10px] font-black text-blue-500">Lihat Semua</button>
                             </div>
@@ -158,11 +170,10 @@ export default function DashboardPage() {
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-bold text-sm text-slate-800">{t.item_name}</p>
                                                         <p className="text-[10px] text-slate-400">{t.project_name} · {t.pic_name}</p>
-                                                        <p className="text-[10px] text-slate-400">{t.checkout_date}</p>
                                                     </div>
                                                     <div className="text-right flex-shrink-0">
-                                                        <span className="font-black text-slate-700">{t.qty_borrowed} {t.unit}</span>
-                                                        <p className={`text-[9px] font-bold mt-0.5 ${days > 7 ? 'text-red-500' : days > 3 ? 'text-orange-500' : 'text-slate-400'}`}>
+                                                        <p className="font-black text-slate-700 text-sm">{t.qty_borrowed} {t.unit}</p>
+                                                        <p className={`text-[9px] font-bold ${days > 7 ? 'text-red-500' : days > 3 ? 'text-orange-500' : 'text-slate-400'}`}>
                                                             {days === 0 ? 'Hari ini' : `${days} hari`}
                                                         </p>
                                                     </div>
@@ -174,48 +185,43 @@ export default function DashboardPage() {
                             )}
                         </div>
 
-                        {/* ===== STOK PER LOKASI ===== */}
-                        <div className="bg-white rounded-2xl overflow-hidden">
+                        {/* ── STOK PER LOKASI ── */}
+                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                             <div className="px-4 py-3 border-b border-slate-100">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📍 Stok per Lokasi</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">📍 Stok per Lokasi</p>
                             </div>
-                            {stokPerLokasi.length === 0 ? (
-                                <p className="text-center text-slate-300 italic text-sm py-6">Belum ada data lokasi.</p>
-                            ) : (
-                                <div className="p-4 space-y-3">
-                                    {stokPerLokasi.map((loc: any) => {
-                                        const maxStok = Math.max(...stokPerLokasi.map((l: any) => Number(l.total_stok)));
-                                        const pct = maxStok > 0 ? (Number(loc.total_stok) / maxStok) * 100 : 0;
-                                        return (
-                                            <div key={loc.location_name}>
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <p className="text-sm font-bold text-slate-700">📍 {loc.location_name}</p>
-                                                    <div className="text-right">
-                                                        <span className="font-black text-slate-800">{loc.total_stok}</span>
-                                                        <span className="text-[10px] text-slate-400 ml-1">unit</span>
-                                                        <span className="text-[9px] text-slate-400 ml-2">({loc.total_item} item)</span>
-                                                    </div>
-                                                </div>
-                                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            <div className="p-4 space-y-3">
+                                {stokPerLokasi.map((loc: any) => {
+                                    const maxStok = Math.max(...stokPerLokasi.map((l: any) => Number(l.total_stok)));
+                                    const pct = maxStok > 0 ? (Number(loc.total_stok) / maxStok) * 100 : 0;
+                                    return (
+                                        <div key={loc.location_name}>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <p className="text-sm font-bold text-slate-700">📍 {loc.location_name}</p>
+                                                <div className="text-right">
+                                                    <span className="font-black text-slate-800 text-sm">{loc.total_stok}</span>
+                                                    <span className="text-[10px] text-slate-400 ml-1">unit</span>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
-                        {/* ===== STOK HABIS ===== */}
+                        {/* ── STOK HABIS ── */}
                         {stokHabis.length > 0 && (
-                            <div className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
-                                <div className="px-4 py-3 border-b border-red-200">
+                            <div className="bg-white rounded-2xl border border-red-100 overflow-hidden shadow-sm">
+                                <div className="px-4 py-3 border-b border-red-100 bg-red-50">
                                     <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">❌ Stok Habis ({stokHabis.length} item)</p>
                                 </div>
-                                <div className="divide-y divide-red-100">
+                                <div className="divide-y divide-slate-50">
                                     {stokHabis.map((item: any) => (
                                         <button key={item.qr_id} onClick={() => router.push('/inventory')}
-                                            className="w-full text-left px-4 py-3 hover:bg-red-100 transition-colors flex justify-between items-center">
+                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 flex justify-between items-center">
                                             <div>
                                                 <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                 <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
@@ -229,10 +235,10 @@ export default function DashboardPage() {
                             </div>
                         )}
 
-                        {/* ===== TRANSAKSI TERBARU ===== */}
-                        <div className="bg-white rounded-2xl overflow-hidden">
+                        {/* ── TRANSAKSI TERBARU ── */}
+                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">🕐 Transaksi Terbaru</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">🕐 Transaksi Terbaru</p>
                                 <button onClick={() => router.push('/transactions')}
                                     className="text-[10px] font-black text-blue-500">Lihat Semua</button>
                             </div>
@@ -254,13 +260,11 @@ export default function DashboardPage() {
                                 ))}
                             </div>
                         </div>
-
-
                     </>
                 )}
             </div>
 
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }
