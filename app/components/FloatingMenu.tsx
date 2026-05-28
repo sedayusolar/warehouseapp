@@ -47,6 +47,7 @@ export default function FloatingMenu() {
         { label: 'Transaksi', icon: '📋', path: '/transactions', color: 'bg-blue-700' },
         { label: 'Inventory', icon: '🗃️', path: '/inventory', color: 'bg-slate-600' },
         { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment', color: 'bg-slate-500' },
+        { label: 'Input PO', icon: '🛒', path: '/purchase', color: 'bg-teal-600' },
         { label: 'Check In List', icon: '📥', path: '/checkin-list', color: 'bg-emerald-700', badge: pendingCheckin },
         { label: 'Cost Report', icon: '💰', path: '/cost-report', color: 'bg-violet-600' },
         ...(user.role === 'ADMIN' ? [
