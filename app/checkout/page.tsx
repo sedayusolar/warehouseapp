@@ -14,6 +14,14 @@ function CheckoutContent() {
 
     const [user, setUser] = useState<any>(null);
     const [cart, setCart] = useState<any[]>([]);
+    const cartRef = useRef<any[]>([]);
+    const setCartAndRef = (updater: any) => {
+        setCart(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            cartRef.current = next;
+            return next;
+        });
+    };
     const [projects, setProjects] = useState<any[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState('');
     const [projectName, setProjectName] = useState('');
@@ -45,6 +53,9 @@ function CheckoutContent() {
     const [loadingPoDetail, setLoadingPoDetail] = useState(false);
     const [poSelection, setPoSelection] = useState<Record<number, { checked: boolean, qty: number }>>({});
     const [importing, setImporting] = useState(false);
+
+    // Sync cartRef whenever cart changes
+    useEffect(() => { cartRef.current = cart; }, [cart]);
 
     // Fetch approved PO list
     const fetchApprovedPO = async () => {
@@ -96,7 +107,7 @@ function CheckoutContent() {
 
                 if (!loc) { skipped++; continue; }
 
-                const alreadyInCart = cart.find(c => c.qr_id === inv.qr_id && String(c.location_id) === String(loc.location_id));
+                const alreadyInCart = cartRef.current.find((c: any) => c.qr_id === inv.qr_id && String(c.location_id) === String(loc.location_id));
                 const alreadyInNew = newItems.find(c => c.qr_id === inv.qr_id && String(c.location_id) === String(loc.location_id));
                 if (alreadyInCart || alreadyInNew) { skipped++; continue; }
 
@@ -116,8 +127,8 @@ function CheckoutContent() {
             } catch { skipped++; }
         }
 
-        // Batch setCart sekali — ini yang fix UI tidak update
-        if (newItems.length > 0) setCart(prev => [...prev, ...newItems]);
+        // Batch update sekali
+        if (newItems.length > 0) setCartAndRef((prev: any[]) => [...prev, ...newItems]);
 
         setImporting(false);
         setShowPoModal(false); setSelectedPo(null); setPoDetail(null); setPoSelection({});
