@@ -114,7 +114,7 @@ function CheckoutContent() {
                 newItems.push({
                     qr_id: inv.qr_id,
                     name: inv.item_name,
-                    type: inv.category,
+                    type: (inv.category || '').toUpperCase(),
                     stock_qty: inv.stock_qty,
                     available_qty: loc.available_qty,
                     reserved_qty: loc.reserved_qty || 0,
