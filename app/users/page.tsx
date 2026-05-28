@@ -9,7 +9,10 @@ const ROLE_CONFIG: Record<string, { label: string, color: string, bg: string }> 
     ADMIN: { label: 'Admin', color: 'text-violet-700', bg: 'bg-violet-100' },
     MANAGER: { label: 'Manager', color: 'text-blue-700', bg: 'bg-blue-100' },
     STAFF: { label: 'Staff', color: 'text-slate-600', bg: 'bg-slate-100' },
+    ENGINEER: { label: 'Engineer', color: 'text-emerald-700', bg: 'bg-emerald-100' },
 };
+
+const ROLE_ORDER = ['ADMIN', 'MANAGER', 'STAFF', 'ENGINEER'] as const;
 
 function UserManagementContent() {
     const router = useRouter();
@@ -17,13 +20,11 @@ function UserManagementContent() {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Modal state
     const [modal, setModal] = useState<'create' | 'edit' | 'reset' | 'delete' | null>(null);
     const [target, setTarget] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState('');
 
-    // Form fields
     const [fUsername, setFUsername] = useState('');
     const [fName, setFName] = useState('');
     const [fRole, setFRole] = useState('STAFF');
@@ -147,11 +148,20 @@ function UserManagementContent() {
 
     if (!user) return null;
 
-    const grouped = {
-        ADMIN: users.filter(u => u.role === 'ADMIN'),
-        MANAGER: users.filter(u => u.role === 'MANAGER'),
-        STAFF: users.filter(u => u.role === 'STAFF'),
-    };
+    const grouped = Object.fromEntries(
+        ROLE_ORDER.map(role => [role, users.filter(u => u.role === role)])
+    ) as Record<typeof ROLE_ORDER[number], any[]>;
+
+    // Dropdown role options — reusable
+    const RoleSelect = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => (
+        <select value={value} onChange={e => onChange(e.target.value)}
+            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+            <option value="STAFF">Staff</option>
+            <option value="ENGINEER">Engineer (Project)</option>
+            <option value="MANAGER">Manager</option>
+            <option value="ADMIN">Admin</option>
+        </select>
+    );
 
     return (
         <main className="min-h-screen bg-slate-50 pb-24 font-sans">
@@ -180,12 +190,14 @@ function UserManagementContent() {
                                 <input type="text" placeholder="Nama Lengkap *" value={fName}
                                     onChange={e => setFName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                <select value={fRole} onChange={e => setFRole(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                    <option value="STAFF">Staff</option>
-                                    <option value="MANAGER">Manager</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
+                                <RoleSelect value={fRole} onChange={setFRole} />
+                                {fRole === 'ENGINEER' && (
+                                    <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 -mt-2">
+                                        <p className="text-[10px] text-emerald-700 font-bold">
+                                            ✍️ Engineer hanya bisa: lihat transaksi & TTD konfirmasi penerimaan barang di site
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="relative">
                                     <input type={showPwd ? 'text' : 'password'} placeholder="Password * (min 6 karakter)" value={fPassword}
                                         onChange={e => setFPassword(e.target.value)}
@@ -221,12 +233,14 @@ function UserManagementContent() {
                                 <input type="text" placeholder="Nama Lengkap *" value={fName}
                                     onChange={e => setFName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                <select value={fRole} onChange={e => setFRole(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                    <option value="STAFF">Staff</option>
-                                    <option value="MANAGER">Manager</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
+                                <RoleSelect value={fRole} onChange={setFRole} />
+                                {fRole === 'ENGINEER' && (
+                                    <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 -mt-2">
+                                        <p className="text-[10px] text-emerald-700 font-bold">
+                                            ✍️ Engineer hanya bisa: lihat transaksi & TTD konfirmasi penerimaan barang di site
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="flex gap-3">
                                     <button onClick={closeModal} className="flex-1 bg-slate-100 text-slate-500 font-black py-3.5 rounded-2xl text-xs uppercase">Batal</button>
                                     <button onClick={handleUpdate} disabled={saving}
@@ -313,9 +327,9 @@ function UserManagementContent() {
                     <div className="text-center py-20 text-slate-400 animate-pulse font-bold">Memuat...</div>
                 ) : (
                     <>
-                        {/* Summary cards */}
-                        <div className="grid grid-cols-3 gap-3">
-                            {(['ADMIN', 'MANAGER', 'STAFF'] as const).map(role => (
+                        {/* Summary cards — 4 role */}
+                        <div className="grid grid-cols-4 gap-2">
+                            {ROLE_ORDER.map(role => (
                                 <div key={role} className={`${ROLE_CONFIG[role].bg} rounded-2xl p-3 text-center`}>
                                     <p className={`text-2xl font-black ${ROLE_CONFIG[role].color}`}>{grouped[role].length}</p>
                                     <p className={`text-[9px] font-black uppercase tracking-widest ${ROLE_CONFIG[role].color}`}>{ROLE_CONFIG[role].label}</p>
@@ -324,7 +338,7 @@ function UserManagementContent() {
                         </div>
 
                         {/* User list grouped by role */}
-                        {(['ADMIN', 'MANAGER', 'STAFF'] as const).map(role => {
+                        {ROLE_ORDER.map(role => {
                             const group = grouped[role];
                             if (!group.length) return null;
                             const cfg = ROLE_CONFIG[role];
@@ -336,7 +350,6 @@ function UserManagementContent() {
                                     {group.map((u: any) => (
                                         <div key={u.id} className="bg-white rounded-2xl shadow-sm p-4">
                                             <div className="flex justify-between items-start gap-3">
-                                                {/* Avatar + info */}
                                                 <div className="flex items-center gap-3 flex-1 min-w-0">
                                                     <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
                                                         <span className={`font-black text-sm ${cfg.color}`}>
@@ -351,14 +364,11 @@ function UserManagementContent() {
                                                         </p>
                                                     </div>
                                                 </div>
-
-                                                {/* Badge role */}
                                                 <span className={`text-[9px] font-black px-2 py-1 rounded-full flex-shrink-0 ${cfg.bg} ${cfg.color}`}>
                                                     {cfg.label}
                                                 </span>
                                             </div>
 
-                                            {/* Actions */}
                                             <div className="flex gap-2 mt-3">
                                                 <button onClick={() => openEdit(u)}
                                                     className="flex-1 bg-slate-100 text-slate-600 font-black py-2 rounded-xl text-[10px] uppercase active:scale-95">
