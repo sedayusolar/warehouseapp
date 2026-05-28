@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -184,15 +184,15 @@ function CheckInContent() {
                 </button>
                 <button onClick={() => router.push('/dashboard')}
                     className="text-slate-400 text-sm font-bold">← Dashboard</button>
-                <FloatingMenu />
+                <Navbar />
             </main>
         );
     }
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg p-5 flex justify-between items-center">
+            <div className="hidden p-5 flex justify-between items-center">
                 <div>
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Check In Barang</p>
                     <h1 className="text-xl font-black">{checkoutInfo?.project_name || 'Loading...'}</h1>
@@ -363,7 +363,7 @@ function CheckInContent() {
                     </>
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

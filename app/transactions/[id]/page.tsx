@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, use } from 'react';
-import FloatingMenu from '../../components/FloatingMenu';
+import Navbar from '../../components/Navbar';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -252,7 +252,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         && (isSubmitted || isDelivered);
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
 
             {/* LIGHTBOX */}
             {lightboxUrl && (
@@ -263,7 +263,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 p-5 text-white shadow-lg sticky top-0 z-10 flex justify-between items-center">
+            <div className="hidden">
                 <div>
                     <h1 className="text-xl font-bold">{header.project_name}</h1>
                     <p className="text-[10px] text-slate-400 font-mono tracking-widest">{header.transaction_code}</p>
@@ -563,7 +563,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     </div>
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

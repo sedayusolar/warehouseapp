@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -284,9 +284,9 @@ function StockAdjustmentContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
+            <div className="hidden">
                 <div className="p-5 flex justify-between items-center">
                     <div>
                         <h1 className="text-xl font-bold">Stock Adjustment</h1>
@@ -615,7 +615,7 @@ function StockAdjustmentContent() {
                     </div>
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -228,7 +228,7 @@ function InventoryContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
 
             {/* DETAIL MODAL */}
             {detailItem && (
@@ -510,7 +510,7 @@ function InventoryContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
+            <div className="hidden">
                 <div className="p-5 flex justify-between items-center">
                     <div>
                         <h1 className="text-xl font-bold">Inventory List</h1>
@@ -731,7 +731,7 @@ function InventoryContent() {
                     </>
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

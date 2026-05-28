@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -118,7 +118,7 @@ function CheckInListContent() {
     const pendingCount = list.filter(i => i.approval_status === 'PENDING').length;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-24 font-sans">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
 
             {/* DETAIL DRAWER */}
             {selected && (
@@ -257,7 +257,7 @@ function CheckInListContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
+            <div className="hidden">
                 <div className="p-5 flex justify-between items-center">
                     <div>
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Approval</p>
@@ -323,7 +323,7 @@ function CheckInListContent() {
                     </button>
                 ))}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

@@ -1,4 +1,5 @@
 'use client';
+import Navbar from '../components/Navbar';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -164,7 +165,7 @@ function UserManagementContent() {
     );
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-24 font-sans">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
 
             {/* TOAST */}
             {toast && (
@@ -308,7 +309,7 @@ function UserManagementContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg">
+            <div className="hidden">
                 <div className="p-5 flex justify-between items-center">
                     <div>
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Admin Panel</p>
@@ -394,19 +395,7 @@ function UserManagementContent() {
                 )}
             </div>
 
-            {/* BOTTOM NAV */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 z-50 p-4 pb-6">
-                <div className="max-w-2xl mx-auto flex gap-3">
-                    <button onClick={() => router.push('/dashboard')}
-                        className="flex-1 bg-slate-100 text-slate-700 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95">
-                        🏠 Dashboard
-                    </button>
-                    <button onClick={fetchUsers}
-                        className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">
-                        🔄 Refresh
-                    </button>
-                </div>
-            </div>
+            <Navbar />
         </main>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -448,7 +448,7 @@ function CheckoutContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans relative">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans relative">
 
             {/* PO IMPORT MODAL */}
             {showPoModal && (
@@ -558,7 +558,7 @@ function CheckoutContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 p-6 text-white flex justify-between items-center shadow-lg sticky top-0 z-20">
+            <div className="hidden">
                 <div>
                     <h1 className="text-xl font-bold">{editId ? 'Lanjutkan Draft' : 'Checkout'}</h1>
                     <p className="text-[10px] text-slate-400 uppercase tracking-widest">User: {user.name} ({user.role})</p>
@@ -716,7 +716,7 @@ function CheckoutContent() {
                     <button onClick={() => router.push('/transactions')} className="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest shadow-lg active:scale-95">📋 Riwayat Transaksi</button>
                 </div>
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

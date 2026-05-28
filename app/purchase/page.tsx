@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
@@ -185,7 +185,7 @@ function PurchaseContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
 
             {/* ADD ITEM MODAL */}
             {showAddModal && (
@@ -341,7 +341,7 @@ function PurchaseContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 text-white sticky top-0 z-20 shadow-lg p-5 flex justify-between items-center">
+            <div className="hidden p-5 flex justify-between items-center">
                 <div>
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stock Adjustment</p>
                     <h1 className="text-xl font-black">Input Pembelian / PO</h1>
@@ -497,7 +497,7 @@ function PurchaseContent() {
                     </>
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import FloatingMenu from '../components/FloatingMenu';
+import Navbar from '../components/Navbar';
 import { useRouter } from 'next/navigation';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -125,7 +125,7 @@ function TransactionListContent() {
     if (!user) return null;
 
     return (
-        <main className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900 relative">
+        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900 relative">
 
             {/* QR SCANNER MODAL */}
             {showScanner && (
@@ -160,7 +160,7 @@ function TransactionListContent() {
             )}
 
             {/* HEADER */}
-            <div className="bg-slate-900 p-6 text-white shadow-lg sticky top-0 z-20">
+            <div className="hidden">
                 <div className="flex justify-between items-center max-w-4xl mx-auto">
                     <div>
                         <h1 className="text-xl font-bold">Warehouse Transactions</h1>
@@ -297,7 +297,7 @@ function TransactionListContent() {
                     })
                 )}
             </div>
-            <FloatingMenu />
+            <Navbar />
         </main>
     );
 }
