@@ -76,6 +76,27 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         } catch { }
     };
 
+    const handlePrintSJ = () => {
+        if (!transaction) return;
+        const { header, items } = transaction;
+        const itemsData = items.map((item: any) => ({
+            name: item.item_name,
+            qr_id: item.qr_id,
+            qty: item.qty,
+            unit: item.unit || 'pcs',
+            location: item.location_name || '—',
+        }));
+        const params = new URLSearchParams({
+            code: header.transaction_code,
+            project: header.project_name || '—',
+            pic: header.pic_name || '—',
+            date: header.checkout_date,
+            pengirim: user?.name || '—',
+            items: encodeURIComponent(JSON.stringify(itemsData)),
+        });
+        window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
+    };
+
     // Signature
     const startDrawing = (e: any) => {
         const canvas = canvasRef.current; if (!canvas) return;
@@ -179,7 +200,13 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     <h1 className="text-xl font-bold">{header.project_name}</h1>
                     <p className="text-[10px] text-slate-400 font-mono tracking-widest">{header.transaction_code}</p>
                 </div>
-                <button onClick={() => router.push('/transactions')} className="bg-slate-800 px-4 py-2 rounded-xl text-xs font-black uppercase">Tutup</button>
+                <div className="flex gap-2">
+                    <button onClick={handlePrintSJ}
+                        className="bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-black uppercase active:scale-95">
+                        🖨️ Surat Jalan
+                    </button>
+                    <button onClick={() => router.push('/transactions')} className="bg-slate-800 px-4 py-2 rounded-xl text-xs font-black uppercase">Tutup</button>
+                </div>
             </div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
