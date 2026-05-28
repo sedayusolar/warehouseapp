@@ -68,9 +68,8 @@ function PurchaseListContent() {
                 body: JSON.stringify({ po_id: selected.id, action: 'approve', approved_by: user?.name })
             });
             const r = await res.json();
-            if (r.status === 'success') {
-                alert(r.message); setSelected(null); setDetail(null); fetchList(filterStatus);
-            } else alert("Gagal: " + r.message);
+            if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
+            else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
     };
@@ -84,9 +83,8 @@ function PurchaseListContent() {
                 body: JSON.stringify({ po_id: selected.id, action: 'reject', approved_by: user?.name, rejection_note: rejectNote })
             });
             const r = await res.json();
-            if (r.status === 'success') {
-                alert(r.message); setSelected(null); setDetail(null); setShowReject(false); fetchList(filterStatus);
-            } else alert("Gagal: " + r.message);
+            if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); setShowReject(false); fetchList(filterStatus); }
+            else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
     };
@@ -169,29 +167,21 @@ function PurchaseListContent() {
                                                     <div className="flex justify-between items-start gap-2">
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
-                                                                {item.is_new_item === 1 && (
-                                                                    <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">BARU</span>
-                                                                )}
-                                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                                    {item.category}
-                                                                </span>
+                                                                {item.is_new_item === 1 && <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">BARU</span>}
+                                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.category}</span>
                                                             </div>
                                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                             <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
                                                             <p className="text-[10px] text-slate-500">📍 {item.location_name}</p>
                                                             <p className="text-[10px] text-violet-500 font-bold">
-                                                                {Number(item.unit_price) > 0
-                                                                    ? `HPP: ${formatRp(Number(item.unit_price))} / ${item.unit}`
-                                                                    : <span className="text-slate-300 italic">HPP belum diisi</span>}
+                                                                {Number(item.unit_price) > 0 ? `HPP: ${formatRp(Number(item.unit_price))} / ${item.unit}` : <span className="text-slate-300 italic">HPP belum diisi</span>}
                                                             </p>
                                                         </div>
                                                         <div className="text-right flex-shrink-0">
                                                             <p className="font-black text-lg text-blue-600">{item.qty}</p>
                                                             <p className="text-[10px] text-slate-400">{item.unit}</p>
                                                             <p className="text-[10px] font-bold text-slate-500">
-                                                                {Number(item.unit_price) > 0
-                                                                    ? `= ${formatRp(Number(item.qty) * Number(item.unit_price))}`
-                                                                    : '—'}
+                                                                {Number(item.unit_price) > 0 ? `= ${formatRp(Number(item.qty) * Number(item.unit_price))}` : '—'}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -201,9 +191,7 @@ function PurchaseListContent() {
                                         <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
-                                                {detail.items?.some((i: any) => Number(i.unit_price) === 0) && (
-                                                    <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>
-                                                )}
+                                                {detail.items?.some((i: any) => Number(i.unit_price) === 0) && <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>}
                                             </div>
                                             <p className="font-black text-lg">
                                                 {detail.items?.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.unit_price), 0) > 0
@@ -221,29 +209,21 @@ function PurchaseListContent() {
                                                         placeholder="Alasan penolakan *" rows={3}
                                                         className="w-full p-3.5 bg-red-50 rounded-xl outline-none font-medium text-slate-700 resize-none border border-red-200" />
                                                     <div className="flex gap-3">
-                                                        <button onClick={() => setShowReject(false)}
-                                                            className="flex-1 bg-slate-100 text-slate-500 font-black py-3.5 rounded-2xl text-xs uppercase">Batal</button>
-                                                        <button onClick={handleReject} disabled={approving}
-                                                            className="flex-1 bg-red-500 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                                        <button onClick={() => setShowReject(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-3.5 rounded-2xl text-xs uppercase">Batal</button>
+                                                        <button onClick={handleReject} disabled={approving} className="flex-1 bg-red-500 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
                                                             {approving ? 'Menolak...' : '❌ Tolak PO'}
                                                         </button>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="flex gap-3">
-                                                    <button onClick={() => setShowReject(true)}
-                                                        className="flex-1 bg-red-50 text-red-600 font-black py-3.5 rounded-2xl text-xs uppercase border border-red-200">
-                                                        ❌ Tolak
-                                                    </button>
-                                                    <button onClick={handleApprove} disabled={approving}
-                                                        className="flex-1 bg-emerald-600 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                                    <button onClick={() => setShowReject(true)} className="flex-1 bg-red-50 text-red-600 font-black py-3.5 rounded-2xl text-xs uppercase border border-red-200">❌ Tolak</button>
+                                                    <button onClick={handleApprove} disabled={approving} className="flex-1 bg-emerald-600 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
                                                         {approving ? 'Menyetujui...' : '✅ Approve & Masukkan Stok'}
                                                     </button>
                                                 </div>
                                             )}
-                                            <p className="text-[9px] text-slate-400 text-center">
-                                                Setelah Approve, stok semua item akan masuk ke inventory sesuai lokasi.
-                                            </p>
+                                            <p className="text-[9px] text-slate-400 text-center">Setelah Approve, stok semua item akan masuk ke inventory sesuai lokasi.</p>
                                         </div>
                                     )}
                                 </>
@@ -253,16 +233,16 @@ function PurchaseListContent() {
                 </div>
             )}
 
-            {/* TAB FILTER — sticky di bawah top navbar */}
+            {/* TAB FILTER — 1x, sticky di bawah top navbar */}
             <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
                 <div className="max-w-2xl mx-auto flex gap-2">
-                    {['PENDING', 'APPROVED', 'REJECTED'].map(s => (
+                    {(['PENDING', 'APPROVED', 'REJECTED'] as const).map(s => (
                         <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }}
                             className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all
                                 ${filterStatus === s
-                                    ? s === 'PENDING' ? 'bg-orange-500 text-white shadow-sm'
-                                        : s === 'APPROVED' ? 'bg-emerald-500 text-white shadow-sm'
-                                            : 'bg-red-500 text-white shadow-sm'
+                                    ? s === 'PENDING' ? 'bg-orange-500 text-white'
+                                        : s === 'APPROVED' ? 'bg-emerald-500 text-white'
+                                            : 'bg-red-500 text-white'
                                     : 'bg-slate-100 text-slate-400'}`}>
                             {s === 'PENDING' ? '⏳' : s === 'APPROVED' ? '✅' : '❌'} {s}
                             {s === 'PENDING' && pendingCount > 0 && (
@@ -274,27 +254,6 @@ function PurchaseListContent() {
             </div>
 
             {/* LIST */}
-
-            {/* TAB FILTER */}
-            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
-                <div className="max-w-2xl mx-auto flex gap-2">
-                    {(['PENDING', 'APPROVED', 'REJECTED'] as const).map(s => (
-                        <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }}
-                            className={`flex-1 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all
-                                ${filterStatus === s
-                                    ? s === 'PENDING' ? 'bg-orange-500 text-white shadow-sm'
-                                        : s === 'APPROVED' ? 'bg-emerald-500 text-white shadow-sm'
-                                            : 'bg-red-500 text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-400'}`}>
-                            {s === 'PENDING' ? '⏳' : s === 'APPROVED' ? '✅' : '❌'} {s}
-                            {s === 'PENDING' && pendingCount > 0 && (
-                                <span className="ml-1 bg-white text-orange-500 text-[8px] font-black px-1 py-0.5 rounded-full">{pendingCount}</span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
             <div className="p-4 max-w-2xl mx-auto space-y-3">
                 {loading ? (
                     <div className="text-center py-20 animate-pulse text-slate-400 font-bold">Memuat...</div>
@@ -324,9 +283,7 @@ function PurchaseListContent() {
                                 <p className="text-[10px] text-slate-400">
                                     {new Date(item.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
                                 </p>
-                                {item.approval_status === 'PENDING' && (
-                                    <p className="text-[9px] font-black text-orange-500 mt-1">→ Review</p>
-                                )}
+                                {item.approval_status === 'PENDING' && <p className="text-[9px] font-black text-orange-500 mt-1">→ Review</p>}
                             </div>
                         </div>
                     </button>
