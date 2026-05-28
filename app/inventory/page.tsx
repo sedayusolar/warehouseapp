@@ -698,8 +698,21 @@ function InventoryContent() {
                                                                                     <div className="flex items-center gap-1.5">
                                                                                         <span className={`text-[10px] font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{log.diff > 0 ? `+${log.diff}` : log.diff}</span>
                                                                                         <span className="text-[10px] text-slate-500">({log.stock_before} → {log.stock_after})</span>
+                                                                                        {log.adjustment_type && (
+                                                                                            <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full uppercase">{log.adjustment_type}</span>
+                                                                                        )}
                                                                                     </div>
-                                                                                    <p className="text-[9px] text-slate-400 font-bold">{log.adjusted_by}</p>
+                                                                                    {/* Input oleh siapa */}
+                                                                                    {log.submitted_by && (
+                                                                                        <p className="text-[9px] text-slate-500 mt-0.5">
+                                                                                            ✏️ Diinput: <span className="font-bold">{log.submitted_by}</span>
+                                                                                        </p>
+                                                                                    )}
+                                                                                    {/* Approve oleh siapa */}
+                                                                                    <p className="text-[9px] text-slate-400">
+                                                                                        {log.submitted_by ? '✅ Diapprove' : '👤'}: <span className="font-bold">{log.adjusted_by}</span>
+                                                                                    </p>
+                                                                                    {log.supplier && <p className="text-[9px] text-blue-500 font-bold">🏪 {log.supplier}</p>}
                                                                                     {log.note && <p className="text-[9px] text-slate-500 italic">"{log.note}"</p>}
                                                                                 </div>
                                                                                 <p className="text-[9px] text-slate-300 flex-shrink-0">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
