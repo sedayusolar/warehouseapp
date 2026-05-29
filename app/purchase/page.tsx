@@ -8,14 +8,14 @@ const BASE_URL = "https://sedayu.com/api/warehouse";
 
 type CartItem = {
     key: string;
-    qr_id: string;        // kosong jika item baru
+    qr_id: string;
     item_name: string;
     category: string;
     unit: string;
     location_id: string;
     qty: number;
     unit_price: number;
-    item_photo: string;   // base64 foto item (untuk item baru)
+    item_photo: string;
     isNew: boolean;
 };
 
@@ -25,26 +25,23 @@ function PurchaseContent() {
     const [locations, setLocations] = useState<any[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
 
-    // PO info
     const [poNumber, setPoNumber] = useState('');
     const [supplier, setSupplier] = useState('');
     const [poDate, setPoDate] = useState(new Date().toISOString().split('T')[0]);
     const [note, setNote] = useState('');
 
-    // Foto surat jalan
     const [sjPhoto, setSjPhoto] = useState('');
     const [sjPhotoPreview, setSjPhotoPreview] = useState('');
     const sjPhotoRef = useRef<HTMLInputElement>(null);
 
-    // Search item existing
     const [showAddModal, setShowAddModal] = useState(false);
     const [addMode, setAddMode] = useState<'search' | 'new'>('search');
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<any>(null); // ← item yang dipilih dari search
     const searchTimeout = useRef<any>(null);
 
-    // New item form (di modal)
     const [newName, setNewName] = useState('');
     const [newCategory, setNewCategory] = useState('Material');
     const [newUnit, setNewUnit] = useState('');
@@ -53,7 +50,6 @@ function PurchaseContent() {
     const [newItemPhotoPreview, setNewItemPhotoPreview] = useState('');
     const newItemPhotoRef = useRef<HTMLInputElement>(null);
 
-    // Default location & qty for modal
     const [modalLocationId, setModalLocationId] = useState('');
     const [modalQty, setModalQty] = useState('1');
     const [modalPrice, setModalPrice] = useState('');
@@ -91,6 +87,7 @@ function PurchaseContent() {
 
     const handleSearch = (val: string) => {
         setSearchQuery(val);
+        setSelectedItem(null); // reset pilihan saat ketik ulang
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         if (val.length < 2) { setSearchResults([]); return; }
         searchTimeout.current = setTimeout(async () => {
@@ -104,14 +101,23 @@ function PurchaseContent() {
         }, 350);
     };
 
-    const addExistingToCart = (item: any) => {
+    const handleSelectItem = (item: any) => {
+        setSelectedItem(item);
+        setSearchQuery(item.item_name);
+        setSearchResults([]);
+        // Pre-fill harga dari master jika ada
+        if (item.unit_price > 0) setModalPrice(String(item.unit_price));
+    };
+
+    const addExistingToCart = () => {
+        if (!selectedItem) { alert("Pilih item terlebih dahulu."); return; }
         if (!modalLocationId || Number(modalQty) <= 0) {
             alert("Pilih lokasi dan isi qty terlebih dahulu."); return;
         }
-        const key = `${item.qr_id}_${Date.now()}`;
+        const key = `${selectedItem.qr_id}_${Date.now()}`;
         setCart(prev => [...prev, {
-            key, qr_id: item.qr_id, item_name: item.item_name,
-            category: item.category, unit: item.unit,
+            key, qr_id: selectedItem.qr_id, item_name: selectedItem.item_name,
+            category: selectedItem.category, unit: selectedItem.unit,
             location_id: modalLocationId, qty: Number(modalQty),
             unit_price: Number(modalPrice) || 0,
             item_photo: '', isNew: false,
@@ -135,7 +141,7 @@ function PurchaseContent() {
 
     const resetModal = () => {
         setShowAddModal(false); setAddMode('search');
-        setSearchQuery(''); setSearchResults([]);
+        setSearchQuery(''); setSearchResults([]); setSelectedItem(null);
         setNewName(''); setNewCategory('Material'); setNewUnit('');
         setNewPrice(''); setNewItemPhoto(''); setNewItemPhotoPreview('');
         setModalLocationId(''); setModalQty('1'); setModalPrice('');
@@ -162,14 +168,10 @@ function PurchaseContent() {
                     note, adjusted_by: user?.name || 'unknown',
                     sj_photo: sjPhoto,
                     items: cart.map(i => ({
-                        qr_id: i.qr_id,
-                        item_name: i.item_name,
-                        category: i.category,
-                        unit: i.unit,
-                        location_id: i.location_id,
-                        qty: i.qty,
-                        unit_price: i.unit_price,
-                        item_photo: i.item_photo,
+                        qr_id: i.qr_id, item_name: i.item_name,
+                        category: i.category, unit: i.unit,
+                        location_id: i.location_id, qty: i.qty,
+                        unit_price: i.unit_price, item_photo: i.item_photo,
                     }))
                 })
             });
@@ -199,7 +201,7 @@ function PurchaseContent() {
 
                         {/* Toggle search/new */}
                         <div className="flex gap-2">
-                            <button onClick={() => setAddMode('search')}
+                            <button onClick={() => { setAddMode('search'); setSelectedItem(null); }}
                                 className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${addMode === 'search' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                 🔍 Cari Existing
                             </button>
@@ -209,43 +211,49 @@ function PurchaseContent() {
                             </button>
                         </div>
 
+                        {/* MODE SEARCH */}
                         {addMode === 'search' && (
                             <div className="space-y-3">
                                 <input type="text" value={searchQuery} onChange={e => handleSearch(e.target.value)}
                                     placeholder="Ketik nama / QR ID..." autoFocus
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 {searching && <p className="text-center text-xs text-slate-400 animate-pulse">Mencari...</p>}
-                                {searchResults.length > 0 && (
-                                    <div className="border border-slate-100 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto">
+
+                                {/* Dropdown hasil search */}
+                                {searchResults.length > 0 && !selectedItem && (
+                                    <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-md">
                                         {searchResults.map((item: any) => (
-                                            <button key={item.qr_id} onClick={() => {
-                                                setSearchQuery(item.item_name);
-                                                setSearchResults([]);
-                                            }}
-                                                className="w-full text-left p-3 hover:bg-blue-50 transition-colors">
-                                                <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                                <p className="text-[10px] text-slate-400 font-mono">{item.qr_id} · Stok: {item.stock_qty} {item.unit}</p>
+                                            <button key={item.qr_id}
+                                                onClick={() => handleSelectItem(item)}
+                                                className="w-full text-left p-3.5 hover:bg-blue-50 transition-colors flex justify-between items-center">
+                                                <div>
+                                                    <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono">{item.qr_id} · Stok: {item.stock_qty} {item.unit}</p>
+                                                </div>
+                                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg flex-shrink-0">Pilih</span>
                                             </button>
                                         ))}
                                     </div>
                                 )}
-                                {/* Setelah pilih item dari search, tampil konfirmasi */}
-                                {searchQuery && searchResults.length === 0 && !searching && (
-                                    <div className="space-y-3">
-                                        {(() => {
-                                            const found = searchResults.length === 0
-                                                ? null : searchResults[0];
-                                            const matchedItem = found;
-                                            return null;
-                                        })()}
+
+                                {/* Item terpilih — konfirmasi */}
+                                {selectedItem && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-black text-sm text-blue-800">{selectedItem.item_name}</p>
+                                            <p className="text-[10px] font-mono text-blue-400">{selectedItem.qr_id} · {selectedItem.unit}</p>
+                                            {selectedItem.stock_qty >= 0 && (
+                                                <p className="text-[10px] text-blue-500 font-bold">Stok: {selectedItem.stock_qty} {selectedItem.unit}</p>
+                                            )}
+                                        </div>
+                                        <button onClick={() => { setSelectedItem(null); setSearchQuery(''); setModalPrice(''); }}
+                                            className="text-blue-400 font-black text-sm bg-white rounded-lg px-2 py-1">✕</button>
                                     </div>
                                 )}
-                                {/* Simplified: langsung pilih dari results */}
-                                {searchResults.map((item: any) => null)}
                             </div>
                         )}
 
-                        {/* Item baru form */}
+                        {/* MODE ITEM BARU */}
                         {addMode === 'new' && (
                             <div className="space-y-3">
                                 <input type="text" placeholder="Nama Item *" value={newName}
@@ -286,7 +294,7 @@ function PurchaseContent() {
                             </div>
                         )}
 
-                        {/* Lokasi + Qty — shared */}
+                        {/* LOKASI + QTY + HPP — shared */}
                         <div className="pt-2 border-t border-slate-100 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase">Lokasi & Jumlah</p>
                             <select value={modalLocationId} onChange={e => setModalLocationId(e.target.value)}
@@ -313,21 +321,14 @@ function PurchaseContent() {
                             </div>
                         </div>
 
-                        {/* Search results — click to add */}
-                        {addMode === 'search' && searchResults.length > 0 && (
-                            <div className="border border-slate-100 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto">
-                                {searchResults.map((item: any) => (
-                                    <button key={item.qr_id}
-                                        onClick={() => addExistingToCart(item)}
-                                        className="w-full text-left p-3.5 hover:bg-blue-50 transition-colors flex justify-between items-center">
-                                        <div>
-                                            <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                            <p className="text-[10px] text-slate-400 font-mono">{item.qr_id} · {item.unit}</p>
-                                        </div>
-                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">＋ Tambah</span>
-                                    </button>
-                                ))}
-                            </div>
+                        {/* TOMBOL TAMBAH */}
+                        {addMode === 'search' && (
+                            <button onClick={addExistingToCart}
+                                disabled={!selectedItem}
+                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all
+                                    ${selectedItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                                {selectedItem ? `＋ Tambahkan "${selectedItem.item_name}" ke PO` : 'Pilih item dulu dari hasil pencarian'}
+                            </button>
                         )}
 
                         {addMode === 'new' && (
@@ -339,17 +340,6 @@ function PurchaseContent() {
                     </div>
                 </div>
             )}
-
-            {/* HEADER */}
-            <div className="hidden p-5 flex justify-between items-center">
-                <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stock Adjustment</p>
-                    <h1 className="text-xl font-black">Input Pembelian / PO</h1>
-                    <p className="text-[10px] text-slate-400">{user.name}</p>
-                </div>
-                <button onClick={() => router.push('/stock-adjustment')}
-                    className="bg-slate-800 px-3 py-2 rounded-xl text-xs font-black">← Adjustment</button>
-            </div>
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
 
@@ -395,14 +385,12 @@ function PurchaseContent() {
                                 <div className="relative">
                                     <img src={sjPhotoPreview} alt="SJ" className="w-full max-h-64 object-cover rounded-2xl border border-slate-100" />
                                     <button onClick={() => { setSjPhoto(''); setSjPhotoPreview(''); }}
-                                        className="absolute top-2 right-2 bg-red-500 text-white font-black text-xs px-2 py-1 rounded-lg">
-                                        ✕ Hapus
-                                    </button>
+                                        className="absolute top-2 right-2 bg-red-500 text-white font-black text-xs px-2 py-1 rounded-lg">✕ Hapus</button>
                                     <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Foto tersimpan</p>
                                 </div>
                             ) : (
                                 <button onClick={() => sjPhotoRef.current?.click()}
-                                    className="w-full border-2 border-dashed border-slate-300 rounded-2xl py-10 text-center active:bg-slate-50 transition-colors">
+                                    className="w-full border-2 border-dashed border-slate-300 rounded-2xl py-10 text-center active:bg-slate-50">
                                     <p className="text-3xl mb-2">📷</p>
                                     <p className="font-black text-slate-400 text-sm">Tap untuk foto surat jalan</p>
                                     <p className="text-[10px] text-slate-300 mt-1">Wajib diisi</p>
@@ -435,15 +423,12 @@ function PurchaseContent() {
                         {/* DAFTAR ITEM */}
                         <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                    Item ({cart.length})
-                                </p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Item ({cart.length})</p>
                                 <button onClick={() => setShowAddModal(true)}
                                     className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase shadow-md active:scale-95">
                                     ＋ Tambah Item
                                 </button>
                             </div>
-
                             {cart.length === 0 ? (
                                 <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
                                     <p className="text-slate-300 text-sm italic">Belum ada item. Tap ＋ Tambah Item</p>
@@ -459,9 +444,7 @@ function PurchaseContent() {
                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                             <p className="text-[10px] text-slate-400">📍 {locName(item.location_id)}</p>
                                             {item.unit_price > 0 && (
-                                                <p className="text-[10px] text-violet-500 font-bold">
-                                                    HPP: Rp {item.unit_price.toLocaleString('id-ID')} / {item.unit}
-                                                </p>
+                                                <p className="text-[10px] text-violet-500 font-bold">HPP: Rp {item.unit_price.toLocaleString('id-ID')} / {item.unit}</p>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -473,7 +456,6 @@ function PurchaseContent() {
                                                 className="text-red-300 font-black p-1">✕</button>
                                         </div>
                                     </div>
-                                    {/* Edit qty inline */}
                                     <div className="flex gap-2 mt-2">
                                         <select value={item.location_id} onChange={e => updateCartItem(item.key, 'location_id', e.target.value)}
                                             className="flex-1 p-2 bg-slate-50 rounded-lg outline-none text-xs font-medium text-slate-600 appearance-none">
@@ -487,10 +469,9 @@ function PurchaseContent() {
                             ))}
                         </div>
 
-                        {/* SUBMIT */}
                         {cart.length > 0 && (
                             <button onClick={handleSubmit} disabled={submitting}
-                                className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50">
+                                className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50">
                                 {submitting ? 'Menyimpan...' : `✓ Submit ${cart.length} Item ke Inventory`}
                             </button>
                         )}
