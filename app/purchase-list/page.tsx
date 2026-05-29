@@ -244,7 +244,7 @@ function PurchaseListContent() {
                             {/* Foto SJ staff */}
                             {selected.sj_photo_path && (
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalan (dari Staff)</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalans (dari Staff)</p>
                                     <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.sj_photo_path}`)} className="w-full">
                                         <img src={`${BASE_URL}/${selected.sj_photo_path}`}
                                             className="w-full max-h-48 object-cover rounded-2xl border border-slate-100" alt="SJ" />

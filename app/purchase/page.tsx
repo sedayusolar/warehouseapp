@@ -14,7 +14,6 @@ type CartItem = {
     unit: string;
     location_id: string;
     qty: number;
-    unit_price: number;
     item_photo: string;
     isNew: boolean;
 };
@@ -39,20 +38,18 @@ function PurchaseContent() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<any>(null); // ← item yang dipilih dari search
+    const [selectedItem, setSelectedItem] = useState<any>(null);
     const searchTimeout = useRef<any>(null);
 
     const [newName, setNewName] = useState('');
     const [newCategory, setNewCategory] = useState('Material');
     const [newUnit, setNewUnit] = useState('');
-    const [newPrice, setNewPrice] = useState('');
     const [newItemPhoto, setNewItemPhoto] = useState('');
     const [newItemPhotoPreview, setNewItemPhotoPreview] = useState('');
     const newItemPhotoRef = useRef<HTMLInputElement>(null);
 
     const [modalLocationId, setModalLocationId] = useState('');
     const [modalQty, setModalQty] = useState('1');
-    const [modalPrice, setModalPrice] = useState('');
 
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<any>(null);
@@ -79,7 +76,10 @@ function PurchaseContent() {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
         const parsed = JSON.parse(u);
-        if (parsed.role === 'MANAGER') { router.push('/dashboard'); return; }
+        // MANAGER dan PROCUREMENT tidak bisa input PO
+        if (parsed.role === 'MANAGER' || parsed.role === 'PROCUREMENT') {
+            router.push('/purchase-list'); return;
+        }
         setUser(parsed);
         fetch(`${BASE_URL}/get_locations.php`, { headers: { 'X-API-KEY': API_KEY } })
             .then(r => r.json()).then(r => { if (r.status === 'success') setLocations(r.data); });
@@ -87,7 +87,7 @@ function PurchaseContent() {
 
     const handleSearch = (val: string) => {
         setSearchQuery(val);
-        setSelectedItem(null); // reset pilihan saat ketik ulang
+        setSelectedItem(null);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         if (val.length < 2) { setSearchResults([]); return; }
         searchTimeout.current = setTimeout(async () => {
@@ -105,8 +105,6 @@ function PurchaseContent() {
         setSelectedItem(item);
         setSearchQuery(item.item_name);
         setSearchResults([]);
-        // Pre-fill harga dari master jika ada
-        if (item.unit_price > 0) setModalPrice(String(item.unit_price));
     };
 
     const addExistingToCart = () => {
@@ -119,7 +117,6 @@ function PurchaseContent() {
             key, qr_id: selectedItem.qr_id, item_name: selectedItem.item_name,
             category: selectedItem.category, unit: selectedItem.unit,
             location_id: modalLocationId, qty: Number(modalQty),
-            unit_price: Number(modalPrice) || 0,
             item_photo: '', isNew: false,
         }]);
         resetModal();
@@ -133,7 +130,6 @@ function PurchaseContent() {
             key, qr_id: '', item_name: newName,
             category: newCategory, unit: newUnit,
             location_id: modalLocationId, qty: Number(modalQty),
-            unit_price: Number(newPrice) || 0,
             item_photo: newItemPhoto, isNew: true,
         }]);
         resetModal();
@@ -143,8 +139,8 @@ function PurchaseContent() {
         setShowAddModal(false); setAddMode('search');
         setSearchQuery(''); setSearchResults([]); setSelectedItem(null);
         setNewName(''); setNewCategory('Material'); setNewUnit('');
-        setNewPrice(''); setNewItemPhoto(''); setNewItemPhotoPreview('');
-        setModalLocationId(''); setModalQty('1'); setModalPrice('');
+        setNewItemPhoto(''); setNewItemPhotoPreview('');
+        setModalLocationId(''); setModalQty('1');
     };
 
     const updateCartItem = (key: string, field: string, value: any) => {
@@ -171,7 +167,8 @@ function PurchaseContent() {
                         qr_id: i.qr_id, item_name: i.item_name,
                         category: i.category, unit: i.unit,
                         location_id: i.location_id, qty: i.qty,
-                        unit_price: i.unit_price, item_photo: i.item_photo,
+                        unit_price: 0,  // HPP diisi oleh Procurement
+                        item_photo: i.item_photo,
                     }))
                 })
             });
@@ -199,7 +196,6 @@ function PurchaseContent() {
                             <button onClick={resetModal} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 text-sm">✕</button>
                         </div>
 
-                        {/* Toggle search/new */}
                         <div className="flex gap-2">
                             <button onClick={() => { setAddMode('search'); setSelectedItem(null); }}
                                 className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${addMode === 'search' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
@@ -218,13 +214,10 @@ function PurchaseContent() {
                                     placeholder="Ketik nama / QR ID..." autoFocus
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 {searching && <p className="text-center text-xs text-slate-400 animate-pulse">Mencari...</p>}
-
-                                {/* Dropdown hasil search */}
                                 {searchResults.length > 0 && !selectedItem && (
                                     <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-md">
                                         {searchResults.map((item: any) => (
-                                            <button key={item.qr_id}
-                                                onClick={() => handleSelectItem(item)}
+                                            <button key={item.qr_id} onClick={() => handleSelectItem(item)}
                                                 className="w-full text-left p-3.5 hover:bg-blue-50 transition-colors flex justify-between items-center">
                                                 <div>
                                                     <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
@@ -235,25 +228,21 @@ function PurchaseContent() {
                                         ))}
                                     </div>
                                 )}
-
-                                {/* Item terpilih — konfirmasi */}
                                 {selectedItem && (
                                     <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3.5 flex justify-between items-center">
                                         <div>
                                             <p className="font-black text-sm text-blue-800">{selectedItem.item_name}</p>
                                             <p className="text-[10px] font-mono text-blue-400">{selectedItem.qr_id} · {selectedItem.unit}</p>
-                                            {selectedItem.stock_qty >= 0 && (
-                                                <p className="text-[10px] text-blue-500 font-bold">Stok: {selectedItem.stock_qty} {selectedItem.unit}</p>
-                                            )}
+                                            <p className="text-[10px] text-blue-500 font-bold">Stok: {selectedItem.stock_qty} {selectedItem.unit}</p>
                                         </div>
-                                        <button onClick={() => { setSelectedItem(null); setSearchQuery(''); setModalPrice(''); }}
+                                        <button onClick={() => { setSelectedItem(null); setSearchQuery(''); }}
                                             className="text-blue-400 font-black text-sm bg-white rounded-lg px-2 py-1">✕</button>
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* MODE ITEM BARU */}
+                        {/* MODE ITEM BARU — tanpa field HPP */}
                         {addMode === 'new' && (
                             <div className="space-y-3">
                                 <input type="text" placeholder="Nama Item *" value={newName}
@@ -269,11 +258,9 @@ function PurchaseContent() {
                                         onChange={e => setNewUnit(e.target.value)}
                                         className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 </div>
-                                <div className="relative">
-                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">Rp</span>
-                                    <input type="number" placeholder="Harga beli / HPP" value={newPrice}
-                                        onChange={e => setNewPrice(e.target.value)}
-                                        className="w-full p-3.5 pl-10 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                {/* Info HPP diisi Procurement */}
+                                <div className="bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
+                                    <p className="text-[10px] font-black text-violet-500">💡 HPP akan diisi oleh Tim Procurement</p>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Item (opsional)</label>
@@ -294,7 +281,7 @@ function PurchaseContent() {
                             </div>
                         )}
 
-                        {/* LOKASI + QTY + HPP — shared */}
+                        {/* LOKASI + QTY — tanpa HPP */}
                         <div className="pt-2 border-t border-slate-100 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase">Lokasi & Jumlah</p>
                             <select value={modalLocationId} onChange={e => setModalLocationId(e.target.value)}
@@ -302,35 +289,20 @@ function PurchaseContent() {
                                 <option value="">-- Pilih Lokasi Penyimpanan *</option>
                                 {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
                             </select>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah *</label>
-                                    <input type="number" min="1" value={modalQty} onChange={e => setModalQty(e.target.value)}
-                                        className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
-                                </div>
-                                {addMode === 'search' && (
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">HPP (opsional)</label>
-                                        <div className="relative mt-1">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
-                                            <input type="number" value={modalPrice} onChange={e => setModalPrice(e.target.value)}
-                                                className="w-full p-3.5 pl-8 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                        </div>
-                                    </div>
-                                )}
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah *</label>
+                                <input type="number" min="1" value={modalQty} onChange={e => setModalQty(e.target.value)}
+                                    className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
                             </div>
                         </div>
 
-                        {/* TOMBOL TAMBAH */}
                         {addMode === 'search' && (
-                            <button onClick={addExistingToCart}
-                                disabled={!selectedItem}
+                            <button onClick={addExistingToCart} disabled={!selectedItem}
                                 className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all
                                     ${selectedItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
                                 {selectedItem ? `＋ Tambahkan "${selectedItem.item_name}" ke PO` : 'Pilih item dulu dari hasil pencarian'}
                             </button>
                         )}
-
                         {addMode === 'new' && (
                             <button onClick={addNewToCart}
                                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
@@ -343,16 +315,30 @@ function PurchaseContent() {
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
 
-                {/* SUCCESS */}
+                {/* SUCCESS — update pesan ke flow baru */}
                 {success && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-3">
                         <p className="text-4xl">✅</p>
                         <p className="font-black text-emerald-700 text-lg">PO Berhasil Diinput!</p>
                         <p className="text-sm text-emerald-600">{success.message}</p>
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                            <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⏳ Menunggu Approval Manager</p>
-                            <p className="text-xs text-amber-600 mt-0.5">Stok akan masuk ke inventory setelah disetujui Manager.</p>
+
+                        {/* Flow baru */}
+                        <div className="bg-white rounded-2xl p-4 space-y-2 text-left">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alur Selanjutnya</p>
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center font-black text-xs flex-shrink-0">1</div>
+                                <p className="text-xs text-slate-600">📋 Tim Procurement kroscek item & input HPP</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-black text-xs flex-shrink-0">2</div>
+                                <p className="text-xs text-slate-600">✅ Manager review & approve</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-black text-xs flex-shrink-0">3</div>
+                                <p className="text-xs text-slate-600">📦 Stok masuk ke inventory otomatis</p>
+                            </div>
                         </div>
+
                         <div className="space-y-1">
                             {success.items?.map((item: any) => (
                                 <div key={item.qr_id} className="flex justify-between items-center bg-white rounded-xl px-3 py-2">
@@ -378,6 +364,17 @@ function PurchaseContent() {
 
                 {!success && (
                     <>
+                        {/* Info flow baru */}
+                        <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+                            <span className="text-lg flex-shrink-0">💡</span>
+                            <div>
+                                <p className="text-[10px] font-black text-violet-700 uppercase">Info Alur PO Baru</p>
+                                <p className="text-[10px] text-violet-600 mt-0.5">
+                                    Staff input item & qty → Procurement input HPP & lampirkan dok → Manager approve → Stok masuk
+                                </p>
+                            </div>
+                        </div>
+
                         {/* FOTO SURAT JALAN */}
                         <div className="bg-white rounded-3xl shadow-sm p-5 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📄 Surat Jalan / Packing List</p>
@@ -392,7 +389,7 @@ function PurchaseContent() {
                                 <button onClick={() => sjPhotoRef.current?.click()}
                                     className="w-full border-2 border-dashed border-slate-300 rounded-2xl py-10 text-center active:bg-slate-50">
                                     <p className="text-3xl mb-2">📷</p>
-                                    <p className="font-black text-slate-400 text-sm">Tap untuk foto surat jalan</p>
+                                    <p className="font-black text-slate-400 text-sm">Tap untuk foto surat jalans</p>
                                     <p className="text-[10px] text-slate-300 mt-1">Wajib diisi</p>
                                 </button>
                             )}
@@ -407,7 +404,7 @@ function PurchaseContent() {
                         {/* INFO PO */}
                         <div className="bg-white rounded-3xl shadow-sm p-5 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📋 Info PO</p>
-                            <input type="text" placeholder="No. PO / Surat Jalan (opsional)" value={poNumber}
+                            <input type="text" placeholder="No. Surat Jalan / Referensi (opsional)" value={poNumber}
                                 onChange={e => setPoNumber(e.target.value)}
                                 className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                             <input type="text" placeholder="Supplier / Vendor" value={supplier}
@@ -443,9 +440,7 @@ function PurchaseContent() {
                                             </div>
                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                             <p className="text-[10px] text-slate-400">📍 {locName(item.location_id)}</p>
-                                            {item.unit_price > 0 && (
-                                                <p className="text-[10px] text-violet-500 font-bold">HPP: Rp {item.unit_price.toLocaleString('id-ID')} / {item.unit}</p>
-                                            )}
+                                            <p className="text-[9px] text-violet-400 font-bold mt-0.5">HPP diisi Procurement</p>
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <div className="text-right">
@@ -472,7 +467,7 @@ function PurchaseContent() {
                         {cart.length > 0 && (
                             <button onClick={handleSubmit} disabled={submitting}
                                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50">
-                                {submitting ? 'Menyimpan...' : `✓ Submit ${cart.length} Item ke Inventory`}
+                                {submitting ? 'Menyimpan...' : `✓ Submit ${cart.length} Item ke Procurement`}
                             </button>
                         )}
                     </>
