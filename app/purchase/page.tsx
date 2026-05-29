@@ -74,6 +74,13 @@ function PurchaseContent() {
     const [aiError, setAiError] = useState('');
     const [defaultLocationId, setDefaultLocationId] = useState('');
 
+    // Koreksi per item — search existing inventory
+    const [correcting, setCorrecting] = useState<number | null>(null); // index item yang sedang dikoreksi
+    const [correctQuery, setCorrectQuery] = useState('');
+    const [correctResults, setCorrectResults] = useState<any[]>([]);
+    const [correctSearching, setCorrectSearching] = useState(false);
+    const correctTimeout = useRef<any>(null);
+
     // Manual modal
     const [showAddModal, setShowAddModal] = useState(false);
     const [addMode, setAddMode] = useState<'search' | 'new'>('search');
@@ -187,6 +194,31 @@ function PurchaseContent() {
             setAiError('Koneksi gagal. Pastikan internet stabil.');
         }
         setScanning(false);
+    };
+
+    // ── Search koreksi per item ──
+    const handleCorrectSearch = (val: string) => {
+        setCorrectQuery(val);
+        if (correctTimeout.current) clearTimeout(correctTimeout.current);
+        if (val.length < 2) { setCorrectResults([]); return; }
+        correctTimeout.current = setTimeout(async () => {
+            setCorrectSearching(true);
+            try {
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const r = await res.json();
+                setCorrectResults(r.status === 'success' ? r.data : []);
+            } catch { setCorrectResults([]); }
+            setCorrectSearching(false);
+        }, 350);
+    };
+
+    const applyCorrection = (itemIdx: number, inventoryItem: any) => {
+        setAiItems(prev => prev.map((p, idx) =>
+            idx === itemIdx ? { ...p, matched: inventoryItem, confidence: 'high', matchReason: 'Dipilih manual oleh staff' } : p
+        ));
+        setCorrecting(null);
+        setCorrectQuery('');
+        setCorrectResults([]);
     };
 
     // Konfirmasi semua AI items ke cart
@@ -409,6 +441,45 @@ function PurchaseContent() {
                                         )}
                                         {!item.matched && !item.matchLoading && (
                                             <p className="text-[9px] text-blue-400 mt-1 italic">Item baru akan dibuat di inventory</p>
+                                        )}
+
+                                        {/* Tombol koreksi */}
+                                        {!item.matchLoading && (
+                                            <button
+                                                onClick={() => { setCorrecting(correcting === i ? null : i); setCorrectQuery(''); setCorrectResults([]); }}
+                                                className={`mt-2 text-[9px] font-black px-2.5 py-1.5 rounded-lg transition-all
+                                                    ${correcting === i ? 'bg-slate-200 text-slate-600' : 'bg-white border border-slate-200 text-blue-500'}`}>
+                                                {correcting === i ? '✕ Tutup' : '🔍 Koreksi — pilih dari inventory'}
+                                            </button>
+                                        )}
+
+                                        {/* Panel search koreksi */}
+                                        {correcting === i && (
+                                            <div className="mt-2 space-y-2">
+                                                <input type="text" value={correctQuery}
+                                                    onChange={e => handleCorrectSearch(e.target.value)}
+                                                    placeholder="Cari nama item di inventory..."
+                                                    autoFocus
+                                                    className="w-full p-2.5 bg-white border border-blue-200 rounded-xl outline-none text-xs font-medium text-slate-700" />
+                                                {correctSearching && <p className="text-[9px] text-slate-400 animate-pulse text-center">Mencari...</p>}
+                                                {correctResults.length > 0 && (
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-40 overflow-y-auto shadow-sm">
+                                                        {correctResults.map((inv: any) => (
+                                                            <button key={inv.qr_id} onClick={() => applyCorrection(i, inv)}
+                                                                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 flex justify-between items-center gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className="font-bold text-xs text-slate-800 truncate">{inv.item_name}</p>
+                                                                    <p className="text-[9px] font-mono text-slate-400">{inv.qr_id} · Stok: {inv.stock_qty} {inv.unit}</p>
+                                                                </div>
+                                                                <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg flex-shrink-0">Pilih</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {correctQuery.length >= 2 && !correctSearching && correctResults.length === 0 && (
+                                                    <p className="text-[9px] text-slate-400 italic text-center py-2">Tidak ditemukan — biarkan sebagai item baru</p>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 ))}
