@@ -27,9 +27,11 @@ type AiItem = {
     supplier?: string;
     po_number?: string;
     // hasil match inventory
-    matched?: any;       // existing inventory item
+    matched?: any;
     matchLoading?: boolean;
     confirmed?: boolean;
+    confidence?: 'high' | 'medium' | 'low' | 'none' | null;
+    matchReason?: string;
 };
 
 const compressImage = (file: File, maxWidth = 1600, quality = 0.85): Promise<string> =>
@@ -105,12 +107,13 @@ function PurchaseContent() {
             .then(r => r.json()).then(r => { if (r.status === 'success') setLocations(r.data); });
     }, []);
 
-    // ── AI SCAN SJ ──
+    // ── AI SCAN SJ — 2 step: scan foto → AI match inventory ──
     const handleAiScan = async () => {
         if (!sjPhoto) { alert("Upload foto surat jalan dulu!"); return; }
         setScanning(true); setAiError(''); setAiItems([]);
 
         try {
+            // STEP 1: Scan foto SJ → extract items
             const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
@@ -123,42 +126,64 @@ function PurchaseContent() {
                 setScanning(false); return;
             }
 
-            // Auto-fill supplier & po_number dari hasil AI
+            // Auto-fill supplier & po_number
             if (r.result[0]?.supplier && !supplier) setSupplier(r.result[0].supplier);
             if (r.result[0]?.po_number && !poNumber) setPoNumber(r.result[0].po_number);
 
-            // Init AI items
-            const items: AiItem[] = r.result.map((item: any) => ({
+            const sjItems = r.result;
+
+            // Init items dengan loading state
+            const initItems: AiItem[] = sjItems.map((item: any) => ({
                 ...item,
                 matched: null,
                 matchLoading: true,
-                confirmed: false,
+                confidence: null,
+                matchReason: '',
             }));
-            setAiItems(items);
+            setAiItems(initItems);
             setShowAiReview(true);
 
-            // Cek inventory untuk setiap item
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                try {
-                    const searchRes = await fetch(
-                        `${BASE_URL}/search_inventory.php?q=${encodeURIComponent(item.item_name)}`,
-                        { headers: { 'X-API-KEY': API_KEY } }
-                    );
-                    const sr = await searchRes.json();
-                    const match = sr.status === 'success' && sr.data?.length > 0 ? sr.data[0] : null;
+            // STEP 2: Ambil semua inventory untuk AI matching
+            const invRes = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
+            const invData = await invRes.json();
+            const inventoryList = invData.status === 'success' ? invData.data : [];
 
-                    setAiItems(prev => prev.map((p, idx) =>
-                        idx === i ? { ...p, matched: match, matchLoading: false } : p
-                    ));
-                } catch {
-                    setAiItems(prev => prev.map((p, idx) =>
-                        idx === i ? { ...p, matchLoading: false } : p
-                    ));
-                }
-            }
+            // STEP 3: AI match — kirim semua item SJ + inventory ke AI sekaligus
+            const matchRes = await fetch(`${BASE_URL}/openai_proxy.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({
+                    mode: 'match_inventory',
+                    sj_items: sjItems,
+                    inventory: inventoryList.slice(0, 200), // limit 200 item
+                })
+            });
+            const matchData = await matchRes.json();
+            const matches: any[] = Array.isArray(matchData.result) ? matchData.result : [];
 
-        } catch {
+            // STEP 4: Merge hasil match ke items
+            setAiItems(sjItems.map((item: any, i: number) => {
+                const match = matches.find((m: any) =>
+                    m.sj_item_name?.toLowerCase() === item.item_name?.toLowerCase()
+                    || matches[i]
+                );
+                const matchResult = match || matches[i];
+
+                // Cari inventory item berdasarkan qr_id dari AI
+                const inventoryItem = matchResult?.matched_qr_id
+                    ? inventoryList.find((inv: any) => inv.qr_id === matchResult.matched_qr_id)
+                    : null;
+
+                return {
+                    ...item,
+                    matched: inventoryItem || null,
+                    matchLoading: false,
+                    confidence: matchResult?.confidence || 'none',
+                    matchReason: matchResult?.reason || '',
+                };
+            }));
+
+        } catch (e) {
             setAiError('Koneksi gagal. Pastikan internet stabil.');
         }
         setScanning(false);
@@ -319,9 +344,13 @@ function PurchaseContent() {
                                         {/* Status badge */}
                                         <div className="flex items-center gap-2 mb-2">
                                             {item.matchLoading ? (
-                                                <span className="text-[9px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full animate-pulse">Mengecek inventory...</span>
-                                            ) : item.matched ? (
-                                                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Ada di inventory · {item.matched.qr_id}</span>
+                                                <span className="text-[9px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full animate-pulse">🤖 AI mencocokkan...</span>
+                                            ) : item.matched && item.confidence === 'high' ? (
+                                                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Match yakin · {item.matched.qr_id}</span>
+                                            ) : item.matched && item.confidence === 'medium' ? (
+                                                <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠️ Match ragu · {item.matched.qr_id}</span>
+                                            ) : item.matched && item.confidence === 'low' ? (
+                                                <span className="text-[9px] font-black bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">❓ Match lemah · {item.matched.qr_id}</span>
                                             ) : (
                                                 <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🆕 Item Baru</span>
                                             )}
@@ -354,11 +383,32 @@ function PurchaseContent() {
                                                 className="ml-auto text-red-300 font-black text-lg leading-none">✕</button>
                                         </div>
 
-                                        {/* Match info */}
+                                        {/* Match info + reason */}
                                         {item.matched && (
-                                            <p className="text-[9px] text-emerald-600 mt-2">
-                                                Stok saat ini: <span className="font-black">{item.matched.stock_qty} {item.matched.unit}</span> · 📍 {item.matched.location_name}
-                                            </p>
+                                            <div className="mt-2 space-y-1">
+                                                <p className="text-[9px] text-slate-600">
+                                                    📦 <span className="font-black">{item.matched.item_name}</span>
+                                                </p>
+                                                <p className="text-[9px] text-slate-500">
+                                                    Stok: <span className="font-black">{item.matched.stock_qty} {item.matched.unit}</span>
+                                                </p>
+                                                {item.matchReason && (
+                                                    <p className="text-[9px] text-slate-400 italic">💬 {item.matchReason}</p>
+                                                )}
+                                                {/* Tombol batalkan match — jadikan item baru */}
+                                                {(item.confidence === 'medium' || item.confidence === 'low') && (
+                                                    <button
+                                                        onClick={() => setAiItems(prev => prev.map((p, idx2) =>
+                                                            idx2 === i ? { ...p, matched: null, confidence: 'none' } : p
+                                                        ))}
+                                                        className="text-[9px] font-black text-red-400 underline">
+                                                        ✕ Bukan item ini — jadikan item baru
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                        {!item.matched && !item.matchLoading && (
+                                            <p className="text-[9px] text-blue-400 mt-1 italic">Item baru akan dibuat di inventory</p>
                                         )}
                                     </div>
                                 ))}
