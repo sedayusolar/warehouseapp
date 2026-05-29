@@ -16,7 +16,39 @@ type CartItem = {
     qty: number;
     item_photo: string;
     isNew: boolean;
+    aiMatched?: boolean; // hasil match dari AI
 };
+
+type AiItem = {
+    item_name: string;
+    qty: number;
+    unit: string;
+    category: string;
+    supplier?: string;
+    po_number?: string;
+    // hasil match inventory
+    matched?: any;       // existing inventory item
+    matchLoading?: boolean;
+    confirmed?: boolean;
+};
+
+const compressImage = (file: File, maxWidth = 1600, quality = 0.85): Promise<string> =>
+    new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    });
 
 function PurchaseContent() {
     const router = useRouter();
@@ -33,6 +65,14 @@ function PurchaseContent() {
     const [sjPhotoPreview, setSjPhotoPreview] = useState('');
     const sjPhotoRef = useRef<HTMLInputElement>(null);
 
+    // AI state
+    const [scanning, setScanning] = useState(false);
+    const [aiItems, setAiItems] = useState<AiItem[]>([]);
+    const [showAiReview, setShowAiReview] = useState(false);
+    const [aiError, setAiError] = useState('');
+    const [defaultLocationId, setDefaultLocationId] = useState('');
+
+    // Manual modal
     const [showAddModal, setShowAddModal] = useState(false);
     const [addMode, setAddMode] = useState<'search' | 'new'>('search');
     const [searchQuery, setSearchQuery] = useState('');
@@ -53,41 +93,102 @@ function PurchaseContent() {
 
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<any>(null);
-
-    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> =>
-        new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height;
-                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.src = e.target?.result as string;
-            };
-            reader.readAsDataURL(file);
-        });
+    const [useAI, setUseAI] = useState(true);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
         const parsed = JSON.parse(u);
-        // MANAGER dan PROCUREMENT tidak bisa input PO
-        if (parsed.role === 'MANAGER' || parsed.role === 'PROCUREMENT') {
-            router.push('/purchase-list'); return;
-        }
+        if (parsed.role === 'MANAGER' || parsed.role === 'PROCUREMENT') { router.push('/purchase-list'); return; }
         setUser(parsed);
         fetch(`${BASE_URL}/get_locations.php`, { headers: { 'X-API-KEY': API_KEY } })
             .then(r => r.json()).then(r => { if (r.status === 'success') setLocations(r.data); });
     }, []);
 
+    // ── AI SCAN SJ ──
+    const handleAiScan = async () => {
+        if (!sjPhoto) { alert("Upload foto surat jalan dulu!"); return; }
+        setScanning(true); setAiError(''); setAiItems([]);
+
+        try {
+            const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({ mode: 'scan_sj', image_base64: sjPhoto })
+            });
+            const r = await res.json();
+
+            if (r.status !== 'success' || !Array.isArray(r.result)) {
+                setAiError('AI gagal membaca dokumen. Coba foto ulang dengan pencahayaan lebih baik.');
+                setScanning(false); return;
+            }
+
+            // Auto-fill supplier & po_number dari hasil AI
+            if (r.result[0]?.supplier && !supplier) setSupplier(r.result[0].supplier);
+            if (r.result[0]?.po_number && !poNumber) setPoNumber(r.result[0].po_number);
+
+            // Init AI items
+            const items: AiItem[] = r.result.map((item: any) => ({
+                ...item,
+                matched: null,
+                matchLoading: true,
+                confirmed: false,
+            }));
+            setAiItems(items);
+            setShowAiReview(true);
+
+            // Cek inventory untuk setiap item
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                try {
+                    const searchRes = await fetch(
+                        `${BASE_URL}/search_inventory.php?q=${encodeURIComponent(item.item_name)}`,
+                        { headers: { 'X-API-KEY': API_KEY } }
+                    );
+                    const sr = await searchRes.json();
+                    const match = sr.status === 'success' && sr.data?.length > 0 ? sr.data[0] : null;
+
+                    setAiItems(prev => prev.map((p, idx) =>
+                        idx === i ? { ...p, matched: match, matchLoading: false } : p
+                    ));
+                } catch {
+                    setAiItems(prev => prev.map((p, idx) =>
+                        idx === i ? { ...p, matchLoading: false } : p
+                    ));
+                }
+            }
+
+        } catch {
+            setAiError('Koneksi gagal. Pastikan internet stabil.');
+        }
+        setScanning(false);
+    };
+
+    // Konfirmasi semua AI items ke cart
+    const handleConfirmAiItems = () => {
+        if (!defaultLocationId) { alert("Pilih lokasi penyimpanan dulu!"); return; }
+
+        const newItems: CartItem[] = aiItems.map(item => ({
+            key: `ai_${Date.now()}_${Math.random()}`,
+            qr_id: item.matched?.qr_id || '',
+            item_name: item.item_name,
+            category: item.category || 'Material',
+            unit: item.unit,
+            location_id: defaultLocationId,
+            qty: item.qty,
+            item_photo: '',
+            isNew: !item.matched,
+            aiMatched: !!item.matched,
+        }));
+
+        setCart(prev => [...prev, ...newItems]);
+        setShowAiReview(false);
+        setAiItems([]);
+    };
+
+    // Manual search
     const handleSearch = (val: string) => {
-        setSearchQuery(val);
-        setSelectedItem(null);
+        setSearchQuery(val); setSelectedItem(null);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         if (val.length < 2) { setSearchResults([]); return; }
         searchTimeout.current = setTimeout(async () => {
@@ -102,19 +203,15 @@ function PurchaseContent() {
     };
 
     const handleSelectItem = (item: any) => {
-        setSelectedItem(item);
-        setSearchQuery(item.item_name);
-        setSearchResults([]);
+        setSelectedItem(item); setSearchQuery(item.item_name); setSearchResults([]);
     };
 
     const addExistingToCart = () => {
         if (!selectedItem) { alert("Pilih item terlebih dahulu."); return; }
-        if (!modalLocationId || Number(modalQty) <= 0) {
-            alert("Pilih lokasi dan isi qty terlebih dahulu."); return;
-        }
-        const key = `${selectedItem.qr_id}_${Date.now()}`;
+        if (!modalLocationId || Number(modalQty) <= 0) { alert("Pilih lokasi dan isi qty."); return; }
         setCart(prev => [...prev, {
-            key, qr_id: selectedItem.qr_id, item_name: selectedItem.item_name,
+            key: `${selectedItem.qr_id}_${Date.now()}`,
+            qr_id: selectedItem.qr_id, item_name: selectedItem.item_name,
             category: selectedItem.category, unit: selectedItem.unit,
             location_id: modalLocationId, qty: Number(modalQty),
             item_photo: '', isNew: false,
@@ -125,9 +222,9 @@ function PurchaseContent() {
     const addNewToCart = () => {
         if (!newName || !newCategory || !newUnit) { alert("Nama, kategori, satuan wajib."); return; }
         if (!modalLocationId || Number(modalQty) <= 0) { alert("Pilih lokasi dan isi qty."); return; }
-        const key = `new_${Date.now()}`;
         setCart(prev => [...prev, {
-            key, qr_id: '', item_name: newName,
+            key: `new_${Date.now()}`,
+            qr_id: '', item_name: newName,
             category: newCategory, unit: newUnit,
             location_id: modalLocationId, qty: Number(modalQty),
             item_photo: newItemPhoto, isNew: true,
@@ -143,13 +240,12 @@ function PurchaseContent() {
         setModalLocationId(''); setModalQty('1');
     };
 
-    const updateCartItem = (key: string, field: string, value: any) => {
+    const updateCartItem = (key: string, field: string, value: any) =>
         setCart(prev => prev.map(i => i.key === key ? { ...i, [field]: value } : i));
-    };
 
     const handleSubmit = async () => {
         if (cart.length === 0) { alert("Tambahkan minimal 1 item."); return; }
-        if (!sjPhoto) { alert("Upload foto surat jalan / PO terlebih dahulu."); return; }
+        if (!sjPhoto) { alert("Upload foto surat jalan terlebih dahulu."); return; }
         for (const item of cart) {
             if (!item.location_id || item.qty <= 0) {
                 alert(`Lengkapi lokasi dan qty untuk: ${item.item_name}`); return;
@@ -167,8 +263,7 @@ function PurchaseContent() {
                         qr_id: i.qr_id, item_name: i.item_name,
                         category: i.category, unit: i.unit,
                         location_id: i.location_id, qty: i.qty,
-                        unit_price: 0,  // HPP diisi oleh Procurement
-                        item_photo: i.item_photo,
+                        unit_price: 0, item_photo: i.item_photo,
                     }))
                 })
             });
@@ -180,19 +275,118 @@ function PurchaseContent() {
     };
 
     const locName = (id: string) => locations.find(l => String(l.id) === id)?.location_name || id;
-
     if (!user) return null;
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
 
-            {/* ADD ITEM MODAL */}
+            {/* ══ AI REVIEW PANEL ══ */}
+            {showAiReview && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => setShowAiReview(false)}>
+                    <div className="flex-1 overflow-y-auto mt-12" onClick={e => e.stopPropagation()}>
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-32 space-y-4">
+
+                            {/* Header */}
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">🤖 Hasil Scan AI</p>
+                                    <p className="font-black text-slate-800">{aiItems.length} item terdeteksi</p>
+                                </div>
+                                <button onClick={() => setShowAiReview(false)}
+                                    className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                            </div>
+
+                            {/* Info */}
+                            <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                                <p className="text-[10px] font-black text-blue-600">✅ = Item sudah ada di inventory · 🆕 = Item baru</p>
+                                <p className="text-[10px] text-blue-500 mt-0.5">Review hasil AI sebelum konfirmasi. Bisa edit nama, qty, dan satuan.</p>
+                            </div>
+
+                            {/* Lokasi default untuk semua item */}
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
+                                <p className="text-[10px] font-black text-slate-500 uppercase">📍 Lokasi Penyimpanan (semua item)</p>
+                                <select value={defaultLocationId} onChange={e => setDefaultLocationId(e.target.value)}
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                    <option value="">-- Pilih Lokasi *</option>
+                                    {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* List item hasil AI */}
+                            <div className="space-y-3">
+                                {aiItems.map((item, i) => (
+                                    <div key={i} className={`rounded-2xl p-4 border-2 ${item.matched ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}>
+                                        {/* Status badge */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {item.matchLoading ? (
+                                                <span className="text-[9px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full animate-pulse">Mengecek inventory...</span>
+                                            ) : item.matched ? (
+                                                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Ada di inventory · {item.matched.qr_id}</span>
+                                            ) : (
+                                                <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🆕 Item Baru</span>
+                                            )}
+                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                {item.category}
+                                            </span>
+                                        </div>
+
+                                        {/* Nama item — editable */}
+                                        <input type="text" value={item.item_name}
+                                            onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, item_name: e.target.value } : p))}
+                                            className="w-full font-bold text-sm text-slate-800 bg-transparent border-b border-slate-200 pb-1 outline-none mb-2" />
+
+                                        {/* Qty + Unit */}
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase flex-shrink-0">Qty:</label>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: Math.max(1, p.qty - 1) } : p))}
+                                                    className="w-7 h-7 bg-white rounded-lg font-black text-slate-500 flex items-center justify-center border active:scale-95">−</button>
+                                                <input type="number" min="1" value={item.qty}
+                                                    onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: Number(e.target.value) } : p))}
+                                                    className="w-14 text-center font-black text-blue-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
+                                                <button onClick={() => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: p.qty + 1 } : p))}
+                                                    className="w-7 h-7 bg-white rounded-lg font-black text-slate-500 flex items-center justify-center border active:scale-95">＋</button>
+                                            </div>
+                                            <input type="text" value={item.unit}
+                                                onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, unit: e.target.value } : p))}
+                                                className="w-16 text-center font-medium text-slate-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
+                                            <button onClick={() => setAiItems(prev => prev.filter((_, idx) => idx !== i))}
+                                                className="ml-auto text-red-300 font-black text-lg leading-none">✕</button>
+                                        </div>
+
+                                        {/* Match info */}
+                                        {item.matched && (
+                                            <p className="text-[9px] text-emerald-600 mt-2">
+                                                Stok saat ini: <span className="font-black">{item.matched.stock_qty} {item.matched.unit}</span> · 📍 {item.matched.location_name}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Tombol tambah item manual */}
+                            <button onClick={() => setAiItems(prev => [...prev, { item_name: '', qty: 1, unit: 'pcs', category: 'Material', matched: null, matchLoading: false }])}
+                                className="w-full border-2 border-dashed border-slate-200 rounded-2xl py-3 text-[10px] font-black text-slate-400 uppercase active:bg-slate-50">
+                                ＋ Tambah Item Manual
+                            </button>
+
+                            {/* Konfirmasi */}
+                            <button onClick={handleConfirmAiItems}
+                                className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
+                                ✅ Konfirmasi {aiItems.length} Item ke PO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ADD ITEM MODAL — manual */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={resetModal}>
                     <div className="bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4"
                         onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tambah Item</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tambah Item Manual</p>
                             <button onClick={resetModal} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 text-sm">✕</button>
                         </div>
 
@@ -207,7 +401,6 @@ function PurchaseContent() {
                             </button>
                         </div>
 
-                        {/* MODE SEARCH */}
                         {addMode === 'search' && (
                             <div className="space-y-3">
                                 <input type="text" value={searchQuery} onChange={e => handleSearch(e.target.value)}
@@ -218,12 +411,12 @@ function PurchaseContent() {
                                     <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-md">
                                         {searchResults.map((item: any) => (
                                             <button key={item.qr_id} onClick={() => handleSelectItem(item)}
-                                                className="w-full text-left p-3.5 hover:bg-blue-50 transition-colors flex justify-between items-center">
+                                                className="w-full text-left p-3.5 hover:bg-blue-50 flex justify-between items-center">
                                                 <div>
                                                     <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                     <p className="text-[10px] text-slate-400 font-mono">{item.qr_id} · Stok: {item.stock_qty} {item.unit}</p>
                                                 </div>
-                                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg flex-shrink-0">Pilih</span>
+                                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Pilih</span>
                                             </button>
                                         ))}
                                     </div>
@@ -242,7 +435,6 @@ function PurchaseContent() {
                             </div>
                         )}
 
-                        {/* MODE ITEM BARU — tanpa field HPP */}
                         {addMode === 'new' && (
                             <div className="space-y-3">
                                 <input type="text" placeholder="Nama Item *" value={newName}
@@ -258,7 +450,6 @@ function PurchaseContent() {
                                         onChange={e => setNewUnit(e.target.value)}
                                         className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 </div>
-                                {/* Info HPP diisi Procurement */}
                                 <div className="bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
                                     <p className="text-[10px] font-black text-violet-500">💡 HPP akan diisi oleh Tim Procurement</p>
                                 </div>
@@ -267,9 +458,7 @@ function PurchaseContent() {
                                     <div className="flex items-center gap-3 mt-1.5">
                                         <button onClick={() => newItemPhotoRef.current?.click()}
                                             className="px-3 py-2 bg-slate-100 text-slate-500 font-black text-xs rounded-xl active:scale-95">📷 Upload</button>
-                                        {newItemPhotoPreview && (
-                                            <img src={newItemPhotoPreview} className="w-12 h-12 object-cover rounded-lg border" alt="" />
-                                        )}
+                                        {newItemPhotoPreview && <img src={newItemPhotoPreview} className="w-12 h-12 object-cover rounded-lg border" alt="" />}
                                     </div>
                                     <input ref={newItemPhotoRef} type="file" accept="image/*" className="hidden"
                                         onChange={async e => {
@@ -281,12 +470,11 @@ function PurchaseContent() {
                             </div>
                         )}
 
-                        {/* LOKASI + QTY — tanpa HPP */}
                         <div className="pt-2 border-t border-slate-100 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase">Lokasi & Jumlah</p>
                             <select value={modalLocationId} onChange={e => setModalLocationId(e.target.value)}
                                 className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                <option value="">-- Pilih Lokasi Penyimpanan *</option>
+                                <option value="">-- Pilih Lokasi *</option>
                                 {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
                             </select>
                             <div>
@@ -298,9 +486,9 @@ function PurchaseContent() {
 
                         {addMode === 'search' && (
                             <button onClick={addExistingToCart} disabled={!selectedItem}
-                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all
+                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95
                                     ${selectedItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
-                                {selectedItem ? `＋ Tambahkan "${selectedItem.item_name}" ke PO` : 'Pilih item dulu dari hasil pencarian'}
+                                {selectedItem ? `＋ Tambahkan "${selectedItem.item_name}"` : 'Pilih item dulu'}
                             </button>
                         )}
                         {addMode === 'new' && (
@@ -315,14 +503,12 @@ function PurchaseContent() {
 
             <div className="p-4 max-w-2xl mx-auto space-y-5">
 
-                {/* SUCCESS — update pesan ke flow baru */}
+                {/* SUCCESS */}
                 {success && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-3">
                         <p className="text-4xl">✅</p>
                         <p className="font-black text-emerald-700 text-lg">PO Berhasil Diinput!</p>
                         <p className="text-sm text-emerald-600">{success.message}</p>
-
-                        {/* Flow baru */}
                         <div className="bg-white rounded-2xl p-4 space-y-2 text-left">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alur Selanjutnya</p>
                             <div className="flex items-center gap-2">
@@ -338,7 +524,6 @@ function PurchaseContent() {
                                 <p className="text-xs text-slate-600">📦 Stok masuk ke inventory otomatis</p>
                             </div>
                         </div>
-
                         <div className="space-y-1">
                             {success.items?.map((item: any) => (
                                 <div key={item.qr_id} className="flex justify-between items-center bg-white rounded-xl px-3 py-2">
@@ -364,33 +549,71 @@ function PurchaseContent() {
 
                 {!success && (
                     <>
-                        {/* Info flow baru */}
+                        {/* Info flow */}
                         <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-start gap-3">
                             <span className="text-lg flex-shrink-0">💡</span>
                             <div>
-                                <p className="text-[10px] font-black text-violet-700 uppercase">Info Alur PO Baru</p>
-                                <p className="text-[10px] text-violet-600 mt-0.5">
-                                    Staff input item & qty → Procurement input HPP & lampirkan dok → Manager approve → Stok masuk
-                                </p>
+                                <p className="text-[10px] font-black text-violet-700 uppercase">Info Alur PO</p>
+                                <p className="text-[10px] text-violet-600 mt-0.5">Staff input item → Procurement input HPP → Manager approve → Stok masuk</p>
                             </div>
                         </div>
 
-                        {/* FOTO SURAT JALAN */}
+                        {/* FOTO SURAT JALAN + AI SCAN */}
                         <div className="bg-white rounded-3xl shadow-sm p-5 space-y-3">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📄 Surat Jalan / Packing List</p>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📄 Surat Jalan / Packing List</p>
+                                {/* Toggle AI */}
+                                <button onClick={() => setUseAI(v => !v)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all
+                                        ${useAI ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                    <div className={`w-3 h-3 rounded-full transition-all ${useAI ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                    🤖 AI {useAI ? 'ON' : 'OFF'}
+                                </button>
+                            </div>
+
                             {sjPhotoPreview ? (
-                                <div className="relative">
-                                    <img src={sjPhotoPreview} alt="SJ" className="w-full max-h-64 object-cover rounded-2xl border border-slate-100" />
-                                    <button onClick={() => { setSjPhoto(''); setSjPhotoPreview(''); }}
-                                        className="absolute top-2 right-2 bg-red-500 text-white font-black text-xs px-2 py-1 rounded-lg">✕ Hapus</button>
-                                    <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Foto tersimpan</p>
+                                <div className="space-y-3">
+                                    <div className="relative">
+                                        <img src={sjPhotoPreview} alt="SJ" className="w-full max-h-64 object-cover rounded-2xl border border-slate-100" />
+                                        <button onClick={() => { setSjPhoto(''); setSjPhotoPreview(''); setAiItems([]); setShowAiReview(false); }}
+                                            className="absolute top-2 right-2 bg-red-500 text-white font-black text-xs px-2 py-1 rounded-lg">✕ Hapus</button>
+                                        <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Foto tersimpan</p>
+                                    </div>
+
+                                    {/* TOMBOL AI SCAN — hanya tampil kalau useAI ON */}
+                                    {useAI && <button onClick={handleAiScan} disabled={scanning}
+                                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
+                                        {scanning ? (
+                                            <>
+                                                <span className="animate-spin">⏳</span>
+                                                <span>AI sedang membaca SJ...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>🤖</span>
+                                                <span>Scan Item dengan AI</span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    }
+
+                                    {aiError && (
+                                        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                                            <p className="text-[10px] font-black text-red-600">⚠️ {aiError}</p>
+                                        </div>
+                                    )}
+
+                                    <p className="text-[9px] text-slate-400 text-center">
+                                        {useAI ? 'atau tambah item manual di bawah' : 'Tambah item manual di bawah'}
+                                    </p>
                                 </div>
                             ) : (
                                 <button onClick={() => sjPhotoRef.current?.click()}
                                     className="w-full border-2 border-dashed border-slate-300 rounded-2xl py-10 text-center active:bg-slate-50">
                                     <p className="text-3xl mb-2">📷</p>
-                                    <p className="font-black text-slate-400 text-sm">Tap untuk foto surat jalans</p>
-                                    <p className="text-[10px] text-slate-300 mt-1">Wajib diisi</p>
+                                    <p className="font-black text-slate-400 text-sm">Foto Surat Jalan</p>
+                                    <p className="text-[10px] text-slate-300 mt-1">Wajib diisi · AI akan scan otomatis</p>
                                 </button>
                             )}
                             <input ref={sjPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -420,22 +643,29 @@ function PurchaseContent() {
                         {/* DAFTAR ITEM */}
                         <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Item ({cart.length})</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    Item ({cart.length})
+                                </p>
                                 <button onClick={() => setShowAddModal(true)}
                                     className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase shadow-md active:scale-95">
-                                    ＋ Tambah Item
+                                    ＋ Manual
                                 </button>
                             </div>
+
                             {cart.length === 0 ? (
-                                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
-                                    <p className="text-slate-300 text-sm italic">Belum ada item. Tap ＋ Tambah Item</p>
+                                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center space-y-2">
+                                    <p className="text-2xl">☝️</p>
+                                    <p className="text-slate-400 text-sm font-bold">Foto SJ lalu tap "Scan dengan AI"</p>
+                                    <p className="text-slate-300 text-xs">atau tambah manual</p>
                                 </div>
                             ) : cart.map(item => (
-                                <div key={item.key} className={`bg-white rounded-2xl shadow-sm border-l-4 p-4 ${item.category === 'Tools' ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
+                                <div key={item.key} className={`bg-white rounded-2xl shadow-sm border-l-4 p-4
+                                    ${item.category === 'Tools' ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
                                     <div className="flex justify-between items-start gap-2">
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-0.5">
-                                                {item.isNew && <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">BARU</span>}
+                                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                                                {item.isNew && <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">🆕 BARU</span>}
+                                                {item.aiMatched && <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">🤖 AI</span>}
                                                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.category}</span>
                                             </div>
                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
