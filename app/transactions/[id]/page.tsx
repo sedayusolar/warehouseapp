@@ -360,6 +360,107 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
 
+
+                    {/* ── PROGRESS TRACKER ── */}
+                    {(() => {
+                        const steps = [
+                            {
+                                key: 'submit',
+                                label: 'Submit',
+                                sublabel: 'Staff',
+                                icon: '📋',
+                                done: true,
+                            },
+                            {
+                                key: 'approved',
+                                label: 'Approve',
+                                sublabel: 'Manager',
+                                icon: '👔',
+                                done: header.manager_approval_status === 'APPROVED',
+                                rejected: header.manager_approval_status === 'REJECTED',
+                                active: header.manager_approval_status === 'PENDING',
+                            },
+                            {
+                                key: 'delivered',
+                                label: 'Delivered',
+                                sublabel: 'Engineer',
+                                icon: '✍️',
+                                done: isDelivered || isCheckinPending || isCheckinApproved,
+                                active: header.manager_approval_status === 'APPROVED' && !isDelivered && !isCheckinPending && !isCheckinApproved,
+                            },
+                            {
+                                key: 'checkin',
+                                label: 'Check In',
+                                sublabel: 'Staff',
+                                icon: '📦',
+                                done: isCheckinApproved,
+                                active: isCheckinPending || (isDelivered && hasPicSignature),
+                            },
+                            {
+                                key: 'selesai',
+                                label: 'Selesai',
+                                sublabel: 'Manager',
+                                icon: '✅',
+                                done: isCheckinApproved,
+                                active: isCheckinPending,
+                            },
+                        ];
+
+                        // Kalau rejected, potong steps
+                        const visibleSteps = header.manager_approval_status === 'REJECTED'
+                            ? steps.slice(0, 2)
+                            : steps;
+
+                        return (
+                            <div className="bg-slate-50 rounded-2xl p-4">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Progress Transaksi</p>
+                                <div className="flex items-start">
+                                    {visibleSteps.map((step, i) => (
+                                        <div key={step.key} className="flex-1 flex flex-col items-center relative">
+                                            {/* Connector line kiri */}
+                                            {i > 0 && (
+                                                <div className={`absolute top-3.5 right-1/2 left-0 h-0.5 -translate-y-1/2
+                                                    ${visibleSteps[i - 1].done ? 'bg-blue-400' : 'bg-slate-200'}`} />
+                                            )}
+                                            {/* Circle */}
+                                            <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2 transition-all
+                                                ${step.rejected
+                                                    ? 'bg-red-100 border-red-400 text-red-600'
+                                                    : step.done
+                                                        ? 'bg-blue-500 border-blue-500 text-white'
+                                                        : step.active
+                                                            ? 'bg-white border-blue-400 shadow-md shadow-blue-100 animate-pulse'
+                                                            : 'bg-white border-slate-200 text-slate-300'}`}>
+                                                {step.rejected ? '✕' : step.done ? '✓' : <span className="text-[10px]">{step.icon}</span>}
+                                            </div>
+                                            {/* Label */}
+                                            <p className={`text-[8px] font-black mt-1.5 text-center leading-tight
+                                                ${step.rejected ? 'text-red-500' : step.done ? 'text-blue-600' : step.active ? 'text-slate-700' : 'text-slate-300'}`}>
+                                                {step.label}
+                                            </p>
+                                            <p className={`text-[7px] text-center leading-tight
+                                                ${step.done || step.active ? 'text-slate-400' : 'text-slate-200'}`}>
+                                                {step.sublabel}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Current step info */}
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <p className="text-[9px] text-slate-500 text-center">
+                                        {header.manager_approval_status === 'REJECTED' ? '❌ Transaksi ditolak Manager' :
+                                            isCheckinApproved ? '✅ Transaksi selesai — stok sudah kembali ke gudang' :
+                                                isCheckinPending ? '⏳ Menunggu Manager approve Check In' :
+                                                    isDelivered && hasPicSignature ? '📦 Barang diterima — siap Check In' :
+                                                        isDelivered && !hasPicSignature ? '✍️ Menunggu TTD Engineer/PIC' :
+                                                            header.manager_approval_status === 'APPROVED' ? '✍️ Menunggu konfirmasi penerimaan di site' :
+                                                                '⏳ Menunggu approval Manager'}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     <div className={`rounded-2xl p-3 text-center text-sm font-black uppercase tracking-widest
                         ${isCheckinApproved ? 'bg-emerald-100 text-emerald-700' :
                             isCheckinPending ? 'bg-amber-100 text-amber-700' :
