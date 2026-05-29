@@ -3,20 +3,18 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../components/Navbar';
 
-const API_KEY = "SedayuSolar_TopSecret_2026";
+const API_KEY  = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, tabColor: string }> = {
-    PENDING: { label: 'Menunggu', color: 'text-orange-600', bg: 'bg-orange-50 border-orange-200', tabColor: 'bg-orange-500 text-white' },
-    PROCUREMENT_REVIEW: { label: 'Procurement', color: 'text-violet-600', bg: 'bg-violet-50 border-violet-200', tabColor: 'bg-violet-600 text-white' },
-    APPROVED: { label: 'Disetujui', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', tabColor: 'bg-emerald-500 text-white' },
-    REJECTED: { label: 'Ditolak', color: 'text-red-600', bg: 'bg-red-50 border-red-200', tabColor: 'bg-red-500 text-white' },
+    PENDING:            { label: 'Menunggu',    color: 'text-orange-600',  bg: 'bg-orange-50 border-orange-200',   tabColor: 'bg-orange-500 text-white'  },
+    PROCUREMENT_REVIEW: { label: 'Procurement', color: 'text-violet-600',  bg: 'bg-violet-50 border-violet-200',   tabColor: 'bg-violet-600 text-white'  },
+    APPROVED:           { label: 'Disetujui',   color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', tabColor: 'bg-emerald-500 text-white' },
+    REJECTED:           { label: 'Ditolak',     color: 'text-red-600',     bg: 'bg-red-50 border-red-200',         tabColor: 'bg-red-500 text-white'     },
 };
-
 const TAB_ICON: Record<string, string> = {
     PENDING: '⏳', PROCUREMENT_REVIEW: '📋', APPROVED: '✅', REJECTED: '❌'
 };
-
 const formatRp = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
@@ -40,42 +38,52 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<str
 
 function PurchaseListContent() {
     const router = useRouter();
-    const [user, setUser] = useState<any>(null);
-    const [list, setList] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser]               = useState<any>(null);
+    const [list, setList]               = useState<any[]>([]);
+    const [loading, setLoading]         = useState(true);
     const [filterStatus, setFilterStatus] = useState('PENDING');
-    const [selected, setSelected] = useState<any>(null);
-    const [detail, setDetail] = useState<any>(null);
+    const [selected, setSelected]       = useState<any>(null);
+    const [detail, setDetail]           = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    const [approving, setApproving] = useState(false);
-    const [rejectNote, setRejectNote] = useState('');
-    const [showReject, setShowReject] = useState(false);
+    const [approving, setApproving]     = useState(false);
+    const [rejectNote, setRejectNote]   = useState('');
+    const [showReject, setShowReject]   = useState(false);
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
     // Procurement state
-    const [procPrices, setProcPrices] = useState<Record<number, string>>({});
-    const [procNote, setProcNote] = useState('');
-    const [procDoc, setProcDoc] = useState('');
+    const [procPrices, setProcPrices]         = useState<Record<number, string>>({});
+    const [procNote, setProcNote]             = useState('');
+    const [procDoc, setProcDoc]               = useState('');
     const [procDocPreview, setProcDocPreview] = useState('');
     const [submittingProc, setSubmittingProc] = useState(false);
     const procDocRef = useRef<HTMLInputElement>(null);
+
+    // AI review PO state
+    const [reviewingPo, setReviewingPo]       = useState(false);
+    const [poReviewResult, setPoReviewResult] = useState<any>(null);
+    const [poReviewError, setPoReviewError]   = useState('');
+
+    // AI HPP estimation state
+    const [estimatingHpp, setEstimatingHpp]   = useState<Record<number, boolean>>({});
+    const [hppSuggestions, setHppSuggestions] = useState<Record<number, { price: number, confidence: string, note: string }>>({});
+
+    // AI estimate all HPP sekaligus
+    const [estimatingAll, setEstimatingAll]   = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
         const parsed = JSON.parse(u);
         setUser(parsed);
-        // Default tab sesuai role
         const defaultTab = parsed.role === 'PROCUREMENT' ? 'PENDING'
-            : parsed.role === 'MANAGER' ? 'PROCUREMENT_REVIEW'
-                : 'PENDING';
+            : parsed.role === 'MANAGER' ? 'PROCUREMENT_REVIEW' : 'PENDING';
         setFilterStatus(defaultTab);
         fetchList(defaultTab);
     }, []);
 
     const fetchList = async (status: string) => {
         setLoading(true);
-        setSelected(null); setDetail(null);
+        setSelected(null); setDetail(null); setPoReviewResult(null); setPoReviewError('');
         try {
             const res = await fetch(`${BASE_URL}/get_purchase_list.php?status=${status}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
@@ -88,20 +96,125 @@ function PurchaseListContent() {
         setSelected(item); setDetail(null); setLoadingDetail(true);
         setShowReject(false); setRejectNote('');
         setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview('');
+        setHppSuggestions({}); setEstimatingHpp({});
         try {
             const res = await fetch(`${BASE_URL}/get_purchase_list.php?id=${item.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status === 'success') {
                 setDetail(r);
-                // Pre-fill harga dari item
                 const prices: Record<number, string> = {};
-                r.items?.forEach((i: any) => {
-                    prices[i.id] = i.unit_price > 0 ? String(i.unit_price) : '';
-                });
+                r.items?.forEach((i: any) => { prices[i.id] = i.unit_price > 0 ? String(i.unit_price) : ''; });
                 setProcPrices(prices);
             }
         } catch { }
         setLoadingDetail(false);
+    };
+
+    // ── AI estimate HPP per item ──
+    const estimateHpp = async (item: any) => {
+        setEstimatingHpp(prev => ({ ...prev, [item.id]: true }));
+        try {
+            const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({
+                    mode: 'estimate_hpp',
+                    item_name: item.item_name,
+                    qty: item.qty,
+                    unit: item.unit,
+                })
+            });
+            const r = await res.json();
+            if (r.status === 'success' && r.result?.estimated_price) {
+                setHppSuggestions(prev => ({ ...prev, [item.id]: r.result }));
+            } else {
+                alert("AI tidak bisa estimasi harga untuk item ini.");
+            }
+        } catch { alert("Koneksi gagal."); }
+        setEstimatingHpp(prev => ({ ...prev, [item.id]: false }));
+    };
+
+    // ── AI estimate semua HPP sekaligus ──
+    const estimateAllHpp = async () => {
+        if (!detail?.items) return;
+        const emptyItems = detail.items.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
+        if (emptyItems.length === 0) { alert("Semua HPP sudah diisi."); return; }
+        setEstimatingAll(true);
+        for (const item of emptyItems) {
+            await estimateHpp(item);
+        }
+        setEstimatingAll(false);
+    };
+
+    // Terapkan suggesti HPP ke input
+    const applyHppSuggestion = (itemId: number, price: number) => {
+        setProcPrices(prev => ({ ...prev, [itemId]: String(price) }));
+    };
+
+    // ── AI Review PO — cocokkan SJ vs PO Sedayu, extract HPP ──
+    const handleReviewPo = async () => {
+        if (!selected?.sj_photo_path) { alert("Foto SJ dari staff tidak ada!"); return; }
+        if (!procDoc) { alert("Upload dokumen PO Sedayu dulu!"); return; }
+        setReviewingPo(true); setPoReviewResult(null); setPoReviewError('');
+        try {
+            const sjImageUrl = `${BASE_URL}/${selected.sj_photo_path}`;
+            // Fetch SJ image sebagai base64
+            const sjRes  = await fetch(sjImageUrl);
+            const sjBlob = await sjRes.blob();
+            const sjB64  = await new Promise<string>(resolve => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result as string);
+                r.readAsDataURL(sjBlob);
+            });
+
+            const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({
+                    mode: 'review_po',
+                    sj_image: sjB64,
+                    po_image: procDoc,
+                })
+            });
+            const r = await res.json();
+            if (r.status === 'success' && r.result?.items) {
+                setPoReviewResult(r.result);
+                // Auto-fill HPP dari hasil AI untuk item yang ada di PO
+                if (detail?.items) {
+                    const newPrices = { ...procPrices };
+                    r.result.items.forEach((aiItem: any) => {
+                        if (aiItem.hpp_final && aiItem.status === 'OK' || aiItem.status === 'QTY_BEDA') {
+                            // Cari item yang cocok di detail.items
+                            const matched = detail.items.find((di: any) =>
+                                di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
+                                aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
+                            );
+                            if (matched && !newPrices[matched.id]) {
+                                newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
+                            }
+                        }
+                    });
+                    setProcPrices(newPrices);
+                }
+            } else {
+                setPoReviewError('AI gagal membaca dokumen. Pastikan foto jelas dan tidak blur.');
+            }
+        } catch { setPoReviewError('Koneksi gagal.'); }
+        setReviewingPo(false);
+    };
+
+    const applyAllHppFromReview = () => {
+        if (!poReviewResult?.items || !detail?.items) return;
+        const newPrices = { ...procPrices };
+        poReviewResult.items.forEach((aiItem: any) => {
+            if (!aiItem.hpp_final) return;
+            const matched = detail.items.find((di: any) =>
+                di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
+                aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
+            );
+            if (matched) newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
+        });
+        setProcPrices(newPrices);
     };
 
     const handleApprove = async () => {
@@ -129,16 +242,13 @@ function PurchaseListContent() {
             });
             const r = await res.json();
             if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); setShowReject(false); fetchList(filterStatus); }
-            else alert("Gagal: " + r.message);
+            else alert("Gagal koneksi."); 
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
     };
 
-    // Submit procurement review
     const handleSubmitProcurement = async () => {
         if (!selected || !detail) return;
-
-        // Validasi semua item harus ada HPP
         const missingPrice = detail.items?.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
         if (missingPrice?.length > 0) {
             alert(`HPP wajib diisi untuk semua item:\n${missingPrice.map((i: any) => `• ${i.item_name}`).join('\n')}`);
@@ -146,45 +256,32 @@ function PurchaseListContent() {
         }
         if (!procDoc) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
         if (!confirm("Submit ke Manager untuk approval?")) return;
-
         setSubmittingProc(true);
         try {
-            const items = detail.items?.map((i: any) => ({
-                id: i.id,
-                unit_price: Number(procPrices[i.id]) || 0,
-            }));
-
+            const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
             const res = await fetch(`${BASE_URL}/submit_procurement_review.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({
-                    po_id: selected.id,
-                    procurement_by: user?.name,
-                    procurement_note: procNote,
-                    procurement_doc_base64: procDoc,
-                    items,
-                })
+                body: JSON.stringify({ po_id: selected.id, procurement_by: user?.name, procurement_note: procNote, procurement_doc_base64: procDoc, items })
             });
             const r = await res.json();
-            if (r.status === 'success') {
-                alert("✅ " + r.message);
-                setSelected(null); setDetail(null);
-                fetchList(filterStatus);
-            } else alert("Gagal: " + r.message);
+            if (r.status === 'success') { alert("✅ " + r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
+            else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setSubmittingProc(false);
     };
 
     if (!user) return null;
 
-    const pendingCount = filterStatus === 'PENDING' ? list.length : 0;
-    const procCount = filterStatus === 'PROCUREMENT_REVIEW' ? list.length : 0;
-
-    // Tab yang muncul sesuai role
     const visibleTabs = user.role === 'PROCUREMENT'
         ? ['PENDING', 'APPROVED', 'REJECTED']
         : user.role === 'MANAGER' || user.role === 'ADMIN'
-            ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
-            : ['PENDING', 'APPROVED', 'REJECTED'];
+        ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
+        : ['PENDING', 'APPROVED', 'REJECTED'];
+
+    const confidenceColor = (c: string) =>
+        c === 'high' ? 'text-emerald-600' : c === 'medium' ? 'text-amber-500' : 'text-slate-400';
+    const confidenceLabel = (c: string) =>
+        c === 'high' ? '✅ Yakin' : c === 'medium' ? '⚠️ Estimasi' : '❓ Tidak yakin';
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
@@ -241,10 +338,10 @@ function PurchaseListContent() {
                                     className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
                             </div>
 
-                            {/* Foto SJ staff */}
+                            {/* Foto SJ */}
                             {selected.sj_photo_path && (
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalans (dari Staff)</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalan (dari Staff)</p>
                                     <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.sj_photo_path}`)} className="w-full">
                                         <img src={`${BASE_URL}/${selected.sj_photo_path}`}
                                             className="w-full max-h-48 object-cover rounded-2xl border border-slate-100" alt="SJ" />
@@ -253,17 +350,15 @@ function PurchaseListContent() {
                                 </div>
                             )}
 
-                            {/* Dok PO Procurement (jika sudah ada) */}
+                            {/* Dok PO Procurement */}
                             {selected.procurement_doc_path && (
                                 <div>
-                                    <p className="text-[10px] font-black text-violet-500 uppercase mb-2">📋 Dokumen PO Sedayu (dari Procurement)</p>
+                                    <p className="text-[10px] font-black text-violet-500 uppercase mb-2">📋 Dokumen PO Sedayu</p>
                                     <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.procurement_doc_path}`)} className="w-full">
                                         <img src={`${BASE_URL}/${selected.procurement_doc_path}`}
                                             className="w-full max-h-48 object-cover rounded-2xl border border-violet-100" alt="PO Doc" />
                                     </button>
-                                    {selected.procurement_note && (
-                                        <p className="text-[10px] text-slate-500 italic mt-1">"{selected.procurement_note}"</p>
-                                    )}
+                                    {selected.procurement_note && <p className="text-[10px] text-slate-500 italic mt-1">"{selected.procurement_note}"</p>}
                                 </div>
                             )}
 
@@ -271,26 +366,42 @@ function PurchaseListContent() {
                                 <p className="text-center animate-pulse text-slate-400 py-8">Memuat detail...</p>
                             ) : detail && (
                                 <>
-                                    {/* ══ PROCUREMENT: Input HPP per item ══ */}
+                                    {/* ══ PROCUREMENT: Input HPP + AI Assist ══ */}
                                     {selected.approval_status === 'PENDING' && user.role === 'PROCUREMENT' && (
                                         <div className="bg-violet-50 border-2 border-violet-200 rounded-3xl overflow-hidden">
-                                            <div className="bg-violet-600 px-5 py-3 text-center">
-                                                <p className="font-black text-white text-sm">📋 Review Procurement</p>
-                                                <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP semua item + lampirkan dokumen PO Sedayu</p>
+                                            <div className="bg-violet-600 px-5 py-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-black text-white text-sm">📋 Review Procurement</p>
+                                                        <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP + lampirkan dokumen PO Sedayu</p>
+                                                    </div>
+                                                    {/* Tombol AI estimate semua sekaligus */}
+                                                    <button onClick={estimateAllHpp} disabled={estimatingAll}
+                                                        className="bg-white/20 text-white font-black text-[10px] px-3 py-2 rounded-xl active:scale-95 disabled:opacity-50 flex items-center gap-1.5">
+                                                        {estimatingAll ? <span className="animate-spin">⏳</span> : '🤖'}
+                                                        <span>{estimatingAll ? 'Estimasi...' : 'Estimasi Semua'}</span>
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div className="p-4 space-y-4">
-                                                {/* Input HPP per item */}
-                                                <div className="space-y-3">
-                                                    <p className="text-[10px] font-black text-violet-700 uppercase">Harga Satuan (HPP) per Item *</p>
-                                                    {detail.items?.map((item: any) => (
-                                                        <div key={item.id} className="bg-white rounded-2xl p-3.5 border border-violet-100">
+                                                <p className="text-[10px] font-black text-violet-700 uppercase">Harga Satuan (HPP) per Item *</p>
+
+                                                {detail.items?.map((item: any) => {
+                                                    const suggestion = hppSuggestions[item.id];
+                                                    const isEstimating = estimatingHpp[item.id];
+                                                    const hasPrice = procPrices[item.id] && Number(procPrices[item.id]) > 0;
+
+                                                    return (
+                                                        <div key={item.id} className="bg-white rounded-2xl p-3.5 border border-violet-100 space-y-2">
+                                                            {/* Item info */}
                                                             <div className="flex justify-between items-start gap-2">
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                                     <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                                    <p className="text-[10px] text-slate-500">Qty: {item.qty} {item.unit}</p>
+                                                                    <p className="text-[10px] text-slate-500">Qty: <span className="font-black">{item.qty} {item.unit}</span></p>
                                                                 </div>
+                                                                {/* Input HPP */}
                                                                 <div className="flex-shrink-0 w-32">
                                                                     <div className="relative">
                                                                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
@@ -299,49 +410,104 @@ function PurchaseListContent() {
                                                                             onChange={e => setProcPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
                                                                             placeholder="0"
                                                                             className={`w-full p-2 pl-7 rounded-xl outline-none text-sm font-bold text-right
-                                                                                ${!procPrices[item.id] || Number(procPrices[item.id]) <= 0
-                                                                                    ? 'bg-red-50 border border-red-200 text-red-500'
-                                                                                    : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
+                                                                                ${!hasPrice ? 'bg-red-50 border border-red-200 text-red-500' : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
                                                                     </div>
-                                                                    {procPrices[item.id] && Number(procPrices[item.id]) > 0 && (
+                                                                    {hasPrice && (
                                                                         <p className="text-[9px] text-violet-500 text-right mt-0.5 font-bold">
                                                                             = {formatRp(item.qty * Number(procPrices[item.id]))}
                                                                         </p>
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
 
-                                                    {/* Total nilai PO */}
-                                                    {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && (
-                                                        <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
-                                                            <p className="font-black text-lg">
-                                                                {formatRp(detail.items.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0))}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                            {/* AI Suggestion box */}
+                                                            {suggestion && (
+                                                                <div className={`rounded-xl p-2.5 border flex items-start justify-between gap-2
+                                                                    ${suggestion.confidence === 'high' ? 'bg-emerald-50 border-emerald-100' :
+                                                                      suggestion.confidence === 'medium' ? 'bg-amber-50 border-amber-100' :
+                                                                      'bg-slate-50 border-slate-100'}`}>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className={`text-[9px] font-black ${confidenceColor(suggestion.confidence)}`}>
+                                                                            🤖 AI: {formatRp(suggestion.price)} / {item.unit}
+                                                                            <span className="ml-1 font-medium opacity-70">{confidenceLabel(suggestion.confidence)}</span>
+                                                                        </p>
+                                                                        {suggestion.note && (
+                                                                            <p className="text-[9px] text-slate-400 mt-0.5 italic truncate">{suggestion.note}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => applyHppSuggestion(item.id, suggestion.price)}
+                                                                        className="flex-shrink-0 bg-white border border-violet-200 text-violet-600 font-black text-[9px] px-2 py-1 rounded-lg active:scale-95">
+                                                                        Pakai
+                                                                    </button>
+                                                                </div>
+                                                            )}
 
-                                                {/* Upload dokumen PO Sedayu */}
+                                                            {/* Tombol AI estimate per item */}
+                                                            {!suggestion && (
+                                                                <button onClick={() => estimateHpp(item)} disabled={isEstimating}
+                                                                    className="w-full flex items-center justify-center gap-1.5 py-2 bg-violet-50 border border-violet-100 rounded-xl text-[10px] font-black text-violet-500 active:scale-95 disabled:opacity-50">
+                                                                    {isEstimating ? (
+                                                                        <><span className="animate-spin">⏳</span> AI sedang estimasi...</>
+                                                                    ) : (
+                                                                        <><span>🤖</span> Estimasi HPP dengan AI</>
+                                                                    )}
+                                                                </button>
+                                                            )}
+
+                                                            {/* Reset suggestion */}
+                                                            {suggestion && (
+                                                                <button onClick={() => setHppSuggestions(prev => { const n = {...prev}; delete n[item.id]; return n; })}
+                                                                    className="text-[9px] text-slate-300 font-bold">
+                                                                    × Tutup estimasi
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {/* Total nilai PO */}
+                                                {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && (
+                                                    <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
+                                                        <p className="font-black text-lg">
+                                                            {formatRp(detail.items.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0))}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* Upload dokumen PO */}
                                                 <div className="space-y-2">
                                                     <p className="text-[10px] font-black text-violet-700 uppercase">Dokumen PO Sedayu *</p>
                                                     {procDocPreview ? (
-                                                        <div className="relative">
-                                                            <img src={procDocPreview} className="w-full max-h-48 object-cover rounded-2xl border border-violet-200" alt="dok" />
-                                                            <button onClick={() => { setProcDoc(''); setProcDocPreview(''); }}
-                                                                className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">
-                                                                ✕ Hapus
+                                                        <div className="space-y-2">
+                                                            <div className="relative">
+                                                                <img src={procDocPreview} className="w-full max-h-48 object-cover rounded-2xl border border-violet-200" alt="dok" />
+                                                                <button onClick={() => { setProcDoc(''); setProcDocPreview(''); setPoReviewResult(null); setPoReviewError(''); }}
+                                                                    className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">✕ Hapus</button>
+                                                                <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Dokumen tersimpan</p>
+                                                            </div>
+                                                            {/* Tombol AI Review */}
+                                                            <button onClick={handleReviewPo} disabled={reviewingPo}
+                                                                className="w-full bg-gradient-to-r from-violet-600 to-blue-600 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
+                                                                {reviewingPo ? (
+                                                                    <><span className="animate-spin">⏳</span><span>AI membaca & mencocokkan...</span></>
+                                                                ) : (
+                                                                    <><span>🤖</span><span>Review & Cocokkan dengan AI</span></>
+                                                                )}
                                                             </button>
-                                                            <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Dokumen tersimpan</p>
+                                                            {poReviewError && (
+                                                                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                                                                    <p className="text-[10px] font-black text-red-600">⚠️ {poReviewError}</p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <button onClick={() => procDocRef.current?.click()}
                                                             className="w-full border-2 border-dashed border-violet-300 rounded-2xl py-8 text-center active:bg-violet-50">
                                                             <p className="text-2xl mb-1">📄</p>
-                                                            <p className="font-black text-violet-400 text-sm">Foto / Upload Dokumen PO</p>
-                                                            <p className="text-[10px] text-violet-300 mt-0.5">Wajib dilampirkan</p>
+                                                            <p className="font-black text-violet-400 text-sm">Foto / Upload Dokumen PO Sedayu</p>
+                                                            <p className="text-[10px] text-violet-300 mt-0.5">AI akan cocokkan & extract HPP otomatis</p>
                                                         </button>
                                                     )}
                                                     <input ref={procDocRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -349,10 +515,109 @@ function PurchaseListContent() {
                                                             const file = e.target.files?.[0]; if (!file) return;
                                                             const b64 = await compressImage(file);
                                                             setProcDoc(b64); setProcDocPreview(b64);
+                                                            setPoReviewResult(null); setPoReviewError('');
                                                         }} />
                                                 </div>
 
-                                                {/* Catatan procurement */}
+                                                {/* ══ AI REVIEW RESULT ══ */}
+                                                {poReviewResult && (
+                                                    <div className="bg-white border-2 border-blue-200 rounded-2xl overflow-hidden">
+                                                        {/* Summary */}
+                                                        <div className={`px-4 py-3 text-white ${poReviewResult.summary?.match_status === 'SESUAI' ? 'bg-emerald-600' : poReviewResult.summary?.match_status === 'TIDAK SESUAI' ? 'bg-red-500' : 'bg-amber-500'}`}>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex-1">
+                                                                    <p className="font-black text-sm">
+                                                                        {poReviewResult.summary?.match_status === 'SESUAI' ? '✅' : poReviewResult.summary?.match_status === 'TIDAK SESUAI' ? '❌' : '⚠️'} {poReviewResult.summary?.match_status}
+                                                                    </p>
+                                                                    <p className="text-[10px] opacity-80 mt-0.5">{poReviewResult.summary?.notes}</p>
+                                                                </div>
+                                                                <button onClick={applyAllHppFromReview}
+                                                                    className="flex-shrink-0 bg-white/20 text-white font-black text-[9px] px-3 py-2 rounded-xl active:scale-95">
+                                                                    Pakai Semua HPP
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex gap-2 mt-2">
+                                                                {poReviewResult.summary?.ppn_rate > 0 && (
+                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">PPN {(poReviewResult.summary.ppn_rate * 100).toFixed(0)}%</span>
+                                                                )}
+                                                                {poReviewResult.summary?.discount_rate > 0 && (
+                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">Diskon {(poReviewResult.summary.discount_rate * 100).toFixed(0)}%</span>
+                                                                )}
+                                                                <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">
+                                                                    {poReviewResult.summary?.total_items_sj} item SJ · {poReviewResult.summary?.total_items_po} item PO
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Item comparison */}
+                                                        <div className="divide-y divide-slate-50">
+                                                            {poReviewResult.items?.map((aiItem: any, idx: number) => (
+                                                                <div key={idx} className={`p-3.5 ${aiItem.status !== 'OK' ? 'bg-amber-50/50' : ''}`}>
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full
+                                                                            ${aiItem.status === 'OK' ? 'bg-emerald-100 text-emerald-700' :
+                                                                              aiItem.status === 'QTY_BEDA' ? 'bg-amber-100 text-amber-700' :
+                                                                              'bg-red-100 text-red-600'}`}>
+                                                                            {aiItem.status === 'OK' ? '✅ Sesuai' :
+                                                                             aiItem.status === 'QTY_BEDA' ? `⚠️ Qty Beda (SJ:${aiItem.qty_sj} vs PO:${aiItem.qty_po})` :
+                                                                             aiItem.status === 'TIDAK_ADA_DI_PO' ? '❓ Tidak ada di PO' : '📋 Tidak ada di SJ'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                                                        <div className="bg-slate-50 rounded-xl p-2">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">SJ Vendor</p>
+                                                                            <p className="text-[10px] font-bold text-slate-700 leading-tight">{aiItem.sj_item_name || '—'}</p>
+                                                                            {aiItem.qty_sj && <p className="text-[9px] text-slate-500 mt-0.5">{aiItem.qty_sj} {aiItem.unit}</p>}
+                                                                        </div>
+                                                                        <div className="bg-violet-50 rounded-xl p-2">
+                                                                            <p className="text-[8px] font-black text-violet-400 uppercase mb-0.5">PO Sedayu</p>
+                                                                            <p className="text-[10px] font-bold text-violet-700 leading-tight">{aiItem.po_item_name || '—'}</p>
+                                                                            {aiItem.qty_po && <p className="text-[9px] text-violet-500 mt-0.5">{aiItem.qty_po} {aiItem.unit}</p>}
+                                                                        </div>
+                                                                    </div>
+                                                                    {aiItem.hpp_final && (
+                                                                        <div className="bg-blue-50 rounded-xl p-2.5 space-y-1">
+                                                                            <div className="flex justify-between">
+                                                                                <p className="text-[9px] text-slate-500">Harga satuan PO</p>
+                                                                                <p className="text-[10px] font-bold text-slate-700">{formatRp(aiItem.unit_price_po)}</p>
+                                                                            </div>
+                                                                            {aiItem.discount_rate > 0 && (
+                                                                                <div className="flex justify-between">
+                                                                                    <p className="text-[9px] text-red-400">Diskon {(aiItem.discount_rate * 100).toFixed(0)}%</p>
+                                                                                    <p className="text-[10px] font-bold text-red-400">− {formatRp(aiItem.unit_price_po * aiItem.discount_rate)}</p>
+                                                                                </div>
+                                                                            )}
+                                                                            {aiItem.ppn_rate > 0 && (
+                                                                                <div className="flex justify-between">
+                                                                                    <p className="text-[9px] text-blue-500">PPN {(aiItem.ppn_rate * 100).toFixed(0)}%</p>
+                                                                                    <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1-(aiItem.discount_rate||0)) * aiItem.ppn_rate)}</p>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex justify-between pt-1 border-t border-blue-100">
+                                                                                <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
+                                                                                <p className="text-sm font-black text-blue-700">{formatRp(aiItem.hpp_final)}</p>
+                                                                            </div>
+                                                                            {aiItem.hpp_calculation && (
+                                                                                <p className="text-[8px] text-slate-400 italic">{aiItem.hpp_calculation}</p>
+                                                                            )}
+                                                                            <button onClick={() => {
+                                                                                const matched = detail?.items?.find((di: any) =>
+                                                                                    di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
+                                                                                    aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
+                                                                                );
+                                                                                if (matched) setProcPrices(prev => ({ ...prev, [matched.id]: String(Math.round(aiItem.hpp_final)) }));
+                                                                            }}
+                                                                                className="w-full text-center text-[9px] font-black text-blue-600 bg-white border border-blue-200 rounded-lg py-1.5 active:scale-95">
+                                                                                Pakai HPP ini → Rp {Math.round(aiItem.hpp_final).toLocaleString('id-ID')}
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 <input type="text" placeholder="Catatan procurement (opsional)..."
                                                     value={procNote} onChange={e => setProcNote(e.target.value)}
                                                     className="w-full p-3 bg-white border border-violet-100 rounded-xl outline-none text-sm font-medium text-slate-700" />
@@ -365,7 +630,7 @@ function PurchaseListContent() {
                                         </div>
                                     )}
 
-                                    {/* Item list — untuk non-procurement atau PO sudah lewat PENDING */}
+                                    {/* Item list — non-procurement */}
                                     {(user.role !== 'PROCUREMENT' || selected.approval_status !== 'PENDING') && (
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Item ({detail.items?.length})</p>
@@ -398,8 +663,6 @@ function PurchaseListContent() {
                                                     </div>
                                                 ))}
                                             </div>
-
-                                            {/* Total nilai */}
                                             <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                 <div>
                                                     <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
@@ -416,7 +679,7 @@ function PurchaseListContent() {
                                         </div>
                                     )}
 
-                                    {/* APPROVAL MANAGER — hanya untuk PROCUREMENT_REVIEW */}
+                                    {/* APPROVAL MANAGER */}
                                     {selected.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN') && (
                                         <div className="space-y-3 pt-2">
                                             {showReject ? (
@@ -445,7 +708,6 @@ function PurchaseListContent() {
                                         </div>
                                     )}
 
-                                    {/* Info: PENDING tapi bukan procurement */}
                                     {selected.approval_status === 'PENDING' && user.role !== 'PROCUREMENT' && (
                                         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-center">
                                             <p className="text-[10px] font-black text-amber-600">⏳ Menunggu review dari Tim Procurement</p>
@@ -478,15 +740,14 @@ function PurchaseListContent() {
                 ) : list.length === 0 ? (
                     <div className="text-center py-20 text-slate-300 italic text-sm">
                         {filterStatus === 'PENDING' ? 'Tidak ada PO yang menunggu.' :
-                            filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada PO menunggu approval manager.' :
-                                'Tidak ada data.'}
+                         filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada PO menunggu approval manager.' : 'Tidak ada data.'}
                     </div>
                 ) : list.map((item: any) => (
                     <button key={item.id} onClick={() => openDetail(item)}
                         className={`w-full bg-white rounded-2xl shadow-sm border p-4 text-left hover:shadow-md transition-all active:scale-[0.99]
                             ${item.approval_status === 'PENDING' ? 'border-orange-200' :
-                                item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' :
-                                    item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
+                              item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' :
+                              item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
                         <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
@@ -499,9 +760,7 @@ function PurchaseListContent() {
                                 {item.supplier && <p className="text-[10px] text-slate-500 font-bold">🏪 {item.supplier}</p>}
                                 <p className="text-[10px] text-slate-400">{item.po_date} · {item.created_by}</p>
                                 <p className="text-[10px] text-slate-400">{item.total_items} item · {item.total_qty} pcs</p>
-                                {item.procurement_by && (
-                                    <p className="text-[10px] text-violet-500 font-bold">📋 Procurement: {item.procurement_by}</p>
-                                )}
+                                {item.procurement_by && <p className="text-[10px] text-violet-500 font-bold">📋 {item.procurement_by}</p>}
                             </div>
                             <div className="text-right flex-shrink-0">
                                 <p className="text-[10px] text-slate-400">
