@@ -667,6 +667,8 @@ function InventoryContent() {
                                                         )}
                                                         <button onClick={e => { e.stopPropagation(); fetchLog(item.qr_id); }}
                                                             className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">📋 Log</button>
+                                                        <button onClick={e => { e.stopPropagation(); router.push(`/inventory/${item.qr_id}/price-history`); }}
+                                                            className="text-[9px] font-black text-violet-500 bg-violet-50 px-2 py-1 rounded-lg active:scale-95">💰 Harga</button>
                                                         {user.role === 'ADMIN' && (
                                                             <button onClick={e => { e.stopPropagation(); handleDelete(item); }}
                                                                 disabled={deletingQr === item.qr_id}
