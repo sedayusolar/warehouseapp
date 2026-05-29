@@ -33,6 +33,9 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const [managerComment, setManagerComment] = useState('');
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
+    // State Checklist Penerimaan Barang
+    const [receiveChecklist, setReceiveChecklist] = useState<Record<string, { checked: boolean, photo_base64: string }>>({});
+
     // Canvas untuk TTD Manager (approval checkout)
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -58,6 +61,15 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
             const r = await res.json();
             if (r.status === 'success') {
                 setTransaction(r);
+
+                // Initialize Checklist for PIC Receiving
+                const initChecklist: any = {};
+                r.items.forEach((item: any, idx: number) => {
+                    const key = item.id || idx;
+                    initChecklist[key] = { checked: false, photo_base64: '' };
+                });
+                setReceiveChecklist(initChecklist);
+
                 fetchCheckin(r.header.id);
             }
         } catch { }
@@ -87,11 +99,11 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
             qr_id: item.qr_id,
             qty: item.qty,
             unit: item.unit || 'pcs',
-            location_name: item.location_name || '—',   // ← fix: pakai location_name
+            location_name: item.location_name || '—',
         }));
         const params = new URLSearchParams({
             code: header.transaction_code,
-            trx_id: String(header.id),                   // ← untuk QR code URL
+            trx_id: String(header.id),
             project: header.project_name || '—',
             pic: header.pic_name || '—',
             date: header.checkout_date,
@@ -102,6 +114,26 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
             items: JSON.stringify(itemsData),
         });
         window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
+    };
+
+    // Fungsi Kompresi Foto
+    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     // ─── TTD Manager (approval checkout) ───
@@ -150,6 +182,13 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
 
     // ─── Submit TTD PIC → status DELIVERED ───
     const handleSubmitPicSignature = async () => {
+        // Validasi Checklist
+        const allChecked = transaction.items.every((item: any, idx: number) => receiveChecklist[item.id || idx]?.checked);
+        if (!allChecked) {
+            alert("Harap validasi dengan mencentang (checklist) semua barang terlebih dahulu!");
+            return;
+        }
+
         const sig = picCanvasRef.current?.toDataURL('image/png');
         if (!sig || sig.length < 2000) {
             alert("Tanda tangan PIC wajib diisi!"); return;
@@ -165,6 +204,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     transaction_id: id,
                     pic_name: user?.name || transaction?.header?.pic_name,
                     signature_base64: sig,
+                    received_items: receiveChecklist // Dikirim ke backend untuk diproses
                 })
             });
             const r = await res.json();
@@ -242,7 +282,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const isCheckinPending = header.transaction_status === 'CHECKIN_PENDING';
     const isCheckinApproved = header.transaction_status === 'CHECKIN_APPROVED';
 
-    // Apakah PIC sudah TTD? (ada signature_pic_path)
+    // Apakah PIC sudah TTD?
     const hasPicSignature = !!header.signature_pic_path;
 
     // Engineer bisa TTD kalau: status SUBMITTED, sudah APPROVED manager, belum ada TTD PIC
@@ -252,40 +292,37 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         && (isSubmitted || isDelivered);
 
     return (
-        <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 relative">
 
             {/* LIGHTBOX */}
             {lightboxUrl && (
-                <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+                <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
                     <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
                     <img src={lightboxUrl} alt="fullscreen" className="max-w-full max-h-full object-contain rounded-xl" />
                 </div>
             )}
 
-            {/* ACTION BAR */}
-            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
-                <div className="max-w-2xl mx-auto flex justify-between items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-800 text-sm truncate">{header.project_name}</p>
-                        <p className="text-[10px] font-mono text-slate-400">{header.transaction_code}</p>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                        {header.manager_approval_status === 'APPROVED' && (
-                            <button onClick={handlePrintSJ}
-                                className="bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-black uppercase active:scale-95">
-                                🖨️ SJ
-                            </button>
-                        )}
-                        <button onClick={() => router.push('/transactions')}
-                            className="bg-slate-100 text-slate-600 px-3 py-2 rounded-xl text-xs font-black uppercase active:scale-95">
-                            ← Kembali
+            {/* STICKY HEADER (Top Bar) */}
+            <div className="sticky top-0 z-50 bg-slate-900 px-5 py-4 text-white shadow-lg flex justify-between items-center w-full">
+                <div className="flex-1 min-w-0 pr-4">
+                    <h1 className="font-bold text-sm truncate">{header.project_name || 'Detail Transaksi'}</h1>
+                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">{header.transaction_code}</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                    {header.manager_approval_status === 'APPROVED' && (
+                        <button onClick={handlePrintSJ}
+                            className="bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-black uppercase active:scale-95 shadow-sm">
+                            🖨️ SJ
                         </button>
-                    </div>
+                    )}
+                    <button onClick={() => router.push('/transactions')}
+                        className="bg-slate-800 text-white px-3 py-2 rounded-xl text-xs font-black uppercase active:scale-95 shadow-sm">
+                        ✕ Tutup
+                    </button>
                 </div>
             </div>
 
-            <div className="p-4 max-w-2xl mx-auto space-y-5">
-
+            <div className="p-4 max-w-2xl mx-auto space-y-5 pt-6">
                 {/* SUMMARY */}
                 <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -333,16 +370,102 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     )}
                 </div>
 
+                {/* LIST BARANG CHECKOUT */}
+                <div className="space-y-4">
+                    {['MATERIAL', 'TOOLS'].map(type => {
+                        const group = items.filter((i: any) => i.item_type === type);
+                        if (!group.length) return null;
+                        return (
+                            <div key={type} className="space-y-2">
+                                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    {type === 'MATERIAL' ? '📦' : '🛠️'} {type}
+                                </h2>
+                                {group.map((item: any, idx: number) => {
+                                    const key = item.id || idx;
+                                    return (
+                                        <div key={key} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${type === 'MATERIAL' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
+                                                    {item.location_name && <p className="text-[10px] text-slate-400">📍 {item.location_name}</p>}
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <p className="text-xl font-black text-blue-600">{item.qty}</p>
+                                                    {item.photo_path && (
+                                                        <button onClick={() => setLightboxUrl(`${BASE_URL}/${item.photo_path}`)}>
+                                                            <img src={`${BASE_URL}/${item.photo_path}`} className="w-10 h-10 object-cover rounded-lg border border-slate-100" alt="foto" />
+                                                            <p className="text-[8px] text-slate-400 text-center">Checkout</p>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Checklist & Foto khusus untuk Engineer sebelum TTD */}
+                                            {canEngineerSign && (
+                                                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        {/* Checkbox */}
+                                                        <label className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-xl flex-1 border transition-colors ${receiveChecklist[key]?.checked ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+                                                            <input type="checkbox"
+                                                                checked={receiveChecklist[key]?.checked || false}
+                                                                onChange={(e) => setReceiveChecklist(prev => ({
+                                                                    ...prev,
+                                                                    [key]: { ...prev[key], checked: e.target.checked }
+                                                                }))}
+                                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span className={`text-[10px] font-black uppercase tracking-wider ${receiveChecklist[key]?.checked ? 'text-blue-700' : 'text-slate-500'}`}>
+                                                                {receiveChecklist[key]?.checked ? '✅ Diterima' : 'Centang jika sesuai'}
+                                                            </span>
+                                                        </label>
+
+                                                        {/* Foto Opsional */}
+                                                        <label className="px-3 py-2 bg-white text-slate-600 font-black text-[9px] rounded-xl cursor-pointer active:scale-95 uppercase border border-slate-200 shadow-sm flex items-center gap-1">
+                                                            📷 {receiveChecklist[key]?.photo_base64 ? 'Ubah' : 'Foto'}
+                                                            <input type="file" accept="image/*" capture="environment" className="hidden"
+                                                                onChange={async e => {
+                                                                    const file = e.target.files?.[0]; if (!file) return;
+                                                                    const b64 = await compressImage(file);
+                                                                    setReceiveChecklist(prev => ({
+                                                                        ...prev,
+                                                                        [key]: { ...prev[key], photo_base64: b64 }
+                                                                    }));
+                                                                }} />
+                                                        </label>
+                                                    </div>
+
+                                                    {/* Preview Foto Opsional */}
+                                                    {receiveChecklist[key]?.photo_base64 && (
+                                                        <div className="relative inline-block w-max mt-1">
+                                                            <img src={receiveChecklist[key].photo_base64} alt="preview" className="h-14 w-auto object-cover rounded-lg border border-slate-200" />
+                                                            <button onClick={() => setReceiveChecklist(prev => ({
+                                                                ...prev,
+                                                                [key]: { ...prev[key], photo_base64: '' }
+                                                            }))}
+                                                                className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })}
+                </div>
+
                 {/* ══════════════════════════════════════════
                     SECTION TTD PIC — khusus ENGINEER
-                    Muncul setelah APPROVED, sebelum TTD ada
+                    Posisi: DI BAWAH LIST ITEM
                 ══════════════════════════════════════════ */}
                 {canEngineerSign && (
                     <div className="bg-blue-50 border-2 border-blue-300 p-5 rounded-3xl shadow-lg space-y-4">
                         <div className="text-center space-y-1">
                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Konfirmasi Penerimaan Barang</p>
                             <p className="font-black text-blue-900 text-base">Tanda Tangan PIC</p>
-                            <p className="text-xs text-blue-600">Barang sudah sampai di site? Tanda tangani untuk konfirmasi.</p>
+                            <p className="text-xs text-blue-600">Pastikan semua barang sudah dicentang (✅) sebelum Anda tanda tangan.</p>
                         </div>
 
                         <div className="space-y-2">
@@ -363,7 +486,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                             onClick={handleSubmitPicSignature}
                             disabled={submittingPicSig}
                             className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg text-sm uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50">
-                            {submittingPicSig ? '⏳ Menyimpan...' : '✅ Konfirmasi Terima Barang'}
+                            {submittingPicSig ? '⏳ Menyimpan...' : '✅ KONFIRMASI TERIMA BARANG'}
                         </button>
                     </div>
                 )}
@@ -379,52 +502,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         </button>
                     </div>
                 )}
-
-                {/* LIST BARANG CHECKOUT */}
-                <div className="space-y-4">
-                    {['MATERIAL', 'TOOLS'].map(type => {
-                        const group = items.filter((i: any) => i.item_type === type);
-                        if (!group.length) return null;
-                        return (
-                            <div key={type} className="space-y-2">
-                                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                    {type === 'MATERIAL' ? '📦' : '🛠️'} {type}
-                                </h2>
-                                {group.map((item: any, idx: number) => (
-                                    <div key={idx} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${type === 'MATERIAL' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
-                                        <div className="flex justify-between items-start gap-2">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                                <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                {item.location_name && <p className="text-[10px] text-slate-400">📍 {item.location_name}</p>}
-                                                {header.manager_approval_status === 'PENDING' && (
-                                                    <p className={`text-[9px] font-black uppercase mt-0.5 ${Number(item.qty) > Number(item.stock_qty) ? 'text-red-500' : 'text-slate-400'}`}>
-                                                        Stok Gudang: {item.stock_qty}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <p className="text-xl font-black text-blue-600">{item.qty}</p>
-                                                {item.photo_path && (
-                                                    <button onClick={() => setLightboxUrl(`${BASE_URL}/${item.photo_path}`)}>
-                                                        <img src={`${BASE_URL}/${item.photo_path}`} className="w-10 h-10 object-cover rounded-lg border border-slate-100" alt="foto" />
-                                                        <p className="text-[8px] text-slate-400 text-center">Checkout</p>
-                                                    </button>
-                                                )}
-                                                {item.photo_path_checkin && (
-                                                    <button onClick={() => setLightboxUrl(`${BASE_URL}/${item.photo_path_checkin}`)}>
-                                                        <img src={`${BASE_URL}/${item.photo_path_checkin}`} className="w-10 h-10 object-cover rounded-lg border border-emerald-100" alt="checkin" />
-                                                        <p className="text-[8px] text-emerald-500 text-center">Check In</p>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })}
-                </div>
 
                 {/* ===== SECTION CHECK IN ===== */}
                 {(isCheckinPending || isCheckinApproved) && checkinData && (
@@ -567,6 +644,7 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     </div>
                 )}
             </div>
+
             <Navbar />
         </main>
     );
