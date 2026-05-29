@@ -80,6 +80,9 @@ function PriceHistoryContent() {
     const priceTrend = latestBatch && prevBatch
         ? Number(latestBatch.unit_price) - Number(prevBatch.unit_price)
         : 0;
+    const priceTrendPct = prevBatch && Number(prevBatch.unit_price) > 0
+        ? (priceTrend / Number(prevBatch.unit_price)) * 100
+        : 0;
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
@@ -115,6 +118,9 @@ function PriceHistoryContent() {
                                 <span className="text-xl">{priceTrend > 0 ? '📈' : '📉'}</span>
                                 <p className={`text-xs font-black mt-1 ${priceTrend > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                     {priceTrend > 0 ? '+' : ''}{formatRp(priceTrend)}
+                                </p>
+                                <p className={`text-[10px] font-black ${priceTrend > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {priceTrend > 0 ? '+' : ''}{priceTrendPct.toFixed(1)}%
                                 </p>
                                 <p className="text-[9px] text-slate-400">vs batch lalu</p>
                             </div>
@@ -257,6 +263,9 @@ function PriceHistoryContent() {
                                                 {diff !== null && (
                                                     <p className={`text-[9px] font-black mt-0.5 ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                                         {diff > 0 ? '▲' : diff < 0 ? '▼' : '='} {diff !== 0 ? formatRp(Math.abs(diff)) : 'sama'}
+                                                        {diff !== 0 && prevPrice && prevPrice > 0 && (
+                                                            <span className="ml-1 opacity-80">({diff > 0 ? '+' : ''}{((diff / prevPrice) * 100).toFixed(1)}%)</span>
+                                                        )}
                                                     </p>
                                                 )}
                                             </div>
