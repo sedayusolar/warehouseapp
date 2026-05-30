@@ -30,6 +30,7 @@ function UserManagementContent() {
     const [fUsername, setFUsername] = useState('');
     const [fName, setFName] = useState('');
     const [fRole, setFRole] = useState('STAFF');
+    const [fEmail, setFEmail] = useState('');
     const [fPassword, setFPassword] = useState('');
     const [fConfirm, setFConfirm] = useState('');
     const [showPwd, setShowPwd] = useState(false);
@@ -56,11 +57,11 @@ function UserManagementContent() {
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
     const openCreate = () => {
-        setFUsername(''); setFName(''); setFRole('STAFF');
+        setFUsername(''); setFName(''); setFRole('STAFF'); setFEmail('');
         setFPassword(''); setFConfirm(''); setShowPwd(false);
         setModal('create');
     };
-    const openEdit = (u: any) => { setTarget(u); setFName(u.name); setFRole(u.role); setModal('edit'); };
+    const openEdit = (u: any) => { setTarget(u); setFName(u.name); setFRole(u.role); setFEmail(u.email || ''); setModal('edit'); };
     const openReset = (u: any) => { setTarget(u); setFPassword(''); setFConfirm(''); setShowPwd(false); setModal('reset'); };
     const openDelete = (u: any) => { setTarget(u); setModal('delete'); };
     const closeModal = () => { setModal(null); setTarget(null); setSaving(false); };
@@ -73,7 +74,7 @@ function UserManagementContent() {
         try {
             const res = await fetch(`${BASE_URL}/manage_user.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ action: 'create', username: fUsername, name: fName, role: fRole, password: fPassword })
+                body: JSON.stringify({ action: 'create', username: fUsername, name: fName, role: fRole, email: fEmail, password: fPassword })
             });
             const r = await res.json();
             if (r.status === 'success') { showToast(r.message); closeModal(); fetchUsers(); }
@@ -88,7 +89,7 @@ function UserManagementContent() {
         try {
             const res = await fetch(`${BASE_URL}/manage_user.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ action: 'update', id: target.id, name: fName, role: fRole })
+                body: JSON.stringify({ action: 'update', id: target.id, name: fName, role: fRole, email: fEmail })
             });
             const r = await res.json();
             if (r.status === 'success') { showToast(r.message); closeModal(); fetchUsers(); }
@@ -151,7 +152,7 @@ function UserManagementContent() {
                         {value === 'ENGINEER' ? '✍️' :
                             value === 'PROCUREMENT' ? '📋' :
                                 value === 'MANAGER' ? '✅' :
-                                    value === 'ADMIN' ? '🏸' : '👤'} {ROLE_CONFIG[value].desc}
+                                    value === 'ADMIN' ? '👑' : '👤'} {ROLE_CONFIG[value].desc}
                     </p>
                 </div>
             )}
@@ -181,6 +182,9 @@ function UserManagementContent() {
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 <input type="text" placeholder="Nama Lengkap *" value={fName}
                                     onChange={e => setFName(e.target.value)}
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <input type="email" placeholder="Email (untuk notifikasi)" value={fEmail}
+                                    onChange={e => setFEmail(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 <RoleSelect value={fRole} onChange={setFRole} />
                                 <div className="relative">
@@ -214,6 +218,9 @@ function UserManagementContent() {
                                 </div>
                                 <input type="text" placeholder="Nama Lengkap *" value={fName}
                                     onChange={e => setFName(e.target.value)}
+                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <input type="email" placeholder="Email (untuk notifikasi)" value={fEmail}
+                                    onChange={e => setFEmail(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 <RoleSelect value={fRole} onChange={setFRole} />
                                 <div className="flex gap-3">
