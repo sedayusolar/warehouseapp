@@ -63,12 +63,7 @@ function GRListContent() {
     const [poReviewResult, setPoReviewResult] = useState<any>(null);
     const [poReviewError, setPoReviewError] = useState('');
 
-    // AI HPP estimation state
-    const [estimatingHpp, setEstimatingHpp] = useState<Record<number, boolean>>({});
-    const [hppSuggestions, setHppSuggestions] = useState<Record<number, { price: number, confidence: string, note: string }>>({});
 
-    // AI estimate all HPP sekaligus
-    const [estimatingAll, setEstimatingAll] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -110,46 +105,7 @@ function GRListContent() {
         setLoadingDetail(false);
     };
 
-    // ── AI estimate HPP per item ──
-    const estimateHpp = async (item: any) => {
-        setEstimatingHpp(prev => ({ ...prev, [item.id]: true }));
-        try {
-            const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({
-                    mode: 'estimate_hpp',
-                    item_name: item.item_name,
-                    qty: item.qty,
-                    unit: item.unit,
-                })
-            });
-            const r = await res.json();
-            if (r.status === 'success' && r.result?.estimated_price) {
-                setHppSuggestions(prev => ({ ...prev, [item.id]: r.result }));
-            } else {
-                alert("AI tidak bisa estimasi harga untuk item ini.");
-            }
-        } catch { alert("Koneksi gagal."); }
-        setEstimatingHpp(prev => ({ ...prev, [item.id]: false }));
-    };
 
-    // ── AI estimate semua HPP sekaligus ──
-    const estimateAllHpp = async () => {
-        if (!detail?.items) return;
-        const emptyItems = detail.items.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
-        if (emptyItems.length === 0) { alert("Semua HPP sudah diisi."); return; }
-        setEstimatingAll(true);
-        for (const item of emptyItems) {
-            await estimateHpp(item);
-        }
-        setEstimatingAll(false);
-    };
-
-    // Terapkan suggesti HPP ke input
-    const applyHppSuggestion = (itemId: number, price: number) => {
-        setProcPrices(prev => ({ ...prev, [itemId]: String(price) }));
-    };
 
     // ── AI Review PO — cocokkan SJ vs PO Sedayu, extract HPP ──
     const handleReviewPo = async () => {
@@ -157,22 +113,13 @@ function GRListContent() {
         if (!procDoc) { alert("Upload dokumen PO Sedayu dulu!"); return; }
         setReviewingPo(true); setPoReviewResult(null); setPoReviewError('');
         try {
-            const sjImageUrl = `${BASE_URL}/${selected.sj_photo_path}`;
-            // Fetch SJ image sebagai base64
-            const sjRes = await fetch(sjImageUrl);
-            const sjBlob = await sjRes.blob();
-            const sjB64 = await new Promise<string>(resolve => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result as string);
-                r.readAsDataURL(sjBlob);
-            });
-
+            // Kirim URL foto SJ ke PHP proxy — biar server yang fetch (hindari CORS)
             const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
                     mode: 'review_po',
-                    sj_image: sjB64,
+                    sj_image_url: `${BASE_URL}/${selected.sj_photo_path}`, // URL, bukan base64
                     po_image: procDoc,
                 })
             });
@@ -278,10 +225,7 @@ function GRListContent() {
             ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
             : ['PENDING', 'APPROVED', 'REJECTED'];
 
-    const confidenceColor = (c: string) =>
-        c === 'high' ? 'text-emerald-600' : c === 'medium' ? 'text-amber-500' : 'text-slate-400';
-    const confidenceLabel = (c: string) =>
-        c === 'high' ? '✅ Yakin' : c === 'medium' ? '⚠️ Estimasi' : '❓ Tidak yakin';
+
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
@@ -369,27 +313,15 @@ function GRListContent() {
                                     {/* ══ PROCUREMENT: Input HPP + AI Assist ══ */}
                                     {selected.approval_status === 'PENDING' && user.role === 'PROCUREMENT' && (
                                         <div className="bg-violet-50 border-2 border-violet-200 rounded-3xl overflow-hidden">
-                                            <div className="bg-violet-600 px-5 py-3">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <p className="font-black text-white text-sm">📋 Review GR</p>
-                                                        <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP + lampirkan dokumen PO Sedayu</p>
-                                                    </div>
-                                                    {/* Tombol AI estimate semua sekaligus */}
-                                                    <button onClick={estimateAllHpp} disabled={estimatingAll}
-                                                        className="bg-white/20 text-white font-black text-[10px] px-3 py-2 rounded-xl active:scale-95 disabled:opacity-50 flex items-center gap-1.5">
-                                                        {estimatingAll ? <span className="animate-spin">⏳</span> : '🤖'}
-                                                        <span>{estimatingAll ? 'Estimasi...' : 'Estimasi Semua'}</span>
-                                                    </button>
-                                                </div>
+                                            <div className="bg-violet-600 px-5 py-3 text-center">
+                                                <p className="font-black text-white text-sm">📋 Review GR</p>
+                                                <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP + lampirkan dokumen PO Sedayu</p>
                                             </div>
 
                                             <div className="p-4 space-y-4">
                                                 <p className="text-[10px] font-black text-violet-700 uppercase">Harga Satuan (HPP) per Item *</p>
 
                                                 {detail.items?.map((item: any) => {
-                                                    const suggestion = hppSuggestions[item.id];
-                                                    const isEstimating = estimatingHpp[item.id];
                                                     const hasPrice = procPrices[item.id] && Number(procPrices[item.id]) > 0;
 
                                                     return (
@@ -420,48 +352,7 @@ function GRListContent() {
                                                                 </div>
                                                             </div>
 
-                                                            {/* AI Suggestion box */}
-                                                            {suggestion && (
-                                                                <div className={`rounded-xl p-2.5 border flex items-start justify-between gap-2
-                                                                    ${suggestion.confidence === 'high' ? 'bg-emerald-50 border-emerald-100' :
-                                                                        suggestion.confidence === 'medium' ? 'bg-amber-50 border-amber-100' :
-                                                                            'bg-slate-50 border-slate-100'}`}>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className={`text-[9px] font-black ${confidenceColor(suggestion.confidence)}`}>
-                                                                            🤖 AI: {formatRp(suggestion.price)} / {item.unit}
-                                                                            <span className="ml-1 font-medium opacity-70">{confidenceLabel(suggestion.confidence)}</span>
-                                                                        </p>
-                                                                        {suggestion.note && (
-                                                                            <p className="text-[9px] text-slate-400 mt-0.5 italic truncate">{suggestion.note}</p>
-                                                                        )}
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => applyHppSuggestion(item.id, suggestion.price)}
-                                                                        className="flex-shrink-0 bg-white border border-violet-200 text-violet-600 font-black text-[9px] px-2 py-1 rounded-lg active:scale-95">
-                                                                        Pakai
-                                                                    </button>
-                                                                </div>
-                                                            )}
 
-                                                            {/* Tombol AI estimate per item */}
-                                                            {!suggestion && (
-                                                                <button onClick={() => estimateHpp(item)} disabled={isEstimating}
-                                                                    className="w-full flex items-center justify-center gap-1.5 py-2 bg-violet-50 border border-violet-100 rounded-xl text-[10px] font-black text-violet-500 active:scale-95 disabled:opacity-50">
-                                                                    {isEstimating ? (
-                                                                        <><span className="animate-spin">⏳</span> AI sedang estimasi...</>
-                                                                    ) : (
-                                                                        <><span>🤖</span> Estimasi HPP dengan AI</>
-                                                                    )}
-                                                                </button>
-                                                            )}
-
-                                                            {/* Reset suggestion */}
-                                                            {suggestion && (
-                                                                <button onClick={() => setHppSuggestions(prev => { const n = { ...prev }; delete n[item.id]; return n; })}
-                                                                    className="text-[9px] text-slate-300 font-bold">
-                                                                    × Tutup estimasi
-                                                                </button>
-                                                            )}
                                                         </div>
                                                     );
                                                 })}
