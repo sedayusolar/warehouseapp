@@ -126,19 +126,50 @@ function GRListContent() {
             const r = await res.json();
             if (r.status === 'success' && r.result?.items) {
                 setPoReviewResult(r.result);
-                // Auto-fill HPP dari hasil AI untuk item yang ada di PO
+                // Auto-apply HPP dari AI ke semua item yang cocok
                 if (detail?.items) {
                     const newPrices = { ...procPrices };
+
+                    // Helper: cari item detail yang paling cocok dengan aiItem
+                    const findMatch = (aiItem: any) => {
+                        const poName = (aiItem.po_item_name || '').toLowerCase().trim();
+                        const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
+
+                        // Coba exact match dulu
+                        let match = detail.items.find((di: any) => {
+                            const diName = di.item_name.toLowerCase().trim();
+                            return diName === poName || diName === sjName;
+                        });
+                        if (match) return match;
+
+                        // Coba contains match — cek apakah salah satu mengandung kata kunci lainnya
+                        match = detail.items.find((di: any) => {
+                            const diName = di.item_name.toLowerCase().trim();
+                            return diName.includes(poName) || poName.includes(diName) ||
+                                diName.includes(sjName) || sjName.includes(diName);
+                        });
+                        if (match) return match;
+
+                        // Fallback: token matching — hitung berapa kata yang sama
+                        const poTokens = poName.split(/\s+/).filter((t: string) => t.length > 2);
+                        const sjTokens = sjName.split(/\s+/).filter((t: string) => t.length > 2);
+                        let bestScore = 0;
+                        let bestMatch: any = null;
+                        detail.items.forEach((di: any) => {
+                            const diTokens = di.item_name.toLowerCase().split(/\s+/);
+                            const score = [...poTokens, ...sjTokens].filter((t: string) =>
+                                diTokens.some((dt: string) => dt.includes(t) || t.includes(dt))
+                            ).length;
+                            if (score > bestScore) { bestScore = score; bestMatch = di; }
+                        });
+                        return bestScore >= 2 ? bestMatch : null;
+                    };
+
                     r.result.items.forEach((aiItem: any) => {
-                        if (aiItem.hpp_final && aiItem.status === 'OK' || aiItem.status === 'QTY_BEDA') {
-                            // Cari item yang cocok di detail.items
-                            const matched = detail.items.find((di: any) =>
-                                di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
-                                aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
-                            );
-                            if (matched && !newPrices[matched.id]) {
-                                newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
-                            }
+                        if (!aiItem.hpp_final) return;
+                        const matched = findMatch(aiItem);
+                        if (matched) {
+                            newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
                         }
                     });
                     setProcPrices(newPrices);
@@ -150,15 +181,38 @@ function GRListContent() {
         setReviewingPo(false);
     };
 
+    const findMatchedItem = (aiItem: any, items: any[]) => {
+        const poName = (aiItem.po_item_name || '').toLowerCase().trim();
+        const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
+        // Exact
+        let m = items.find((di: any) => {
+            const n = di.item_name.toLowerCase().trim();
+            return n === poName || n === sjName;
+        });
+        if (m) return m;
+        // Contains
+        m = items.find((di: any) => {
+            const n = di.item_name.toLowerCase().trim();
+            return n.includes(poName) || poName.includes(n) || n.includes(sjName) || sjName.includes(n);
+        });
+        if (m) return m;
+        // Token
+        const tokens = [...poName.split(/\s+/), ...sjName.split(/\s+/)].filter((t: string) => t.length > 2);
+        let best = 0, bestM: any = null;
+        items.forEach((di: any) => {
+            const dn = di.item_name.toLowerCase().split(/\s+/);
+            const score = tokens.filter((t: string) => dn.some((dt: string) => dt.includes(t) || t.includes(dt))).length;
+            if (score > best) { best = score; bestM = di; }
+        });
+        return best >= 2 ? bestM : null;
+    };
+
     const applyAllHppFromReview = () => {
         if (!poReviewResult?.items || !detail?.items) return;
         const newPrices = { ...procPrices };
         poReviewResult.items.forEach((aiItem: any) => {
             if (!aiItem.hpp_final) return;
-            const matched = detail.items.find((di: any) =>
-                di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
-                aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
-            );
+            const matched = findMatchedItem(aiItem, detail.items);
             if (matched) newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
         });
         setProcPrices(newPrices);
@@ -520,10 +574,7 @@ function GRListContent() {
                                                                             <div className="pt-1 border-t border-blue-100 space-y-1.5">
                                                                                 <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
                                                                                 {(() => {
-                                                                                    const matched = detail?.items?.find((di: any) =>
-                                                                                        di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
-                                                                                        aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
-                                                                                    );
+                                                                                    const matched = detail?.items ? findMatchedItem(aiItem, detail.items) : null;
                                                                                     const currentVal = matched ? (procPrices[matched.id] || '') : '';
                                                                                     const aiVal = String(Math.round(aiItem.hpp_final));
                                                                                     const isEdited = currentVal && currentVal !== aiVal;
