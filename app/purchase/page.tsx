@@ -52,7 +52,7 @@ const compressImage = (file: File, maxWidth = 1600, quality = 0.85): Promise<str
         reader.readAsDataURL(file);
     });
 
-function PurchaseContent() {
+function GRContent() {
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
     const [locations, setLocations] = useState<any[]>([]);
@@ -494,7 +494,7 @@ function PurchaseContent() {
                             {/* Konfirmasi */}
                             <button onClick={handleConfirmAiItems}
                                 className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
-                                ✅ Konfirmasi {aiItems.length} Item ke PO
+                                ✅ Konfirmasi {aiItems.length} Item ke GR
                             </button>
                         </div>
                     </div>
@@ -615,7 +615,7 @@ function PurchaseContent() {
                         {addMode === 'new' && (
                             <button onClick={addNewToCart}
                                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
-                                ＋ Tambahkan ke PO
+                                ＋ Tambahkan ke GR
                             </button>
                         )}
                     </div>
@@ -628,7 +628,7 @@ function PurchaseContent() {
                 {success && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-3">
                         <p className="text-4xl">✅</p>
-                        <p className="font-black text-emerald-700 text-lg">PO Berhasil Diinput!</p>
+                        <p className="font-black text-emerald-700 text-lg">GR Berhasil Diinput!</p>
                         <p className="text-sm text-emerald-600">{success.message}</p>
                         <div className="bg-white rounded-2xl p-4 space-y-2 text-left">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alur Selanjutnya</p>
@@ -658,11 +658,11 @@ function PurchaseContent() {
                         <div className="flex gap-3 pt-2">
                             <button onClick={() => { setSuccess(null); setPoNumber(''); setSupplier(''); setNote(''); setSjPhoto(''); setSjPhotoPreview(''); }}
                                 className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase">
-                                ＋ Input PO Baru
+                                ＋ Input GR Baru
                             </button>
                             <button onClick={() => router.push('/purchase-list')}
                                 className="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">
-                                📋 Lihat Status PO
+                                📋 Lihat Status GR
                             </button>
                         </div>
                     </div>
@@ -674,7 +674,7 @@ function PurchaseContent() {
                         <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-start gap-3">
                             <span className="text-lg flex-shrink-0">💡</span>
                             <div>
-                                <p className="text-[10px] font-black text-violet-700 uppercase">Info Alur PO</p>
+                                <p className="text-[10px] font-black text-violet-700 uppercase">Info Alur GR</p>
                                 <p className="text-[10px] text-violet-600 mt-0.5">Staff input item → Procurement input HPP → Manager approve → Stok masuk</p>
                             </div>
                         </div>
@@ -818,7 +818,7 @@ function PurchaseContent() {
                         {cart.length > 0 && (
                             <button onClick={handleSubmit} disabled={submitting}
                                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50">
-                                {submitting ? 'Menyimpan...' : `✓ Submit ${cart.length} Item ke Procurement`}
+                                {submitting ? 'Menyimpan...' : `✓ Submit ${cart.length} Item ke GR`}
                             </button>
                         )}
                     </>
@@ -829,10 +829,10 @@ function PurchaseContent() {
     );
 }
 
-export default function PurchasePage() {
+export default function GRPage() {
     return (
         <Suspense fallback={<div className="h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading...</div>}>
-            <PurchaseContent />
+            <GRContent />
         </Suspense>
     );
 }

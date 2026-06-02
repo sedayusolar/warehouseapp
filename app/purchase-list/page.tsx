@@ -3,14 +3,14 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../components/Navbar';
 
-const API_KEY  = "SedayuSolar_TopSecret_2026";
+const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
 
 const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, tabColor: string }> = {
-    PENDING:            { label: 'Menunggu',    color: 'text-orange-600',  bg: 'bg-orange-50 border-orange-200',   tabColor: 'bg-orange-500 text-white'  },
-    PROCUREMENT_REVIEW: { label: 'Procurement', color: 'text-violet-600',  bg: 'bg-violet-50 border-violet-200',   tabColor: 'bg-violet-600 text-white'  },
-    APPROVED:           { label: 'Disetujui',   color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', tabColor: 'bg-emerald-500 text-white' },
-    REJECTED:           { label: 'Ditolak',     color: 'text-red-600',     bg: 'bg-red-50 border-red-200',         tabColor: 'bg-red-500 text-white'     },
+    PENDING: { label: 'Menunggu', color: 'text-orange-600', bg: 'bg-orange-50 border-orange-200', tabColor: 'bg-orange-500 text-white' },
+    PROCUREMENT_REVIEW: { label: 'Procurement', color: 'text-violet-600', bg: 'bg-violet-50 border-violet-200', tabColor: 'bg-violet-600 text-white' },
+    APPROVED: { label: 'Disetujui', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', tabColor: 'bg-emerald-500 text-white' },
+    REJECTED: { label: 'Ditolak', color: 'text-red-600', bg: 'bg-red-50 border-red-200', tabColor: 'bg-red-500 text-white' },
 };
 const TAB_ICON: Record<string, string> = {
     PENDING: '⏳', PROCUREMENT_REVIEW: '📋', APPROVED: '✅', REJECTED: '❌'
@@ -36,39 +36,39 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<str
         reader.readAsDataURL(file);
     });
 
-function PurchaseListContent() {
+function GRListContent() {
     const router = useRouter();
-    const [user, setUser]               = useState<any>(null);
-    const [list, setList]               = useState<any[]>([]);
-    const [loading, setLoading]         = useState(true);
+    const [user, setUser] = useState<any>(null);
+    const [list, setList] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState('PENDING');
-    const [selected, setSelected]       = useState<any>(null);
-    const [detail, setDetail]           = useState<any>(null);
+    const [selected, setSelected] = useState<any>(null);
+    const [detail, setDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    const [approving, setApproving]     = useState(false);
-    const [rejectNote, setRejectNote]   = useState('');
-    const [showReject, setShowReject]   = useState(false);
+    const [approving, setApproving] = useState(false);
+    const [rejectNote, setRejectNote] = useState('');
+    const [showReject, setShowReject] = useState(false);
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
     // Procurement state
-    const [procPrices, setProcPrices]         = useState<Record<number, string>>({});
-    const [procNote, setProcNote]             = useState('');
-    const [procDoc, setProcDoc]               = useState('');
+    const [procPrices, setProcPrices] = useState<Record<number, string>>({});
+    const [procNote, setProcNote] = useState('');
+    const [procDoc, setProcDoc] = useState('');
     const [procDocPreview, setProcDocPreview] = useState('');
     const [submittingProc, setSubmittingProc] = useState(false);
     const procDocRef = useRef<HTMLInputElement>(null);
 
     // AI review PO state
-    const [reviewingPo, setReviewingPo]       = useState(false);
+    const [reviewingPo, setReviewingPo] = useState(false);
     const [poReviewResult, setPoReviewResult] = useState<any>(null);
-    const [poReviewError, setPoReviewError]   = useState('');
+    const [poReviewError, setPoReviewError] = useState('');
 
     // AI HPP estimation state
-    const [estimatingHpp, setEstimatingHpp]   = useState<Record<number, boolean>>({});
+    const [estimatingHpp, setEstimatingHpp] = useState<Record<number, boolean>>({});
     const [hppSuggestions, setHppSuggestions] = useState<Record<number, { price: number, confidence: string, note: string }>>({});
 
     // AI estimate all HPP sekaligus
-    const [estimatingAll, setEstimatingAll]   = useState(false);
+    const [estimatingAll, setEstimatingAll] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -159,9 +159,9 @@ function PurchaseListContent() {
         try {
             const sjImageUrl = `${BASE_URL}/${selected.sj_photo_path}`;
             // Fetch SJ image sebagai base64
-            const sjRes  = await fetch(sjImageUrl);
+            const sjRes = await fetch(sjImageUrl);
             const sjBlob = await sjRes.blob();
-            const sjB64  = await new Promise<string>(resolve => {
+            const sjB64 = await new Promise<string>(resolve => {
                 const r = new FileReader();
                 r.onload = () => resolve(r.result as string);
                 r.readAsDataURL(sjBlob);
@@ -242,7 +242,7 @@ function PurchaseListContent() {
             });
             const r = await res.json();
             if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); setShowReject(false); fetchList(filterStatus); }
-            else alert("Gagal koneksi."); 
+            else alert("Gagal koneksi.");
         } catch { alert("Gagal koneksi."); }
         setApproving(false);
     };
@@ -275,8 +275,8 @@ function PurchaseListContent() {
     const visibleTabs = user.role === 'PROCUREMENT'
         ? ['PENDING', 'APPROVED', 'REJECTED']
         : user.role === 'MANAGER' || user.role === 'ADMIN'
-        ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
-        : ['PENDING', 'APPROVED', 'REJECTED'];
+            ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
+            : ['PENDING', 'APPROVED', 'REJECTED'];
 
     const confidenceColor = (c: string) =>
         c === 'high' ? 'text-emerald-600' : c === 'medium' ? 'text-amber-500' : 'text-slate-400';
@@ -372,7 +372,7 @@ function PurchaseListContent() {
                                             <div className="bg-violet-600 px-5 py-3">
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <p className="font-black text-white text-sm">📋 Review Procurement</p>
+                                                        <p className="font-black text-white text-sm">📋 Review GR</p>
                                                         <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP + lampirkan dokumen PO Sedayu</p>
                                                     </div>
                                                     {/* Tombol AI estimate semua sekaligus */}
@@ -424,8 +424,8 @@ function PurchaseListContent() {
                                                             {suggestion && (
                                                                 <div className={`rounded-xl p-2.5 border flex items-start justify-between gap-2
                                                                     ${suggestion.confidence === 'high' ? 'bg-emerald-50 border-emerald-100' :
-                                                                      suggestion.confidence === 'medium' ? 'bg-amber-50 border-amber-100' :
-                                                                      'bg-slate-50 border-slate-100'}`}>
+                                                                        suggestion.confidence === 'medium' ? 'bg-amber-50 border-amber-100' :
+                                                                            'bg-slate-50 border-slate-100'}`}>
                                                                     <div className="flex-1 min-w-0">
                                                                         <p className={`text-[9px] font-black ${confidenceColor(suggestion.confidence)}`}>
                                                                             🤖 AI: {formatRp(suggestion.price)} / {item.unit}
@@ -457,7 +457,7 @@ function PurchaseListContent() {
 
                                                             {/* Reset suggestion */}
                                                             {suggestion && (
-                                                                <button onClick={() => setHppSuggestions(prev => { const n = {...prev}; delete n[item.id]; return n; })}
+                                                                <button onClick={() => setHppSuggestions(prev => { const n = { ...prev }; delete n[item.id]; return n; })}
                                                                     className="text-[9px] text-slate-300 font-bold">
                                                                     × Tutup estimasi
                                                                 </button>
@@ -469,7 +469,7 @@ function PurchaseListContent() {
                                                 {/* Total nilai PO */}
                                                 {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && (
                                                     <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
                                                         <p className="font-black text-lg">
                                                             {formatRp(detail.items.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0))}
                                                         </p>
@@ -556,11 +556,11 @@ function PurchaseListContent() {
                                                                     <div className="flex items-center gap-2 mb-2">
                                                                         <span className={`text-[9px] font-black px-2 py-0.5 rounded-full
                                                                             ${aiItem.status === 'OK' ? 'bg-emerald-100 text-emerald-700' :
-                                                                              aiItem.status === 'QTY_BEDA' ? 'bg-amber-100 text-amber-700' :
-                                                                              'bg-red-100 text-red-600'}`}>
+                                                                                aiItem.status === 'QTY_BEDA' ? 'bg-amber-100 text-amber-700' :
+                                                                                    'bg-red-100 text-red-600'}`}>
                                                                             {aiItem.status === 'OK' ? '✅ Sesuai' :
-                                                                             aiItem.status === 'QTY_BEDA' ? `⚠️ Qty Beda (SJ:${aiItem.qty_sj} vs PO:${aiItem.qty_po})` :
-                                                                             aiItem.status === 'TIDAK_ADA_DI_PO' ? '❓ Tidak ada di PO' : '📋 Tidak ada di SJ'}
+                                                                                aiItem.status === 'QTY_BEDA' ? `⚠️ Qty Beda (SJ:${aiItem.qty_sj} vs PO:${aiItem.qty_po})` :
+                                                                                    aiItem.status === 'TIDAK_ADA_DI_PO' ? '❓ Tidak ada di PO' : '📋 Tidak ada di SJ'}
                                                                         </span>
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-2 mb-2">
@@ -590,7 +590,7 @@ function PurchaseListContent() {
                                                                             {aiItem.ppn_rate > 0 && (
                                                                                 <div className="flex justify-between">
                                                                                     <p className="text-[9px] text-blue-500">PPN {(aiItem.ppn_rate * 100).toFixed(0)}%</p>
-                                                                                    <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1-(aiItem.discount_rate||0)) * aiItem.ppn_rate)}</p>
+                                                                                    <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1 - (aiItem.discount_rate || 0)) * aiItem.ppn_rate)}</p>
                                                                                 </div>
                                                                             )}
                                                                             <div className="flex justify-between pt-1 border-t border-blue-100">
@@ -665,7 +665,7 @@ function PurchaseListContent() {
                                             </div>
                                             <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                 <div>
-                                                    <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai PO</p>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
                                                     {detail.items?.some((i: any) => Number(i.unit_price) === 0) && (
                                                         <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>
                                                     )}
@@ -691,7 +691,7 @@ function PurchaseListContent() {
                                                         <button onClick={() => setShowReject(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-3.5 rounded-2xl text-xs uppercase">Batal</button>
                                                         <button onClick={handleReject} disabled={approving}
                                                             className="flex-1 bg-red-500 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
-                                                            {approving ? 'Menolak...' : '❌ Tolak PO'}
+                                                            {approving ? 'Menolak...' : '❌ Tolak GR'}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -739,15 +739,15 @@ function PurchaseListContent() {
                     <div className="text-center py-20 animate-pulse text-slate-400 font-bold">Memuat...</div>
                 ) : list.length === 0 ? (
                     <div className="text-center py-20 text-slate-300 italic text-sm">
-                        {filterStatus === 'PENDING' ? 'Tidak ada PO yang menunggu.' :
-                         filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada PO menunggu approval manager.' : 'Tidak ada data.'}
+                        {filterStatus === 'PENDING' ? 'Tidak ada GR yang menunggu.' :
+                            filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada GR menunggu approval manager.' : 'Tidak ada data.'}
                     </div>
                 ) : list.map((item: any) => (
                     <button key={item.id} onClick={() => openDetail(item)}
                         className={`w-full bg-white rounded-2xl shadow-sm border p-4 text-left hover:shadow-md transition-all active:scale-[0.99]
                             ${item.approval_status === 'PENDING' ? 'border-orange-200' :
-                              item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' :
-                              item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
+                                item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' :
+                                    item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
                         <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
@@ -782,10 +782,10 @@ function PurchaseListContent() {
     );
 }
 
-export default function PurchaseListPage() {
+export default function GRListPage() {
     return (
         <Suspense fallback={<div className="h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading...</div>}>
-            <PurchaseListContent />
+            <GRListContent />
         </Suspense>
     );
 }

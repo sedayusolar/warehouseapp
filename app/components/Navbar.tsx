@@ -9,9 +9,9 @@ const BASE_URL = "https://sedayu.com/api/warehouse";
 const BOTTOM_STAFF = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
-    { label: 'Checkout', icon: '🏸', path: '/checkout' },
+    { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Input PO', icon: '🛍️', path: '/purchase' },
+    { label: 'Input GR', icon: '🛍️', path: '/purchase' },
 ];
 
 const BOTTOM_MANAGER = [
@@ -19,12 +19,12 @@ const BOTTOM_MANAGER = [
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Approve', icon: '✅', path: '/transactions' },
     { label: 'Check In', icon: '📥', path: '/checkin-list' },
-    { label: 'Status PO', icon: '📄', path: '/purchase-list' },
+    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
 ];
 
 const BOTTOM_PROCUREMENT = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Status PO', icon: '📄', path: '/purchase-list' },
+    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
     { label: 'Cost', icon: '💰', path: '/cost-report' },
@@ -43,8 +43,8 @@ const DRAWER_STAFF = [
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment' },
-    { label: 'Input PO', icon: '🛍️', path: '/purchase' },
-    { label: 'Status PO', icon: '📄', path: '/purchase-list' },
+    { label: 'Input GR', icon: '📥', path: '/purchase' },
+    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
     { label: 'Check In List', icon: '📥', path: '/checkin-list' },
     { label: 'Cost Report', icon: '💰', path: '/cost-report' },
 ];
@@ -58,14 +58,14 @@ const DRAWER_MANAGER = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
     { label: 'Approve Checkout', icon: '⏳', path: '/transactions' },
     { label: 'Approve Check In', icon: '✅', path: '/checkin-list' },
-    { label: 'Status PO', icon: '📄', path: '/purchase-list' },
+    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Cost Report', icon: '💰', path: '/cost-report' },
 ];
 
 const DRAWER_PROCUREMENT = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Status PO', icon: '📄', path: '/purchase-list' },
+    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
     { label: 'Cost Report', icon: '💰', path: '/cost-report' },
@@ -82,8 +82,8 @@ const PAGE_TITLES: Record<string, string> = {
     '/checkout': 'Checkout',
     '/transactions': 'Transaksi',
     '/checkin': 'Check In',
-    '/purchase': 'Input PO',
-    '/purchase-list': 'Status PO',
+    '/purchase': 'Input GR',
+    '/purchase-list': 'Status GR',
     '/checkin-list': 'Check In List',
     '/users': 'Users',
     '/cost-report': 'Cost Report',
