@@ -202,7 +202,7 @@ function GRListContent() {
             return;
         }
         if (!procDoc) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
-        if (!confirm("Submit untuk approval?")) return;
+        if (!confirm("Submit ke Manager untuk approval?")) return;
         setSubmittingProc(true);
         try {
             const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
@@ -434,6 +434,9 @@ function GRListContent() {
                                                                 {poReviewResult.summary?.discount_rate > 0 && (
                                                                     <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">Diskon {(poReviewResult.summary.discount_rate * 100).toFixed(0)}%</span>
                                                                 )}
+                                                                {poReviewResult.summary?.shipping_fee > 0 && (
+                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">Ongkir {formatRp(poReviewResult.summary.shipping_fee)}</span>
+                                                                )}
                                                                 <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">
                                                                     {poReviewResult.summary?.total_items_sj} item SJ · {poReviewResult.summary?.total_items_po} item PO
                                                                 </span>
@@ -504,6 +507,12 @@ function GRListContent() {
                                                                                     <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1 - (aiItem.discount_rate || 0)) * aiItem.ppn_rate)}</p>
                                                                                 </div>
                                                                             )}
+                                                                            {aiItem.shipping_fee_per_unit > 0 && (
+                                                                                <div className="flex justify-between">
+                                                                                    <p className="text-[9px] text-orange-500">Ongkir prorate</p>
+                                                                                    <p className="text-[10px] font-bold text-orange-500">+ {formatRp(aiItem.shipping_fee_per_unit)}</p>
+                                                                                </div>
+                                                                            )}
                                                                             {aiItem.hpp_calculation && (
                                                                                 <p className="text-[8px] text-slate-400 italic">{aiItem.hpp_calculation}</p>
                                                                             )}
@@ -568,7 +577,7 @@ function GRListContent() {
 
                                                 <button onClick={handleSubmitProcurement} disabled={submittingProc}
                                                     className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50">
-                                                    {submittingProc ? '⏳ Menyimpan...' : '📋 Submit'}
+                                                    {submittingProc ? '⏳ Menyimpan...' : '📋 Submit ke Manager'}
                                                 </button>
                                             </div>
                                         </div>
