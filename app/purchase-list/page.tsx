@@ -91,7 +91,7 @@ function GRListContent() {
         setSelected(item); setDetail(null); setLoadingDetail(true);
         setShowReject(false); setRejectNote('');
         setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview('');
-        setHppSuggestions({}); setEstimatingHpp({});
+
         try {
             const res = await fetch(`${BASE_URL}/get_purchase_list.php?id=${item.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
