@@ -202,7 +202,7 @@ function GRListContent() {
             return;
         }
         if (!procDoc) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
-        if (!confirm("Submit ke Manager untuk approval?")) return;
+        if (!confirm("Submit untuk approval?")) return;
         setSubmittingProc(true);
         try {
             const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
@@ -457,12 +457,32 @@ function GRListContent() {
                                                                     <div className="grid grid-cols-2 gap-2 mb-2">
                                                                         <div className="bg-slate-50 rounded-xl p-2">
                                                                             <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">SJ Vendor</p>
-                                                                            <p className="text-[10px] font-bold text-slate-700 leading-tight">{aiItem.sj_item_name || '—'}</p>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={aiItem.sj_item_name || ''}
+                                                                                onChange={e => setPoReviewResult((prev: any) => ({
+                                                                                    ...prev,
+                                                                                    items: prev.items.map((it: any, i2: number) =>
+                                                                                        i2 === idx ? { ...it, sj_item_name: e.target.value } : it
+                                                                                    )
+                                                                                }))}
+                                                                                className="w-full text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none mt-0.5"
+                                                                            />
                                                                             {aiItem.qty_sj && <p className="text-[9px] text-slate-500 mt-0.5">{aiItem.qty_sj} {aiItem.unit}</p>}
                                                                         </div>
                                                                         <div className="bg-violet-50 rounded-xl p-2">
                                                                             <p className="text-[8px] font-black text-violet-400 uppercase mb-0.5">PO Sedayu</p>
-                                                                            <p className="text-[10px] font-bold text-violet-700 leading-tight">{aiItem.po_item_name || '—'}</p>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={aiItem.po_item_name || ''}
+                                                                                onChange={e => setPoReviewResult((prev: any) => ({
+                                                                                    ...prev,
+                                                                                    items: prev.items.map((it: any, i2: number) =>
+                                                                                        i2 === idx ? { ...it, po_item_name: e.target.value } : it
+                                                                                    )
+                                                                                }))}
+                                                                                className="w-full text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg px-2 py-1 outline-none mt-0.5"
+                                                                            />
                                                                             {aiItem.qty_po && <p className="text-[9px] text-violet-500 mt-0.5">{aiItem.qty_po} {aiItem.unit}</p>}
                                                                         </div>
                                                                     </div>
@@ -484,23 +504,56 @@ function GRListContent() {
                                                                                     <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1 - (aiItem.discount_rate || 0)) * aiItem.ppn_rate)}</p>
                                                                                 </div>
                                                                             )}
-                                                                            <div className="flex justify-between pt-1 border-t border-blue-100">
-                                                                                <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
-                                                                                <p className="text-sm font-black text-blue-700">{formatRp(aiItem.hpp_final)}</p>
-                                                                            </div>
                                                                             {aiItem.hpp_calculation && (
                                                                                 <p className="text-[8px] text-slate-400 italic">{aiItem.hpp_calculation}</p>
                                                                             )}
-                                                                            <button onClick={() => {
-                                                                                const matched = detail?.items?.find((di: any) =>
-                                                                                    di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
-                                                                                    aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
-                                                                                );
-                                                                                if (matched) setProcPrices(prev => ({ ...prev, [matched.id]: String(Math.round(aiItem.hpp_final)) }));
-                                                                            }}
-                                                                                className="w-full text-center text-[9px] font-black text-blue-600 bg-white border border-blue-200 rounded-lg py-1.5 active:scale-95">
-                                                                                Pakai HPP ini → Rp {Math.round(aiItem.hpp_final).toLocaleString('id-ID')}
-                                                                            </button>
+                                                                            {/* HPP Final — editable langsung oleh Procurement */}
+                                                                            <div className="pt-1 border-t border-blue-100 space-y-1.5">
+                                                                                <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
+                                                                                {(() => {
+                                                                                    const matched = detail?.items?.find((di: any) =>
+                                                                                        di.item_name.toLowerCase().includes(aiItem.po_item_name?.split(' ')[0]?.toLowerCase()) ||
+                                                                                        aiItem.po_item_name?.toLowerCase().includes(di.item_name?.split(' ')[0]?.toLowerCase())
+                                                                                    );
+                                                                                    const currentVal = matched ? (procPrices[matched.id] || '') : '';
+                                                                                    const aiVal = String(Math.round(aiItem.hpp_final));
+                                                                                    const isEdited = currentVal && currentVal !== aiVal;
+                                                                                    return matched ? (
+                                                                                        <div className="space-y-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <div className="relative flex-1">
+                                                                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">Rp</span>
+                                                                                                    <input
+                                                                                                        type="number" min="0"
+                                                                                                        value={procPrices[matched.id] || aiVal}
+                                                                                                        onChange={e => setProcPrices(prev => ({ ...prev, [matched.id]: e.target.value }))}
+                                                                                                        className="w-full p-2 pl-8 bg-white border-2 border-blue-300 rounded-xl outline-none text-sm font-black text-blue-700 text-right"
+                                                                                                    />
+                                                                                                </div>
+                                                                                                {/* Reset ke nilai AI */}
+                                                                                                {isEdited && (
+                                                                                                    <button
+                                                                                                        onClick={() => setProcPrices(prev => ({ ...prev, [matched.id]: aiVal }))}
+                                                                                                        className="text-[9px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-1.5 rounded-lg active:scale-95 flex-shrink-0">
+                                                                                                        ↩ AI
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            {isEdited && (
+                                                                                                <p className="text-[9px] text-amber-500 font-bold">✏️ Diubah manual · AI: Rp {Number(aiVal).toLocaleString('id-ID')}</p>
+                                                                                            )}
+                                                                                            {!currentVal && (
+                                                                                                <button onClick={() => setProcPrices(prev => ({ ...prev, [matched.id]: aiVal }))}
+                                                                                                    className="w-full text-center text-[9px] font-black text-blue-600 bg-white border border-blue-200 rounded-lg py-1.5 active:scale-95">
+                                                                                                    ✓ Pakai HPP AI → Rp {Number(aiVal).toLocaleString('id-ID')}
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <p className="text-sm font-black text-blue-700">{formatRp(aiItem.hpp_final)}</p>
+                                                                                    );
+                                                                                })()}
+                                                                            </div>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -515,7 +568,7 @@ function GRListContent() {
 
                                                 <button onClick={handleSubmitProcurement} disabled={submittingProc}
                                                     className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50">
-                                                    {submittingProc ? '⏳ Menyimpan...' : '📋 Submit ke Manager'}
+                                                    {submittingProc ? '⏳ Menyimpan...' : '📋 Submit'}
                                                 </button>
                                             </div>
                                         </div>
