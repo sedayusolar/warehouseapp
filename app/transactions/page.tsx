@@ -151,7 +151,7 @@ function TransactionListContent() {
                 </div>
             )}
 
-            {/* TAB FILTER + SCAN QR */}
+            {/* TAB FILTER + SCAN QR + CHECKIN V2 BUTTON */}
             <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
                 <div className="max-w-4xl mx-auto flex gap-2 items-center">
                     {(user?.role === 'MANAGER'
@@ -164,14 +164,41 @@ function TransactionListContent() {
                             {tab === 'SUBMITTED' ? 'APPROVAL' : tab}
                         </button>
                     ))}
+                    {/* Scan QR */}
                     <button onClick={() => setShowScanner(true)}
-                        className="bg-blue-600 text-white font-black px-3 py-2 rounded-xl text-xs uppercase flex items-center gap-1 flex-shrink-0 active:scale-95">
+                        className="bg-slate-800 text-white font-black px-3 py-2 rounded-xl text-xs uppercase flex items-center gap-1 flex-shrink-0 active:scale-95"
+                        title="Scan QR Surat Jalan">
                         <span>📷</span>
                     </button>
+                    {/* Check In per Project — hanya untuk non-Manager */}
+                    {user?.role !== 'MANAGER' && (
+                        <button onClick={() => router.push('/checkin-project')}
+                            className="bg-emerald-600 text-white font-black px-3 py-2 rounded-xl text-[10px] uppercase flex items-center gap-1 flex-shrink-0 active:scale-95 whitespace-nowrap"
+                            title="Check In per Project">
+                            <span>📦</span> CI
+                        </button>
+                    )}
                 </div>
             </div>
 
             <div className="p-4 max-w-4xl mx-auto space-y-4">
+
+                {/* INFO BANNER Check In per Project — untuk Staff, muncul jika ada transaksi DELIVERED */}
+                {user?.role !== 'MANAGER' && transactions.some(t => t.transaction_status === 'DELIVERED') && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-black text-emerald-700">Ada barang yang belum di-Check In</p>
+                            <p className="text-[10px] text-emerald-600 mt-0.5">
+                                Gunakan Check In per Project untuk mengembalikan semua barang sekaligus
+                            </p>
+                        </div>
+                        <button onClick={() => router.push('/checkin-project')}
+                            className="bg-emerald-600 text-white font-black px-4 py-2.5 rounded-xl text-[10px] uppercase flex-shrink-0 active:scale-95">
+                            📦 Check In
+                        </button>
+                    </div>
+                )}
+
                 {loading ? (
                     <div className="text-center py-20 text-slate-400 font-bold text-[10px] uppercase animate-pulse">Sinkronisasi Data...</div>
                 ) : filteredData.length === 0 ? (
@@ -219,6 +246,7 @@ function TransactionListContent() {
                                 </div>
 
                                 <div className="flex gap-2">
+
                                     {/* DRAFT */}
                                     {trx.transaction_status === 'DRAFT' && user.role !== 'MANAGER' ? (
                                         <button onClick={() => router.push(`/checkout?edit=${trx.id}`)}
@@ -236,25 +264,28 @@ function TransactionListContent() {
                                     ) : isCheckinPending ? (
                                         /* CHECKIN MENUNGGU APPROVAL */
                                         <button onClick={() => router.push(`/transactions/${trx.id}`)}
-                                            className="flex-1 bg-amber-500 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg">
+                                            className={`flex-1 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-lg
+                                                ${user.role === 'MANAGER'
+                                                    ? 'bg-amber-500 text-white'
+                                                    : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
                                             {user.role === 'MANAGER' ? '✅ Review Check In' : '⏳ Menunggu Approval Check In'}
                                         </button>
 
                                     ) : isDelivered && user.role !== 'MANAGER' ? (
-                                        /* DELIVERED — Detail + Check In */
+                                        /* DELIVERED — Check In per Project */
                                         <>
                                             <button onClick={() => router.push(`/transactions/${trx.id}`)}
                                                 className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">
                                                 👁️ Detail
                                             </button>
-                                            <button onClick={() => router.push(`/checkin?checkout_id=${trx.id}`)}
+                                            <button onClick={() => router.push(`/checkin-project`)}
                                                 className="flex-1 bg-emerald-600 text-white text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest shadow-md">
                                                 📦 Check In
                                             </button>
                                         </>
 
                                     ) : isApproved && !isDelivered && user.role !== 'MANAGER' ? (
-                                        /* APPROVED belum DELIVERED — Detail + Konfirmasi Penerimaan */
+                                        /* APPROVED belum DELIVERED */
                                         <>
                                             <button onClick={() => router.push(`/transactions/${trx.id}`)}
                                                 className="flex-1 bg-slate-100 text-slate-600 text-[10px] font-black py-4 rounded-2xl uppercase tracking-widest">
@@ -280,18 +311,22 @@ function TransactionListContent() {
                                     )}
                                 </div>
 
+                                {/* Status indicator */}
                                 <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isCheckinApproved ? 'bg-blue-500' :
-                                            isDelivered ? 'bg-violet-500' :
-                                                isApproved ? 'bg-emerald-500' :
-                                                    trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
-                                                        'bg-orange-500 animate-pulse'}`} />
+                                            isCheckinPending ? 'bg-amber-500 animate-pulse' :
+                                                isDelivered ? 'bg-violet-500' :
+                                                    isApproved ? 'bg-emerald-500' :
+                                                        trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
+                                                            'bg-orange-500 animate-pulse'
+                                        }`} />
                                     <span>Status: {
                                         isCheckinApproved ? '✅ SELESAI' :
-                                            isCheckinPending ? '⏳ CHECKIN MENUNGGU' :
-                                                isDelivered ? '📦 DELIVERED' :
-                                                    trx.transaction_status === 'SUBMITTED' ? trx.manager_approval_status :
-                                                        trx.transaction_status
+                                            isCheckinPending ? '⏳ CHECKIN MENUNGGU APPROVAL' :
+                                                isDelivered ? '📦 DELIVERED — Siap Check In' :
+                                                    trx.transaction_status === 'SUBMITTED'
+                                                        ? trx.manager_approval_status
+                                                        : trx.transaction_status
                                     }</span>
                                 </div>
                             </div>
