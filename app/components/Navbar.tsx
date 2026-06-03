@@ -11,7 +11,7 @@ const BOTTOM_STAFF = [
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Input GR', icon: '🛍️', path: '/purchase' },
+    { label: 'Transfer', icon: '🚚', path: '/transfer' },  // ← BARU
 ];
 
 const BOTTOM_MANAGER = [
@@ -40,6 +40,9 @@ const DRAWER_STAFF = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
     { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Check In', icon: '✅', path: '/checkin' },
+    { label: 'Check In Project', icon: '📦', path: '/checkin-project' }, // ← BARU
+    { label: 'Transfer Gudang', icon: '🚚', path: '/transfer' },          // ← BARU
+    { label: 'Riwayat Transfer', icon: '📋', path: '/transfer-list' },       // ← BARU
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment' },
@@ -58,6 +61,7 @@ const DRAWER_MANAGER = [
     { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
     { label: 'Approve Checkout', icon: '⏳', path: '/transactions' },
     { label: 'Approve Check In', icon: '✅', path: '/checkin-list' },
+    { label: 'Approve Transfer', icon: '🚚', path: '/transfer-list' },   // ← BARU
     { label: 'Status GR', icon: '📄', path: '/purchase-list' },
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Cost Report', icon: '💰', path: '/cost-report' },
@@ -82,6 +86,9 @@ const PAGE_TITLES: Record<string, string> = {
     '/checkout': 'Checkout',
     '/transactions': 'Transaksi',
     '/checkin': 'Check In',
+    '/checkin-project': 'Check In per Project',  // ← BARU
+    '/transfer': 'Transfer Gudang',         // ← BARU
+    '/transfer-list': 'Approval Transfer',       // ← BARU
     '/purchase': 'Input GR',
     '/purchase-list': 'Status GR',
     '/checkin-list': 'Check In List',
@@ -97,6 +104,7 @@ export default function Navbar() {
     const [showDrawer, setShowDrawer] = useState(false);
     const [pendingCheckin, setPendingCheckin] = useState(0);
     const [pendingCheckout, setPendingCheckout] = useState(0);
+    const [pendingTransfer, setPendingTransfer] = useState(0);  // ← BARU
     const [pendingProcurement, setPendingProcurement] = useState(0);
 
     useEffect(() => {
@@ -113,11 +121,19 @@ export default function Navbar() {
                 setPendingCheckout(r.pending_approval?.length || 0);
             }
         } catch { }
-        // Badge procurement — PO PENDING untuk procurement, PROCUREMENT_REVIEW untuk manager
+
+        // Badge procurement
         try {
             const res2 = await fetch(`${BASE_URL}/get_purchase_list.php?status=PENDING&count=1`, { headers: { 'X-API-KEY': API_KEY } });
             const r2 = await res2.json();
             if (r2.status === 'success') setPendingProcurement(r2.data?.length || 0);
+        } catch { }
+
+        // Badge transfer pending ← BARU
+        try {
+            const res3 = await fetch(`${BASE_URL}/get_transfer_list.php?status=PENDING&count=1`, { headers: { 'X-API-KEY': API_KEY } });
+            const r3 = await res3.json();
+            if (r3.status === 'success') setPendingTransfer(r3.data?.length || 0);
         } catch { }
     };
 
@@ -153,9 +169,11 @@ export default function Navbar() {
     const getBadge = (path: string) => {
         if (path === '/transactions') return pendingCheckout;
         if (path === '/checkin-list') return pendingCheckin;
+        if (path === '/transfer-list') return pendingTransfer;   // ← BARU
+        if (path === '/transfer') return pendingTransfer;   // ← BARU
         if (path === '/purchase-list') {
             if (role === 'PROCUREMENT') return pendingProcurement;
-            if (role === 'MANAGER' || role === 'ADMIN') return pendingCheckout; // reuse as proxy
+            if (role === 'MANAGER' || role === 'ADMIN') return pendingCheckout;
         }
         return 0;
     };
@@ -188,7 +206,13 @@ export default function Navbar() {
                                 <span>⏳</span><span>{totalBadge}</span>
                             </button>
                         )}
-                        {/* Badge khusus procurement */}
+                        {/* Badge transfer untuk manager */}
+                        {(role === 'MANAGER' || role === 'ADMIN') && pendingTransfer > 0 && (
+                            <button onClick={() => router.push('/transfer-list')}
+                                className="bg-violet-50 border border-violet-200 text-violet-700 font-black text-[10px] px-2.5 py-1.5 rounded-xl flex items-center gap-1">
+                                <span>🚚</span><span>{pendingTransfer}</span>
+                            </button>
+                        )}
                         {role === 'PROCUREMENT' && pendingProcurement > 0 && (
                             <button onClick={() => router.push('/purchase-list')}
                                 className="bg-orange-50 border border-orange-200 text-orange-700 font-black text-[10px] px-2.5 py-1.5 rounded-xl flex items-center gap-1">
