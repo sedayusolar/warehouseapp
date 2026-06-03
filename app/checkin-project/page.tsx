@@ -307,12 +307,7 @@ function CheckInProjectContent() {
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <p className="font-black text-slate-800 text-sm">{proj.project_name}</p>
-                                                {proj.location && (
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">📍 {proj.location}</p>
-                                                )}
-                                                {proj.client && (
-                                                    <p className="text-[10px] text-slate-400">🏢 {proj.client}</p>
-                                                )}
+
                                             </div>
                                             <span className="text-blue-500 font-black text-sm">→</span>
                                         </div>
