@@ -141,7 +141,7 @@ function TransferContent() {
         const picSig = getSig(canvasPic);
 
         // LIMIT DITURUNIN JADI 1400 biar coretan simpel tetap lolos
-        if (!picSig || picSig.length < 1400) {
+        if (!picSig || picSig.length < 1000) {
             alert('Tanda tangan pembuat/PIC wajib diisi dengan jelas.');
             return;
         }
