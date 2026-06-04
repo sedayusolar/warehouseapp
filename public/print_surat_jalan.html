@@ -3,9 +3,24 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Surat Jalan - SEDAYUSolar</title>
+    <title>Surat Jalan — SEDAYUSolar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap"
+        rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
+        :root {
+            --green: #0a3d22;
+            --green-2: #1a6b3c;
+            --green-3: #eaf4ee;
+            --ink: #111;
+            --muted: #6b7280;
+            --rule: #e5e7eb;
+            --rule-2: #f0f0f0;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,242 +28,470 @@
         }
 
         body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            color: #000;
-            background: #fff;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            color: var(--ink);
+            background: #f3f4f6;
         }
 
+        /* ── Print bar ── */
+        .no-print {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #fff;
+            border-bottom: 1px solid var(--rule);
+            padding: 11px 20px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-print {
+            background: var(--green);
+            color: #fff;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 5px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 600;
+            font-size: 12.5px;
+            cursor: pointer;
+            letter-spacing: 0.2px;
+        }
+
+        .btn-close {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--rule);
+            padding: 8px 18px;
+            border-radius: 5px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: 12.5px;
+            cursor: pointer;
+        }
+
+        /* ── Page ── */
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 15mm 15mm 10mm 15mm;
-            margin: 0 auto;
+            background: #fff;
+            margin: 20px auto;
+            padding: 13mm 13mm 11mm;
         }
 
-        .header {
-            text-align: center;
-            border-bottom: 3px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 14px;
-        }
-
-        .company-address {
-            font-size: 10px;
-            color: #444;
-            line-height: 1.6;
-        }
-
-        .doc-title {
-            text-align: center;
-            margin: 12px 0 6px;
-        }
-
-        .doc-title h2 {
-            font-size: 15px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            border: 2px solid #000;
-            display: inline-block;
-            padding: 4px 20px;
-        }
-
-        .doc-subtitle {
-            font-size: 10px;
-            color: #555;
-            margin-top: 4px;
-        }
-
-        .meta-row {
+        /* ── Header ── */
+        .doc-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin: 14px 0 10px;
-            gap: 12px;
+            padding-bottom: 14px;
+            border-bottom: 2.5px solid var(--ink);
+            margin-bottom: 18px;
         }
 
-        .meta-left {
-            font-size: 11px;
-            line-height: 1.8;
-            flex: 1;
+        .brand-logo {
+            height: 38px;
+            width: auto;
+            display: block;
+            margin-bottom: 5px;
         }
 
-        .meta-center {
+        .brand-name {
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--green);
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+
+        .brand-addr {
+            font-size: 8.5px;
+            color: var(--muted);
+            line-height: 1.7;
+            margin-top: 2px;
+        }
+
+        .doc-title-block {
             text-align: right;
-            font-size: 11px;
-            flex-shrink: 0;
         }
 
-        .meta-qr {
-            flex-shrink: 0;
+        .doc-eyebrow {
+            font-size: 8px;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+        }
+
+        .doc-type-name {
+            font-size: 22px;
+            font-weight: 300;
+            color: var(--ink);
+            letter-spacing: -0.8px;
+            line-height: 1.1;
+            margin: 3px 0 7px;
+        }
+
+        .doc-code {
+            display: inline-block;
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--green-2);
+            background: var(--green-3);
+            padding: 3px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.4px;
+        }
+
+        /* ── Meta row ── */
+        .meta-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 20px;
+            align-items: start;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--rule);
+            margin-bottom: 16px;
+        }
+
+        .to-label {
+            font-size: 8px;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+
+        .to-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .to-proj {
+            font-size: 10px;
+            color: var(--green-2);
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        .ref-row {
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ref-badge {
+            font-size: 7.5px;
+            font-weight: 600;
+            color: var(--muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .ref-val {
+            font-family: 'DM Mono', monospace;
+            font-size: 8px;
+            color: #aaa;
+        }
+
+        .date-block {
+            text-align: right;
+        }
+
+        .date-label {
+            font-size: 8px;
+            color: var(--muted);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .date-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ink);
+            margin-top: 3px;
+        }
+
+        .qr-block {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 4px;
         }
 
-        .meta-qr #qr-canvas {
-            border: 1px solid #ddd;
+        #qr-canvas {
+            border: 1px solid var(--rule);
             border-radius: 4px;
             padding: 3px;
             background: #fff;
         }
 
-        .meta-qr .qr-label {
-            font-size: 8px;
-            color: #888;
+        .qr-hint {
+            font-size: 7px;
+            color: var(--muted);
             text-align: center;
-            line-height: 1.3;
-            max-width: 80px;
+            line-height: 1.5;
+            max-width: 68px;
         }
 
-        .doc-number {
-            font-size: 18px;
-            font-weight: bold;
-            color: #000;
-        }
-
-        .meta-center .label {
+        /* ── Intro ── */
+        .intro {
             font-size: 10px;
-            color: #666;
+            color: var(--muted);
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        /* ── Table ── */
+        .table-wrap {
+            border: 1px solid var(--rule);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 18px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 6px 0 14px;
+        }
+
+        thead tr {
+            background: var(--green);
         }
 
         th {
-            background: #1a6b3c;
             color: #fff;
-            font-size: 11px;
-            padding: 7px 6px;
+            font-size: 8px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            text-align: left;
+            border: none;
+        }
+
+        th.c {
             text-align: center;
-            border: 1px solid #1a6b3c;
         }
 
         td {
-            border: 1px solid #999;
-            padding: 7px 8px;
-            font-size: 11px;
+            padding: 8px 10px;
+            font-size: 10.5px;
+            color: var(--ink);
+            border-bottom: 1px solid var(--rule-2);
             vertical-align: middle;
         }
 
-        tr:nth-child(even) td {
-            background: #f8fafb;
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:nth-child(even) td {
+            background: #fafafa;
         }
 
         .td-no {
             text-align: center;
-            width: 32px;
+            font-family: 'DM Mono', monospace;
+            font-size: 9px;
+            color: var(--muted);
+            width: 28px;
         }
 
         .td-qty {
             text-align: center;
-            width: 60px;
-            font-weight: bold;
+            font-weight: 600;
+            width: 50px;
         }
 
         .td-unit {
             text-align: center;
-            width: 60px;
-        }
-
-        .td-check {
-            text-align: center;
+            color: var(--muted);
             width: 50px;
         }
 
+        .td-chk {
+            text-align: center;
+            width: 40px;
+            color: var(--green-2);
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .i-name {
+            font-weight: 500;
+        }
+
+        .i-qr {
+            font-family: 'DM Mono', monospace;
+            font-size: 8px;
+            color: #bbb;
+            margin-top: 1px;
+        }
+
+        .i-loc {
+            font-size: 10px;
+            color: #666;
+        }
+
         .empty-row td {
-            height: 28px;
+            height: 24px;
+            border-bottom: 1px solid var(--rule-2);
         }
 
-        .project-info {
-            margin: 8px 0 16px;
-            font-size: 11px;
-            line-height: 2.2;
+        /* ── Info grid ── */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            border: 1px solid var(--rule);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
         }
 
-        .project-info .row {
-            display: flex;
-            gap: 0;
+        .info-cell {
+            padding: 9px 12px;
+            border-right: 1px solid var(--rule);
         }
 
-        .project-info .key {
-            width: 110px;
-            font-weight: bold;
+        .info-cell:last-child {
+            border-right: none;
         }
 
-        .project-info .colon {
-            width: 10px;
+        .ic-label {
+            font-size: 7.5px;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
         }
 
-        .project-info .val {
-            border-bottom: 1px solid #333;
-            flex: 1;
-            padding-left: 4px;
-            min-height: 20px;
+        .ic-val {
+            font-size: 10.5px;
+            font-weight: 500;
+            border-bottom: 1px solid var(--rule);
+            padding-bottom: 4px;
+            min-height: 18px;
         }
 
-        .signatures {
+        /* ── Signatures ── */
+        .sig-heading {
+            font-size: 8px;
+            font-weight: 500;
+            color: var(--muted);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .sig-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 20px;
+            gap: 1px;
+            background: var(--rule);
+            border: 1px solid var(--rule);
+            border-radius: 6px;
+            overflow: hidden;
         }
 
-        .sig-box {
+        .sig-cell {
+            background: #fff;
+            padding: 10px 8px;
             text-align: center;
         }
 
-        .sig-box .sig-label {
-            font-size: 10px;
-            font-weight: bold;
-            margin-bottom: 4px;
+        .sig-role {
+            font-size: 7.5px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 6px;
         }
 
-        .sig-box .sig-img-area {
-            height: 70px;
+        .sig-img {
+            height: 58px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
 
-        .sig-box .sig-img-area img {
-            max-height: 65px;
+        .sig-img img {
+            max-height: 54px;
             max-width: 100%;
             object-fit: contain;
         }
 
-        .sig-box .sig-blank {
-            height: 70px;
+        .sig-blank {
+            height: 58px;
+            margin-bottom: 6px;
         }
 
-        .sig-box .sig-line {
-            border-top: 1px solid #000;
+        .sig-line {
+            border-top: 1.5px solid var(--ink);
             padding-top: 4px;
         }
 
-        .sig-box .sig-name {
-            font-size: 10px;
-            min-height: 16px;
-            font-weight: bold;
+        .sig-name {
+            font-size: 9.5px;
+            font-weight: 600;
+            min-height: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .sig-box .sig-role {
-            font-size: 9px;
-            color: #666;
+        .sig-sub {
+            font-size: 7.5px;
+            color: var(--muted);
+            margin-top: 1px;
         }
 
-        .footer-note {
+        /* ── Footer ── */
+        .doc-footer {
             margin-top: 16px;
-            font-size: 9px;
-            color: #666;
-            border-top: 1px dashed #ccc;
-            padding-top: 8px;
-            line-height: 1.6;
+            padding-top: 10px;
+            border-top: 1px dashed var(--rule);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .footnotes p {
+            font-size: 7.5px;
+            color: var(--muted);
+            line-height: 1.8;
+        }
+
+        .footnotes p::before {
+            content: '—  ';
+        }
+
+        .print-stamp {
+            text-align: right;
+        }
+
+        .ps-label {
+            font-size: 7px;
+            color: #d1d5db;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .ps-val {
+            font-family: 'DM Mono', monospace;
+            font-size: 8px;
+            color: #d1d5db;
         }
 
         @media print {
@@ -257,11 +500,18 @@
             }
 
             .page {
+                margin: 0;
                 padding: 10mm 12mm;
             }
 
             .no-print {
                 display: none !important;
+            }
+
+            .table-wrap,
+            .info-grid,
+            .sig-grid {
+                border-radius: 0 !important;
             }
         }
     </style>
@@ -269,133 +519,134 @@
 
 <body>
 
-    <div class="no-print"
-        style="text-align:center; padding: 16px; background: #f1f5f9; position: sticky; top: 0; z-index: 10; display: flex; gap: 12px; justify-content: center;">
-        <button onclick="window.print()"
-            style="background:#1a6b3c; color:#fff; border:none; padding: 10px 32px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">🖨️
-            Print / Save PDF</button>
-        <button onclick="window.close()"
-            style="background:#64748b; color:#fff; border:none; padding: 10px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;">✕
-            Tutup</button>
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
+        <button class="btn-close" onclick="window.close()">✕ Tutup</button>
     </div>
 
-    <div class="page" id="sj-content">
+    <div class="page">
 
-        <div class="header">
-            <div style="margin-bottom: 6px;">
-                <img src="https://sedayu.com/wp-content/uploads/2021/10/cropped-new-sedayu.png"
-                    style="height: 64px; width: auto; object-fit: contain;" alt="SEDAYUSolar" />
+        <!-- HEADER -->
+        <div class="doc-header">
+            <div>
+                <img class="brand-logo" src="https://sedayu.com/wp-content/uploads/2021/10/cropped-new-sedayu.png"
+                    alt="SEDAYUSolar">
+                <div class="brand-name">PT. Selaras Daya Utama</div>
+                <div class="brand-addr">
+                    Jl. Raya Kebayoran Lama No. 156, Kebon Jeruk — Jakarta Barat 11560<br>
+                    (021) 5321490 &nbsp;·&nbsp; office@sedayu.com
+                </div>
             </div>
-            <div style="font-size: 12px; font-weight: bold; color: #1a6b3c; margin: 4px 0 2px; letter-spacing: 1px;">
-                PT. SELARAS DAYA UTAMA
-            </div>
-            <div class="company-address">
-                Jl. Raya Kebayoran Lama No. 156 Kebon Jeruk - Jakarta Barat 11560<br>
-                Tlp : (021) 5321490 | Email : office@sedayu.com
+            <div class="doc-title-block">
+                <div class="doc-eyebrow">Dokumen Pengiriman</div>
+                <div class="doc-type-name">Surat Jalan</div>
+                <div class="doc-code" id="sj-no">—</div>
             </div>
         </div>
 
-        <div class="doc-title">
-            <h2>SURAT JALAN (DELIVERY ORDER)</h2>
-            <div class="doc-subtitle" id="sj-ref-text">Dokumen pengeluaran barang dari gudang</div>
-        </div>
-
+        <!-- META -->
         <div class="meta-row">
-            <div class="meta-left">
-                Kepada Yang Terhormat,<br>
-                <strong id="sj-pic">—</strong><br>
-                <span id="sj-project" style="color:#1a6b3c; font-weight:bold;">Project: —</span>
+            <div>
+                <div class="to-label">Kepada</div>
+                <div class="to-name" id="sj-pic">—</div>
+                <div class="to-proj" id="sj-project"></div>
+                <div class="ref-row">
+                    <span class="ref-badge">Ref</span>
+                    <span class="ref-val" id="sj-ref-text">—</span>
+                </div>
             </div>
-
-            <div class="meta-center">
-                <div class="label">No</div>
-                <div class="doc-number" id="sj-no">—</div>
-                <div class="label" style="margin-top:6px;">Tanggal</div>
-                <div style="font-size:13px; font-weight:bold;" id="sj-date">—</div>
+            <div class="date-block">
+                <div class="date-label">Tanggal</div>
+                <div class="date-value" id="sj-date">—</div>
             </div>
-
-            <div class="meta-qr">
+            <div class="qr-block">
                 <div id="qr-canvas"></div>
-                <div class="qr-label">Scan untuk<br>cek dokumen</div>
+                <div class="qr-hint">Scan untuk verifikasi</div>
             </div>
         </div>
 
-        <div style="font-size:11px; margin-bottom: 8px;">
-            Bersama ini kami kirimkan detail barang - barang seperti tercantum di bawah ini :
+        <!-- INTRO -->
+        <div class="intro">Bersama ini kami kirimkan barang-barang sebagai berikut:</div>
+
+        <!-- TABLE -->
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:28px;" class="c">#</th>
+                        <th>Nama Barang</th>
+                        <th class="c" style="width:50px;">Qty</th>
+                        <th class="c" style="width:50px;">Satuan</th>
+                        <th>Lokasi Ambil</th>
+                        <th class="c" style="width:40px;">✓</th>
+                    </tr>
+                </thead>
+                <tbody id="sj-items"></tbody>
+            </table>
         </div>
 
-        <table id="sj-table">
-            <thead>
-                <tr>
-                    <th class="td-no">No</th>
-                    <th>Nama Barang</th>
-                    <th class="td-qty">Jumlah</th>
-                    <th class="td-unit">Satuan</th>
-                    <th>Lokasi Ambil</th>
-                    <th class="td-check">Ceklis</th>
-                </tr>
-            </thead>
-            <tbody id="sj-items"></tbody>
-        </table>
-
-        <div class="project-info">
-            <div class="row">
-                <span class="key">Project</span>
-                <span class="colon">:</span>
-                <span class="val" id="sj-proj-val"></span>
+        <!-- INFO GRID -->
+        <div class="info-grid">
+            <div class="info-cell">
+                <div class="ic-label">Project</div>
+                <div class="ic-val" id="sj-proj-val"></div>
             </div>
-            <div class="row" style="margin-top:6px;">
-                <span class="key">Alamat Pengiriman</span>
-                <span class="colon">:</span>
-                <span class="val" id="sj-addr-val"></span>
+            <div class="info-cell">
+                <div class="ic-label">Alamat Pengiriman</div>
+                <div class="ic-val"></div>
             </div>
-            <div class="row" style="margin-top:6px;">
-                <span class="key">Tanggal Terima</span>
-                <span class="colon">:</span>
-                <span class="val"></span>
+            <div class="info-cell">
+                <div class="ic-label">Tanggal Terima</div>
+                <div class="ic-val"></div>
             </div>
         </div>
 
-        <div class="signatures">
-            <div class="sig-box">
-                <div class="sig-label">Penerima</div>
-                <div class="sig-img-area" id="sig-pic-area"></div>
+        <!-- SIGNATURES -->
+        <div class="sig-heading">Tanda Tangan</div>
+        <div class="sig-grid">
+            <div class="sig-cell">
+                <div class="sig-role">Penerima</div>
+                <div class="sig-img" id="sig-pic-area"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name" id="sj-penerima">—</div>
-                <div class="sig-role">PIC / Engineer</div>
+                <div class="sig-sub">PIC / Engineer</div>
             </div>
-            <div class="sig-box">
-                <div class="sig-label">Pengirim</div>
-                <div class="sig-img-area" id="sig-staff-area"></div>
+            <div class="sig-cell">
+                <div class="sig-role">Pengirim</div>
+                <div class="sig-img" id="sig-staff-area"></div>
                 <div class="sig-line"></div>
                 <div class="sig-name" id="sj-pengirim">—</div>
-                <div class="sig-role">Staff Gudang</div>
+                <div class="sig-sub">Staff Gudang</div>
             </div>
-            <!-- FIX: Supir — dinamis dari DB -->
-            <div class="sig-box">
-                <div class="sig-label">Supir</div>
-                <div class="sig-img-area" id="sig-driver-area"></div>
+            <div class="sig-cell">
+                <div class="sig-role">Supir</div>
+                <div class="sig-img" id="sig-driver-area"></div>
                 <div class="sig-line"></div>
-                <div class="sig-name" id="sj-driver-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                    )</div>
-                <div class="sig-role">&nbsp;</div>
+                <div class="sig-name" id="sj-driver-name">&nbsp;</div>
+                <div class="sig-sub">&nbsp;</div>
             </div>
-            <!-- FIX: Keamanan — dinamis dari DB -->
-            <div class="sig-box">
-                <div class="sig-label">Keamanan</div>
-                <div class="sig-img-area" id="sig-security-area"></div>
+            <div class="sig-cell">
+                <div class="sig-role">Keamanan</div>
+                <div class="sig-img" id="sig-security-area"></div>
                 <div class="sig-line"></div>
-                <div class="sig-name" id="sj-security-name">(
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
-                <div class="sig-role">&nbsp;</div>
+                <div class="sig-name" id="sj-security-name">&nbsp;</div>
+                <div class="sig-sub">&nbsp;</div>
             </div>
         </div>
 
-        <div class="footer-note">
-            * Dokumen ini merupakan bukti pengeluaran barang yang sah dari gudang SEDAYUSolar.<br>
-            * Barang yang sudah keluar tidak dapat dikembalikan tanpa persetujuan Manager.<br>
-            * Harap periksa barang sesuai daftar sebelum tanda tangan.
+        <!-- FOOTER -->
+        <div class="doc-footer">
+            <div class="footnotes">
+                <p>Dokumen ini merupakan bukti pengeluaran barang yang sah dari gudang SEDAYUSolar.</p>
+                <p>Barang yang sudah keluar tidak dapat dikembalikan tanpa persetujuan Manager.</p>
+                <p>Harap periksa barang sesuai daftar sebelum menandatangani dokumen ini.</p>
+            </div>
+            <div class="print-stamp">
+                <div class="ps-label">Dicetak</div>
+                <div class="ps-val" id="print-ts">—</div>
+            </div>
         </div>
+
     </div>
 
     <script>
@@ -408,7 +659,6 @@
         const pengirim = p.get('pengirim') || '—';
         const staffSigUrl = p.get('staff_sig') || '';
         const picSigUrl = p.get('pic_sig') || '';
-        // FIX: baca params supir & security
         const driverName = p.get('driver_name') || '';
         const driverSigUrl = p.get('driver_sig') || '';
         const securityName = p.get('security_name') || '';
@@ -416,102 +666,66 @@
         const baseUrl = p.get('base_url') || 'https://sedayu.com/api/warehouse';
 
         let items = [];
-        try {
-            items = JSON.parse(p.get('items') || '[]');
-        } catch (e) {
-            try { items = JSON.parse(decodeURIComponent(p.get('items') || '[]')); } catch (e2) { }
-        }
+        try { items = JSON.parse(p.get('items') || '[]'); }
+        catch (e) { try { items = JSON.parse(decodeURIComponent(p.get('items') || '[]')); } catch (e2) { } }
 
         function formatDate(d) {
             if (!d) return '—';
             const [y, m, day] = d.split('-');
-            const months = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-            return `${parseInt(day)} ${months[parseInt(m)]} ${y}`;
+            const mn = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return `${parseInt(day)} ${mn[parseInt(m)]} ${y}`;
         }
 
-        // Fill meta
+        // Fill
         document.getElementById('sj-no').textContent = trxCode;
         document.getElementById('sj-date').textContent = formatDate(date);
         document.getElementById('sj-pic').textContent = pic;
-        document.getElementById('sj-project').textContent = 'Project: ' + project;
+        document.getElementById('sj-project').textContent = project !== '—' ? '📋 ' + project : '';
         document.getElementById('sj-proj-val').textContent = project;
-        document.getElementById('sj-ref-text').textContent = 'Ref: ' + trxCode + ' — Asli harap dikembalikan ke PT. SELARAS DAYA UTAMA';
+        document.getElementById('sj-ref-text').textContent = trxCode;
         document.getElementById('sj-penerima').textContent = pic || '—';
         document.getElementById('sj-pengirim').textContent = pengirim || '—';
 
-        // QR Code
-        const qrUrl = trxId
-            ? 'https://warehouse.sedayu.com/transactions/' + trxId
-            : 'https://warehouse.sedayu.com/transactions';
+        const now = new Date();
+        document.getElementById('print-ts').textContent =
+            now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+            now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+        // QR
         new QRCode(document.getElementById('qr-canvas'), {
-            text: qrUrl,
-            width: 80, height: 80,
-            colorDark: '#000000', colorLight: '#ffffff',
+            text: trxId ? 'https://warehouse.sedayu.com/transactions/' + trxId : 'https://warehouse.sedayu.com',
+            width: 68, height: 68, colorDark: '#000', colorLight: '#fff',
             correctLevel: QRCode.CorrectLevel.M
         });
 
-        // TTD Staff Gudang
-        if (staffSigUrl) {
-            const area = document.getElementById('sig-staff-area');
+        function addSig(areaId, url) {
+            if (!url) return;
             const img = document.createElement('img');
-            img.src = baseUrl + '/' + staffSigUrl;
-            img.alt = 'TTD Pengirim';
-            area.appendChild(img);
+            img.src = baseUrl + '/' + url;
+            document.getElementById(areaId).appendChild(img);
         }
+        addSig('sig-staff-area', staffSigUrl);
+        addSig('sig-pic-area', picSigUrl);
+        addSig('sig-driver-area', driverSigUrl);
+        addSig('sig-security-area', securitySigUrl);
 
-        // TTD PIC / Engineer
-        if (picSigUrl) {
-            const area = document.getElementById('sig-pic-area');
-            const img = document.createElement('img');
-            img.src = baseUrl + '/' + picSigUrl;
-            img.alt = 'TTD Penerima';
-            area.appendChild(img);
-        }
+        if (driverName) document.getElementById('sj-driver-name').textContent = driverName;
+        if (securityName) document.getElementById('sj-security-name').textContent = securityName;
 
-        // FIX: TTD Supir
-        if (driverName) {
-            document.getElementById('sj-driver-name').textContent = driverName;
-        }
-        if (driverSigUrl) {
-            const area = document.getElementById('sig-driver-area');
-            const img = document.createElement('img');
-            img.src = baseUrl + '/' + driverSigUrl;
-            img.alt = 'TTD Supir';
-            area.appendChild(img);
-        }
-
-        // FIX: TTD Keamanan
-        if (securityName) {
-            document.getElementById('sj-security-name').textContent = securityName;
-        }
-        if (securitySigUrl) {
-            const area = document.getElementById('sig-security-area');
-            const img = document.createElement('img');
-            img.src = baseUrl + '/' + securitySigUrl;
-            img.alt = 'TTD Security';
-            area.appendChild(img);
-        }
-
-        // Fill table items
+        // Items
         const tbody = document.getElementById('sj-items');
-        items.forEach((item, idx) => {
+        items.forEach((item, i) => {
             const tr = document.createElement('tr');
-            const lokasiText = item.location_name || item.location || '—';
             tr.innerHTML = `
-                <td class="td-no">${idx + 1}</td>
-                <td>
-                    <strong>${item.name}</strong>
-                    ${item.qr_id ? '<br><span style="font-size:9px;color:#999;font-family:monospace">' + item.qr_id + '</span>' : ''}
-                </td>
-                <td class="td-qty">${item.qty}</td>
-                <td class="td-unit">${item.unit || 'pcs'}</td>
-                <td style="font-size:10px;color:#333">${lokasiText}</td>
-                <td class="td-check">✓</td>
-            `;
+            <td class="td-no">${i + 1}</td>
+            <td><div class="i-name">${item.name}</div>${item.qr_id ? `<div class="i-qr">${item.qr_id}</div>` : ''}</td>
+            <td class="td-qty">${item.qty}</td>
+            <td class="td-unit">${item.unit || 'pcs'}</td>
+            <td class="i-loc">${item.location_name || item.location || '—'}</td>
+            <td class="td-chk">✓</td>
+        `;
             tbody.appendChild(tr);
         });
-
-        // Empty rows padding
         for (let i = items.length; i < 8; i++) {
             const tr = document.createElement('tr');
             tr.className = 'empty-row';
