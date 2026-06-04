@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import Navbar from '../../../components/Navbar';
+import Navbar from '../../components/Navbar';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
