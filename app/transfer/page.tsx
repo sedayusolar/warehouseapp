@@ -34,6 +34,7 @@ function TransferContent() {
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
     const [drawing, setDrawing] = useState<string | null>(null);
+    const [picSigData, setPicSigData] = useState<string>(''); // simpan sig saat pindah ke confirm
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -133,7 +134,7 @@ function TransferContent() {
     const handleSubmit = async (submitStatus: 'DRAFT' | 'SUBMITTED') => {
         if (cart.length === 0) { alert('Pilih minimal 1 item.'); return; }
         if (!picName.trim()) { alert('Nama PIC wajib diisi.'); return; }
-        if (!isCanvasSigned(canvasPic)) { alert('Tanda tangan PIC wajib diisi.'); return; }
+        if (!picSigData) { alert('Tanda tangan PIC belum tersimpan, kembali ke step TTD.'); return; }
 
         setSubmitting(true); setError('');
         try {
@@ -150,7 +151,7 @@ function TransferContent() {
                     pic_name: picName,
                     note,
                     created_by: user?.name || 'unknown',
-                    pic_signature_base64: getSig(canvasPic),
+                    pic_signature_base64: picSigData,
                     driver_name: '',
                     security_name: '',
                     driver_signature_base64: '',
@@ -409,7 +410,12 @@ function TransferContent() {
                             </div>
                         </div>
 
-                        <button onClick={() => setStep('confirm')}
+                        <button onClick={() => {
+                            if (!picName.trim()) { alert('Nama PIC wajib diisi.'); return; }
+                            if (!isCanvasSigned(canvasPic)) { alert('Tanda tangan PIC wajib diisi.'); return; }
+                            setPicSigData(getSig(canvasPic));
+                            setStep('confirm');
+                        }}
                             className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all">
                             Review & Konfirmasi →
                         </button>
@@ -455,8 +461,8 @@ function TransferContent() {
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Pembuat Transfer</p>
                             <div className="flex items-center gap-4">
                                 <div className="w-20 h-14 border border-slate-100 rounded-xl overflow-hidden bg-slate-50 flex-shrink-0">
-                                    {isCanvasSigned(canvasPic)
-                                        ? <img src={getSig(canvasPic)} className="w-full h-full object-contain" alt="TTD" />
+                                    {picSigData
+                                        ? <img src={picSigData} className="w-full h-full object-contain" alt="TTD" />
                                         : <span className="text-[9px] text-slate-300 flex items-center justify-center h-full">—</span>
                                     }
                                 </div>
