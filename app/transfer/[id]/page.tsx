@@ -41,7 +41,7 @@ function TransferDetailContent() {
             if (r.status === 'success') {
                 setData(r.data);
             } else {
-                setError(r.message || 'Data tidak ditemukan.');
+                setError(r.message || 'Data tidak ditemukan!.');
             }
         } catch {
             setError('Gagal mengambil data dari server.');

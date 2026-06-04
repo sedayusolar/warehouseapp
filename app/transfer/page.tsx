@@ -507,7 +507,7 @@ function TransferContent() {
 
                         {/* Signatories summary (Hanya PIC) */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Pembuat Transaksi</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Pembuat Transaksi!</p>
                             <div className="flex justify-center">
                                 <div className="text-center w-2/3">
                                     <div className="h-24 border border-slate-100 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center">
