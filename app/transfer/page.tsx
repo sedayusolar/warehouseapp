@@ -24,10 +24,8 @@ function TransferContent() {
     const [projectName, setProjectName] = useState('');
     const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Signatories
+    // Signatories (Hanya PIC/Pembuat di tahap ini)
     const [picName, setPicName] = useState('');
-    const [driverName, setDriverName] = useState('');
-    const [securityName, setSecurityName] = useState('');
     const [note, setNote] = useState('');
 
     const [loadingStock, setLoadingStock] = useState(false);
@@ -35,10 +33,8 @@ function TransferContent() {
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
 
-    // Signature canvases
+    // Signature canvas (Hanya PIC)
     const canvasPic = useRef<HTMLCanvasElement>(null);
-    const canvasDriver = useRef<HTMLCanvasElement>(null);
-    const canvasSecurity = useRef<HTMLCanvasElement>(null);
     const [drawing, setDrawing] = useState<string | null>(null);
 
     // ── Init ──
@@ -99,7 +95,7 @@ function TransferContent() {
         ));
     };
 
-    // ── Signature (Telah diperbaiki tipe datanya untuk Vercel) ──
+    // ── Signature Helpers (Vercel Safe) ──
     const startDraw = (e: any, ref: any, id: string) => {
         const canvas = ref.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
@@ -137,16 +133,13 @@ function TransferContent() {
         setStep('items');
     };
 
-    // ── Submit ──
-    const handleSubmit = async () => {
+    // ── Submit (Bisa Draft atau Submit Approval) ──
+    const handleSubmit = async (submitStatus: 'DRAFT' | 'SUBMITTED') => {
         if (cart.length === 0) { alert('Pilih minimal 1 item.'); return; }
         if (!picName.trim()) { alert('Nama PIC wajib diisi.'); return; }
 
         const picSig = getSig(canvasPic);
-        const driverSig = getSig(canvasDriver);
-        const securitySig = getSig(canvasSecurity);
-
-        if (!picSig || picSig.length < 2000) { alert('Tanda tangan PIC wajib diisi.'); return; }
+        if (!picSig || picSig.length < 2000) { alert('Tanda tangan pembuat/PIC wajib diisi.'); return; }
 
         setSubmitting(true);
         setError('');
@@ -155,19 +148,21 @@ function TransferContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
+                    status: submitStatus, // Mengirim status draft atau submitted ke backend
                     project_id: projectId ? parseInt(projectId) : null,
                     project_name: projectName,
                     from_location_id: parseInt(fromLocId),
                     to_location_id: parseInt(toLocId),
                     transfer_date: transferDate,
                     pic_name: picName,
-                    driver_name: driverName,
-                    security_name: securityName,
                     note,
                     created_by: user?.name || 'unknown',
                     pic_signature_base64: picSig,
-                    driver_signature_base64: driverSig,
-                    security_signature_base64: securitySig,
+                    // Mengirim kosong untuk supir & security agar backend tidak error
+                    driver_name: '',
+                    security_name: '',
+                    driver_signature_base64: '',
+                    security_signature_base64: '',
                     items: cart.map(i => ({
                         qr_id: i.qr_id,
                         item_name: i.item_name,
@@ -177,8 +172,12 @@ function TransferContent() {
                 }),
             });
             const r = await res.json();
-            if (r.status === 'success') setSuccess(r.sj_code);
-            else setError(r.message || 'Terjadi kesalahan.');
+            if (r.status === 'success') {
+                // Menambahkan flag sukses spesifik untuk UI
+                setSuccess(`${r.sj_code}|${submitStatus}`);
+            } else {
+                setError(r.message || 'Terjadi kesalahan.');
+            }
         } catch { setError('Gagal koneksi ke server.'); }
         setSubmitting(false);
     };
@@ -189,27 +188,38 @@ function TransferContent() {
     if (!user) return null;
 
     // ── SUCCESS ──
-    if (success) return (
-        <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 text-center space-y-4 max-w-sm w-full">
-                <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto text-3xl">🚚</div>
-                <p className="font-black text-slate-800 text-xl">Transfer Disubmit!</p>
-                <p className="font-mono text-violet-600 font-bold text-sm bg-violet-50 px-3 py-1.5 rounded-xl">{success}</p>
-                <p className="text-xs text-slate-500">Menunggu approval Manager. Stok akan dipindahkan setelah disetujui.</p>
-                <div className="space-y-2 pt-2">
-                    <button onClick={() => router.push('/transactions')}
-                        className="w-full bg-slate-800 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-md">
-                        📋 Lihat Transaksi
-                    </button>
-                    <button onClick={() => { setSuccess(''); setStep('setup'); setCart([]); setFromLocId(''); setToLocId(''); setProjectId(''); setProjectName(''); }}
-                        className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">
-                        ＋ Transfer Baru
-                    </button>
+    if (success) {
+        const [sjCode, finalStatus] = success.split('|');
+        return (
+            <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 text-center space-y-4 max-w-sm w-full">
+                    <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto text-3xl">
+                        {finalStatus === 'DRAFT' ? '💾' : '🚚'}
+                    </div>
+                    <p className="font-black text-slate-800 text-xl">
+                        {finalStatus === 'DRAFT' ? 'Draft Disimpan!' : 'Transfer Diajukan!'}
+                    </p>
+                    <p className="font-mono text-violet-600 font-bold text-sm bg-violet-50 px-3 py-1.5 rounded-xl">{sjCode}</p>
+                    <p className="text-xs text-slate-500">
+                        {finalStatus === 'DRAFT'
+                            ? 'Dokumen transfer berhasil disimpan sebagai draft dan belum masuk antrean approval.'
+                            : 'Menunggu approval Manager. TTD Supir & Security akan dilakukan saat eksekusi.'}
+                    </p>
+                    <div className="space-y-2 pt-2">
+                        <button onClick={() => router.push('/transactions')}
+                            className="w-full bg-slate-800 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-md">
+                            📋 Lihat Transaksi
+                        </button>
+                        <button onClick={() => { setSuccess(''); setStep('setup'); setCart([]); setFromLocId(''); setToLocId(''); setProjectId(''); setProjectName(''); }}
+                            className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">
+                            ＋ Transfer Baru
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <Navbar />
-        </main>
-    );
+                <Navbar />
+            </main>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
@@ -324,7 +334,6 @@ function TransferContent() {
                 {/* ══════ STEP 2: PILIH ITEM ══════ */}
                 {step === 'items' && (
                     <div className="space-y-4">
-                        {/* Route info */}
                         <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4">
                             <p className="text-[9px] font-black text-violet-400 uppercase tracking-widest">Rute Transfer</p>
                             <div className="flex items-center gap-3 mt-1">
@@ -335,7 +344,6 @@ function TransferContent() {
                             {projectName && <p className="text-[10px] text-slate-400 mt-1">📋 {projectName}</p>}
                         </div>
 
-                        {/* Cart summary */}
                         {cart.length > 0 && (
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
@@ -368,7 +376,6 @@ function TransferContent() {
                             </div>
                         )}
 
-                        {/* Stock list */}
                         <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">
                                 Stok di {fromLoc?.location_name}
@@ -420,19 +427,19 @@ function TransferContent() {
                     </div>
                 )}
 
-                {/* ══════ STEP 3: TANDA TANGAN ══════ */}
+                {/* ══════ STEP 3: TANDA TANGAN (HANYA PIC) ══════ */}
                 {step === 'sign' && (
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Tanda Tangan</p>
-                            <p className="text-xs text-slate-500 ml-1">PIC, Supir, dan Security wajib tanda tangan untuk validasi transfer.</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Tanda Tangan Pembuat</p>
+                            <p className="text-xs text-slate-500 ml-1">Tanda tangan Supir dan Security akan dilakukan pada saat eksekusi barang (setelah di-Approve).</p>
                         </div>
 
                         {/* PIC */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center text-sm">👤</div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PIC / Engineer *</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pembuat / PIC *</p>
                             </div>
                             <input type="text" placeholder="Nama PIC *" value={picName} onChange={e => setPicName(e.target.value)}
                                 className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
@@ -441,62 +448,14 @@ function TransferContent() {
                                     <label className="text-[9px] font-black text-slate-400 uppercase">Tanda Tangan PIC *</label>
                                     <button onClick={() => clearCanvas(canvasPic)} className="text-[10px] text-blue-500 font-black uppercase">Reset</button>
                                 </div>
-                                <canvas ref={canvasPic} width={500} height={160}
+                                <canvas ref={canvasPic} width={500} height={200}
                                     onMouseDown={e => startDraw(e, canvasPic, 'pic')}
                                     onMouseMove={e => draw(e, canvasPic, 'pic')}
                                     onMouseUp={() => setDrawing(null)}
                                     onTouchStart={e => startDraw(e, canvasPic, 'pic')}
                                     onTouchMove={e => draw(e, canvasPic, 'pic')}
                                     onTouchEnd={() => setDrawing(null)}
-                                    className="w-full h-32 bg-slate-50 rounded-xl border-2 border-slate-200 touch-none cursor-crosshair" />
-                            </div>
-                        </div>
-
-                        {/* Supir */}
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center text-sm">🚚</div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Supir (opsional)</p>
-                            </div>
-                            <input type="text" placeholder="Nama Supir" value={driverName} onChange={e => setDriverName(e.target.value)}
-                                className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-                            <div>
-                                <div className="flex justify-between mb-1.5">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase">Tanda Tangan Supir</label>
-                                    <button onClick={() => clearCanvas(canvasDriver)} className="text-[10px] text-blue-500 font-black uppercase">Reset</button>
-                                </div>
-                                <canvas ref={canvasDriver} width={500} height={160}
-                                    onMouseDown={e => startDraw(e, canvasDriver, 'driver')}
-                                    onMouseMove={e => draw(e, canvasDriver, 'driver')}
-                                    onMouseUp={() => setDrawing(null)}
-                                    onTouchStart={e => startDraw(e, canvasDriver, 'driver')}
-                                    onTouchMove={e => draw(e, canvasDriver, 'driver')}
-                                    onTouchEnd={() => setDrawing(null)}
-                                    className="w-full h-32 bg-slate-50 rounded-xl border-2 border-slate-200 touch-none cursor-crosshair" />
-                            </div>
-                        </div>
-
-                        {/* Security */}
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center text-sm">🛡️</div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security Kantor (opsional)</p>
-                            </div>
-                            <input type="text" placeholder="Nama Security" value={securityName} onChange={e => setSecurityName(e.target.value)}
-                                className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-                            <div>
-                                <div className="flex justify-between mb-1.5">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase">Tanda Tangan Security</label>
-                                    <button onClick={() => clearCanvas(canvasSecurity)} className="text-[10px] text-blue-500 font-black uppercase">Reset</button>
-                                </div>
-                                <canvas ref={canvasSecurity} width={500} height={160}
-                                    onMouseDown={e => startDraw(e, canvasSecurity, 'security')}
-                                    onMouseMove={e => draw(e, canvasSecurity, 'security')}
-                                    onMouseUp={() => setDrawing(null)}
-                                    onTouchStart={e => startDraw(e, canvasSecurity, 'security')}
-                                    onTouchMove={e => draw(e, canvasSecurity, 'security')}
-                                    onTouchEnd={() => setDrawing(null)}
-                                    className="w-full h-32 bg-slate-50 rounded-xl border-2 border-slate-200 touch-none cursor-crosshair" />
+                                    className="w-full h-40 bg-slate-50 rounded-xl border-2 border-slate-200 touch-none cursor-crosshair" />
                             </div>
                         </div>
 
@@ -515,7 +474,6 @@ function TransferContent() {
                 {step === 'confirm' && (
                     <div className="space-y-4">
 
-                        {/* Summary header */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                             <div className="bg-violet-600 px-5 py-4">
                                 <p className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Transfer Antar Gudang</p>
@@ -544,26 +502,19 @@ function TransferContent() {
                             </div>
                         </div>
 
-                        {/* Signatories summary */}
+                        {/* Signatories summary (Hanya PIC) */}
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Penandatangan</p>
-                            <div className="grid grid-cols-3 gap-3">
-                                {[
-                                    { label: 'PIC', name: picName, icon: '👤', canvas: canvasPic },
-                                    { label: 'Supir', name: driverName || '—', icon: '🚚', canvas: canvasDriver },
-                                    { label: 'Security', name: securityName || '—', icon: '🛡️', canvas: canvasSecurity },
-                                ].map(sig => (
-                                    <div key={sig.label} className="text-center">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase mb-2">{sig.icon} {sig.label}</p>
-                                        <div className="h-16 border border-slate-100 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center">
-                                            {sig.canvas.current && getSig(sig.canvas).length > 2000
-                                                ? <img src={getSig(sig.canvas)} className="w-full h-full object-contain" alt={sig.label} />
-                                                : <span className="text-[9px] text-slate-300">—</span>
-                                            }
-                                        </div>
-                                        <p className="text-[9px] font-bold text-slate-600 mt-1 truncate">{sig.name}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Pembuat Transaksi</p>
+                            <div className="flex justify-center">
+                                <div className="text-center w-2/3">
+                                    <div className="h-24 border border-slate-100 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center">
+                                        {canvasPic.current && getSig(canvasPic).length > 2000
+                                            ? <img src={getSig(canvasPic)} className="w-full h-full object-contain" alt="PIC" />
+                                            : <span className="text-[9px] text-slate-300">—</span>
+                                        }
                                     </div>
-                                ))}
+                                    <p className="text-xs font-bold text-slate-800 mt-2 truncate">👤 {picName}</p>
+                                </div>
                             </div>
                         </div>
 
@@ -573,10 +524,17 @@ function TransferContent() {
                             </div>
                         )}
 
-                        <button onClick={handleSubmit} disabled={submitting}
-                            className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
-                            {submitting ? '⏳ Menyimpan...' : '🚚 SUBMIT TRANSFER'}
-                        </button>
+                        <div className="flex gap-3">
+                            <button onClick={() => handleSubmit('DRAFT')} disabled={submitting}
+                                className="flex-1 bg-amber-100 text-amber-700 font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-sm active:scale-95 transition-all disabled:opacity-50 border border-amber-200">
+                                {submitting ? '⏳ ...' : '💾 Simpan Draft'}
+                            </button>
+                            <button onClick={() => handleSubmit('SUBMITTED')} disabled={submitting}
+                                className="flex-1 bg-violet-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
+                                {submitting ? '⏳ Menyimpan...' : '🚀 Ajukan Approval'}
+                            </button>
+                        </div>
+
                         <button onClick={() => setStep('sign')}
                             className="w-full bg-slate-100 text-slate-400 font-black py-3 rounded-2xl text-xs uppercase">
                             ← Kembali Edit TTD

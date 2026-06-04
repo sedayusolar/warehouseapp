@@ -113,7 +113,7 @@ function TransferListContent() {
         setSubmitting(true);
         try {
             const sig = canvasRef.current?.toDataURL('image/png') || '';
-            const res = await fetch(`${BASE_URL}/approve_transfer.php`, {
+            const res = await fetch(`${BASE_URL}/update_transfer_status.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
