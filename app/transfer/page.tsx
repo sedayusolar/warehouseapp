@@ -139,7 +139,12 @@ function TransferContent() {
         if (!picName.trim()) { alert('Nama PIC wajib diisi.'); return; }
 
         const picSig = getSig(canvasPic);
-        if (!picSig || picSig.length < 2000) { alert('Tanda tangan pembuat/PIC wajib diisi.'); return; }
+
+        // LIMIT DITURUNIN JADI 1400 biar coretan simpel tetap lolos
+        if (!picSig || picSig.length < 1400) {
+            alert('Tanda tangan pembuat/PIC wajib diisi dengan jelas.');
+            return;
+        }
 
         setSubmitting(true);
         setError('');
@@ -148,7 +153,7 @@ function TransferContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
-                    status: submitStatus, // Mengirim status draft atau submitted ke backend
+                    status: submitStatus,
                     project_id: projectId ? parseInt(projectId) : null,
                     project_name: projectName,
                     from_location_id: parseInt(fromLocId),
@@ -158,7 +163,6 @@ function TransferContent() {
                     note,
                     created_by: user?.name || 'unknown',
                     pic_signature_base64: picSig,
-                    // Mengirim kosong untuk supir & security agar backend tidak error
                     driver_name: '',
                     security_name: '',
                     driver_signature_base64: '',
@@ -173,7 +177,6 @@ function TransferContent() {
             });
             const r = await res.json();
             if (r.status === 'success') {
-                // Menambahkan flag sukses spesifik untuk UI
                 setSuccess(`${r.sj_code}|${submitStatus}`);
             } else {
                 setError(r.message || 'Terjadi kesalahan.');
