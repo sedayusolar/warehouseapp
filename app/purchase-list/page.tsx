@@ -10,11 +10,14 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, 
     PENDING: { label: 'Menunggu', color: 'text-orange-600', bg: 'bg-orange-50 border-orange-200', tabColor: 'bg-orange-500 text-white' },
     PROCUREMENT_REVIEW: { label: 'Procurement', color: 'text-violet-600', bg: 'bg-violet-50 border-violet-200', tabColor: 'bg-violet-600 text-white' },
     APPROVED: { label: 'Disetujui', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', tabColor: 'bg-emerald-500 text-white' },
-    REJECTED: { label: 'Ditolak', color: 'text-red-600', bg: 'bg-red-50 border-red-200', tabColor: 'bg-red-500 text-white' },
+    PENDING_REVISION: { label: 'Perlu Revisi', color: 'text-red-600', bg: 'bg-red-50 border-red-200', tabColor: 'bg-red-500 text-white' },
+    REJECTED: { label: 'Ditolak', color: 'text-slate-600', bg: 'bg-slate-50 border-slate-200', tabColor: 'bg-slate-500 text-white' }
 };
+
 const TAB_ICON: Record<string, string> = {
-    PENDING: '⏳', PROCUREMENT_REVIEW: '📋', APPROVED: '✅', REJECTED: '❌'
+    PENDING: '⏳', PROCUREMENT_REVIEW: '📋', APPROVED: '✅', PENDING_REVISION: '❌', REJECTED: '🗑️'
 };
+
 const formatRp = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
@@ -63,8 +66,6 @@ function GRListContent() {
     const [poReviewResult, setPoReviewResult] = useState<any>(null);
     const [poReviewError, setPoReviewError] = useState('');
 
-
-
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
@@ -105,44 +106,35 @@ function GRListContent() {
         setLoadingDetail(false);
     };
 
-
-
-    // ── AI Review PO — cocokkan SJ vs PO Sedayu, extract HPP ──
     const handleReviewPo = async () => {
         if (!selected?.sj_photo_path) { alert("Foto SJ dari staff tidak ada!"); return; }
         if (!procDoc) { alert("Upload dokumen PO Sedayu dulu!"); return; }
         setReviewingPo(true); setPoReviewResult(null); setPoReviewError('');
         try {
-            // Kirim URL foto SJ ke PHP proxy — biar server yang fetch (hindari CORS)
             const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
                     mode: 'review_po',
-                    sj_image_url: `${BASE_URL}/${selected.sj_photo_path}`, // URL, bukan base64
+                    sj_image_url: `${BASE_URL}/${selected.sj_photo_path}`,
                     po_image: procDoc,
                 })
             });
             const r = await res.json();
             if (r.status === 'success' && r.result?.items) {
                 setPoReviewResult(r.result);
-                // Auto-apply HPP dari AI ke semua item yang cocok
                 if (detail?.items) {
                     const newPrices = { ...procPrices };
-
-                    // Helper: cari item detail yang paling cocok dengan aiItem
                     const findMatch = (aiItem: any) => {
                         const poName = (aiItem.po_item_name || '').toLowerCase().trim();
                         const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
 
-                        // Coba exact match dulu
                         let match = detail.items.find((di: any) => {
                             const diName = di.item_name.toLowerCase().trim();
                             return diName === poName || diName === sjName;
                         });
                         if (match) return match;
 
-                        // Coba contains match — cek apakah salah satu mengandung kata kunci lainnya
                         match = detail.items.find((di: any) => {
                             const diName = di.item_name.toLowerCase().trim();
                             return diName.includes(poName) || poName.includes(diName) ||
@@ -150,7 +142,6 @@ function GRListContent() {
                         });
                         if (match) return match;
 
-                        // Fallback: token matching — hitung berapa kata yang sama
                         const poTokens = poName.split(/\s+/).filter((t: string) => t.length > 2);
                         const sjTokens = sjName.split(/\s+/).filter((t: string) => t.length > 2);
                         let bestScore = 0;
@@ -184,19 +175,16 @@ function GRListContent() {
     const findMatchedItem = (aiItem: any, items: any[]) => {
         const poName = (aiItem.po_item_name || '').toLowerCase().trim();
         const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
-        // Exact
         let m = items.find((di: any) => {
             const n = di.item_name.toLowerCase().trim();
             return n === poName || n === sjName;
         });
         if (m) return m;
-        // Contains
         m = items.find((di: any) => {
             const n = di.item_name.toLowerCase().trim();
             return n.includes(poName) || poName.includes(n) || n.includes(sjName) || sjName.includes(n);
         });
         if (m) return m;
-        // Token
         const tokens = [...poName.split(/\s+/), ...sjName.split(/\s+/)].filter((t: string) => t.length > 2);
         let best = 0, bestM: any = null;
         items.forEach((di: any) => {
@@ -230,7 +218,7 @@ function GRListContent() {
             if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
             else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
-        setApproving(false);
+        setApproving(true);
     };
 
     const handleReject = async () => {
@@ -274,16 +262,13 @@ function GRListContent() {
     if (!user) return null;
 
     const visibleTabs = user.role === 'PROCUREMENT'
-        ? ['PENDING', 'APPROVED', 'REJECTED']
+        ? ['PENDING', 'APPROVED', 'PENDING_REVISION']
         : user.role === 'MANAGER' || user.role === 'ADMIN'
-            ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'REJECTED']
-            : ['PENDING', 'APPROVED', 'REJECTED'];
-
-
+            ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'PENDING_REVISION']
+            : ['PENDING', 'APPROVED', 'PENDING_REVISION'];
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
-
             {/* LIGHTBOX */}
             {lightboxUrl && (
                 <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
@@ -297,7 +282,6 @@ function GRListContent() {
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setSelected(null); setDetail(null); }}>
                     <div className="flex-1 overflow-y-auto mt-12" onClick={e => e.stopPropagation()}>
                         <div className="bg-white min-h-full rounded-t-3xl p-5 pb-32 space-y-5">
-
                             {/* Header PO */}
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
@@ -332,8 +316,7 @@ function GRListContent() {
                                         <p className="text-[10px] text-violet-600 font-bold mt-1">📋 Procurement: {selected.procurement_by}</p>
                                     )}
                                 </div>
-                                <button onClick={() => { setSelected(null); setDetail(null); }}
-                                    className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                                <button onClick={() => { setSelected(null); setDetail(null); }} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
                             </div>
 
                             {/* Foto SJ */}
@@ -341,8 +324,7 @@ function GRListContent() {
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase mb-2">📄 Surat Jalan (dari Staff)</p>
                                     <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.sj_photo_path}`)} className="w-full">
-                                        <img src={`${BASE_URL}/${selected.sj_photo_path}`}
-                                            className="w-full max-h-48 object-cover rounded-2xl border border-slate-100" alt="SJ" />
+                                        <img src={`${BASE_URL}/${selected.sj_photo_path}`} className="w-full max-h-48 object-cover rounded-2xl border border-slate-100" alt="SJ" />
                                         <p className="text-[9px] text-slate-400 text-center mt-1">👆 Tap untuk perbesar</p>
                                     </button>
                                 </div>
@@ -353,8 +335,7 @@ function GRListContent() {
                                 <div>
                                     <p className="text-[10px] font-black text-violet-500 uppercase mb-2">📋 Dokumen PO Sedayu</p>
                                     <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.procurement_doc_path}`)} className="w-full">
-                                        <img src={`${BASE_URL}/${selected.procurement_doc_path}`}
-                                            className="w-full max-h-48 object-cover rounded-2xl border border-violet-100" alt="PO Doc" />
+                                        <img src={`${BASE_URL}/${selected.procurement_doc_path}`} className="w-full max-h-48 object-cover rounded-2xl border border-violet-100" alt="PO Doc" />
                                     </button>
                                     {selected.procurement_note && <p className="text-[10px] text-slate-500 italic mt-1">"{selected.procurement_note}"</p>}
                                 </div>
@@ -365,10 +346,10 @@ function GRListContent() {
                             ) : detail && (
                                 <>
                                     {/* ══ PROCUREMENT: Input HPP + AI Assist ══ */}
-                                    {selected.approval_status === 'PENDING' && user.role === 'PROCUREMENT' && (
+                                    {(selected.approval_status === 'PENDING' || selected.approval_status === 'PENDING_REVISION') && user.role === 'PROCUREMENT' && (
                                         <div className="bg-violet-50 border-2 border-violet-200 rounded-3xl overflow-hidden">
                                             <div className="bg-violet-600 px-5 py-3 text-center">
-                                                <p className="font-black text-white text-sm">📋 Review GR</p>
+                                                <p className="font-black text-white text-sm">📋 Review GR {selected.approval_status === 'PENDING_REVISION' && '(Revisi)'}</p>
                                                 <p className="text-violet-200 text-[10px] mt-0.5">Isi HPP + lampirkan dokumen PO Sedayu</p>
                                             </div>
 
@@ -377,17 +358,14 @@ function GRListContent() {
 
                                                 {detail.items?.map((item: any) => {
                                                     const hasPrice = procPrices[item.id] && Number(procPrices[item.id]) > 0;
-
                                                     return (
                                                         <div key={item.id} className="bg-white rounded-2xl p-3.5 border border-violet-100 space-y-2">
-                                                            {/* Item info */}
                                                             <div className="flex justify-between items-start gap-2">
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
                                                                     <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
                                                                     <p className="text-[10px] text-slate-500">Qty: <span className="font-black">{item.qty} {item.unit}</span></p>
                                                                 </div>
-                                                                {/* Input HPP */}
                                                                 <div className="flex-shrink-0 w-32">
                                                                     <div className="relative">
                                                                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
@@ -395,8 +373,7 @@ function GRListContent() {
                                                                             value={procPrices[item.id] || ''}
                                                                             onChange={e => setProcPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
                                                                             placeholder="0"
-                                                                            className={`w-full p-2 pl-7 rounded-xl outline-none text-sm font-bold text-right
-                                                                                ${!hasPrice ? 'bg-red-50 border border-red-200 text-red-500' : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
+                                                                            className={`w-full p-2 pl-7 rounded-xl outline-none text-sm font-bold text-right ${!hasPrice ? 'bg-red-50 border border-red-200 text-red-500' : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
                                                                     </div>
                                                                     {hasPrice && (
                                                                         <p className="text-[9px] text-violet-500 text-right mt-0.5 font-bold">
@@ -405,13 +382,10 @@ function GRListContent() {
                                                                     )}
                                                                 </div>
                                                             </div>
-
-
                                                         </div>
                                                     );
                                                 })}
 
-                                                {/* Total nilai PO */}
                                                 {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && (
                                                     <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                         <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
@@ -428,17 +402,14 @@ function GRListContent() {
                                                         <div className="space-y-2">
                                                             <div className="relative">
                                                                 <img src={procDocPreview} className="w-full max-h-48 object-cover rounded-2xl border border-violet-200" alt="dok" />
-                                                                <button onClick={() => { setProcDoc(''); setProcDocPreview(''); setPoReviewResult(null); setPoReviewError(''); }}
-                                                                    className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">✕ Hapus</button>
+                                                                <button onClick={() => { setProcDoc(''); setProcDocPreview(''); setPoReviewResult(null); setPoReviewError(''); }} className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">✕ Hapus</button>
                                                                 <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Dokumen tersimpan</p>
                                                             </div>
-                                                            {/* Tombol AI Review */}
-                                                            <button onClick={handleReviewPo} disabled={reviewingPo}
-                                                                className="w-full bg-gradient-to-r from-violet-600 to-blue-600 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
+                                                            <button onClick={handleReviewPo} disabled={reviewingPo} className="w-full bg-gradient-to-r from-violet-600 to-blue-600 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
                                                                 {reviewingPo ? (
                                                                     <><span className="animate-spin">⏳</span><span>AI membaca & mencocokkan...</span></>
                                                                 ) : (
-                                                                    <><span>🤖</span><span>Review & Cocokkan dengan AI</span></>
+                                                                    <><span className="text-base">🤖</span><span>Review & Cocokkan dengan AI</span></>
                                                                 )}
                                                             </button>
                                                             {poReviewError && (
@@ -448,8 +419,7 @@ function GRListContent() {
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <button onClick={() => procDocRef.current?.click()}
-                                                            className="w-full border-2 border-dashed border-violet-300 rounded-2xl py-8 text-center active:bg-violet-50">
+                                                        <button onClick={() => procDocRef.current?.click()} className="w-full border-2 border-dashed border-violet-300 rounded-2xl py-8 text-center active:bg-violet-50">
                                                             <p className="text-2xl mb-1">📄</p>
                                                             <p className="font-black text-violet-400 text-sm">Foto / Upload Dokumen PO Sedayu</p>
                                                             <p className="text-[10px] text-violet-300 mt-0.5">AI akan cocokkan & extract HPP otomatis</p>
@@ -467,7 +437,6 @@ function GRListContent() {
                                                 {/* ══ AI REVIEW RESULT ══ */}
                                                 {poReviewResult && (
                                                     <div className="bg-white border-2 border-blue-200 rounded-2xl overflow-hidden">
-                                                        {/* Summary */}
                                                         <div className={`px-4 py-3 text-white ${poReviewResult.summary?.match_status === 'SESUAI' ? 'bg-emerald-600' : poReviewResult.summary?.match_status === 'TIDAK SESUAI' ? 'bg-red-500' : 'bg-amber-500'}`}>
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <div className="flex-1">
@@ -476,71 +445,28 @@ function GRListContent() {
                                                                     </p>
                                                                     <p className="text-[10px] opacity-80 mt-0.5">{poReviewResult.summary?.notes}</p>
                                                                 </div>
-                                                                <button onClick={applyAllHppFromReview}
-                                                                    className="flex-shrink-0 bg-white/20 text-white font-black text-[9px] px-3 py-2 rounded-xl active:scale-95">
+                                                                <button onClick={applyAllHppFromReview} className="flex-shrink-0 bg-white/20 text-white font-black text-[9px] px-3 py-2 rounded-xl active:scale-95">
                                                                     Pakai Semua HPP
                                                                 </button>
                                                             </div>
-                                                            <div className="flex gap-2 mt-2">
-                                                                {poReviewResult.summary?.ppn_rate > 0 && (
-                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">PPN {(poReviewResult.summary.ppn_rate * 100).toFixed(0)}%</span>
-                                                                )}
-                                                                {poReviewResult.summary?.discount_rate > 0 && (
-                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">Diskon {(poReviewResult.summary.discount_rate * 100).toFixed(0)}%</span>
-                                                                )}
-                                                                {poReviewResult.summary?.shipping_fee > 0 && (
-                                                                    <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">Ongkir {formatRp(poReviewResult.summary.shipping_fee)}</span>
-                                                                )}
-                                                                <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-black">
-                                                                    {poReviewResult.summary?.total_items_sj} item SJ · {poReviewResult.summary?.total_items_po} item PO
-                                                                </span>
-                                                            </div>
                                                         </div>
 
-                                                        {/* Item comparison */}
                                                         <div className="divide-y divide-slate-50">
                                                             {poReviewResult.items?.map((aiItem: any, idx: number) => (
                                                                 <div key={idx} className={`p-3.5 ${aiItem.status !== 'OK' ? 'bg-amber-50/50' : ''}`}>
                                                                     <div className="flex items-center gap-2 mb-2">
-                                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full
-                                                                            ${aiItem.status === 'OK' ? 'bg-emerald-100 text-emerald-700' :
-                                                                                aiItem.status === 'QTY_BEDA' ? 'bg-amber-100 text-amber-700' :
-                                                                                    'bg-red-100 text-red-600'}`}>
-                                                                            {aiItem.status === 'OK' ? '✅ Sesuai' :
-                                                                                aiItem.status === 'QTY_BEDA' ? `⚠️ Qty Beda (SJ:${aiItem.qty_sj} vs PO:${aiItem.qty_po})` :
-                                                                                    aiItem.status === 'TIDAK_ADA_DI_PO' ? '❓ Tidak ada di PO' : '📋 Tidak ada di SJ'}
+                                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${aiItem.status === 'OK' ? 'bg-emerald-100 text-emerald-700' : aiItem.status === 'QTY_BEDA' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
+                                                                            {aiItem.status === 'OK' ? '✅ Sesuai' : aiItem.status === 'QTY_BEDA' ? `⚠️ Qty Beda (SJ:${aiItem.qty_sj} vs PO:${aiItem.qty_po})` : aiItem.status === 'TIDAK_ADA_DI_PO' ? '❓ Tidak ada di PO' : '📋 Tidak ada di SJ'}
                                                                         </span>
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-2 mb-2">
                                                                         <div className="bg-slate-50 rounded-xl p-2">
                                                                             <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">SJ Vendor</p>
-                                                                            <input
-                                                                                type="text"
-                                                                                value={aiItem.sj_item_name || ''}
-                                                                                onChange={e => setPoReviewResult((prev: any) => ({
-                                                                                    ...prev,
-                                                                                    items: prev.items.map((it: any, i2: number) =>
-                                                                                        i2 === idx ? { ...it, sj_item_name: e.target.value } : it
-                                                                                    )
-                                                                                }))}
-                                                                                className="w-full text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none mt-0.5"
-                                                                            />
-                                                                            {aiItem.qty_sj && <p className="text-[9px] text-slate-500 mt-0.5">{aiItem.qty_sj} {aiItem.unit}</p>}
+                                                                            <input type="text" value={aiItem.sj_item_name || ''} onChange={e => setPoReviewResult((prev: any) => ({ ...prev, items: prev.items.map((it: any, i2: number) => i2 === idx ? { ...it, sj_item_name: e.target.value } : it) }))} className="w-full text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none mt-0.5" />
                                                                         </div>
                                                                         <div className="bg-violet-50 rounded-xl p-2">
                                                                             <p className="text-[8px] font-black text-violet-400 uppercase mb-0.5">PO Sedayu</p>
-                                                                            <input
-                                                                                type="text"
-                                                                                value={aiItem.po_item_name || ''}
-                                                                                onChange={e => setPoReviewResult((prev: any) => ({
-                                                                                    ...prev,
-                                                                                    items: prev.items.map((it: any, i2: number) =>
-                                                                                        i2 === idx ? { ...it, po_item_name: e.target.value } : it
-                                                                                    )
-                                                                                }))}
-                                                                                className="w-full text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg px-2 py-1 outline-none mt-0.5"
-                                                                            />
-                                                                            {aiItem.qty_po && <p className="text-[9px] text-violet-500 mt-0.5">{aiItem.qty_po} {aiItem.unit}</p>}
+                                                                            <input type="text" value={aiItem.po_item_name || ''} onChange={e => setPoReviewResult((prev: any) => ({ ...prev, items: prev.items.map((it: any, i2: number) => i2 === idx ? { ...it, po_item_name: e.target.value } : it) }))} className="w-full text-[10px] font-bold text-violet-700 bg-white border border-violet-200 rounded-lg px-2 py-1 outline-none mt-0.5" />
                                                                         </div>
                                                                     </div>
                                                                     {aiItem.hpp_final && (
@@ -549,28 +475,6 @@ function GRListContent() {
                                                                                 <p className="text-[9px] text-slate-500">Harga satuan PO</p>
                                                                                 <p className="text-[10px] font-bold text-slate-700">{formatRp(aiItem.unit_price_po)}</p>
                                                                             </div>
-                                                                            {aiItem.discount_rate > 0 && (
-                                                                                <div className="flex justify-between">
-                                                                                    <p className="text-[9px] text-red-400">Diskon {(aiItem.discount_rate * 100).toFixed(0)}%</p>
-                                                                                    <p className="text-[10px] font-bold text-red-400">− {formatRp(aiItem.unit_price_po * aiItem.discount_rate)}</p>
-                                                                                </div>
-                                                                            )}
-                                                                            {aiItem.ppn_rate > 0 && (
-                                                                                <div className="flex justify-between">
-                                                                                    <p className="text-[9px] text-blue-500">PPN {(aiItem.ppn_rate * 100).toFixed(0)}%</p>
-                                                                                    <p className="text-[10px] font-bold text-blue-500">+ {formatRp(aiItem.unit_price_po * (1 - (aiItem.discount_rate || 0)) * aiItem.ppn_rate)}</p>
-                                                                                </div>
-                                                                            )}
-                                                                            {aiItem.shipping_fee_per_unit > 0 && (
-                                                                                <div className="flex justify-between">
-                                                                                    <p className="text-[9px] text-orange-500">Ongkir prorate</p>
-                                                                                    <p className="text-[10px] font-bold text-orange-500">+ {formatRp(aiItem.shipping_fee_per_unit)}</p>
-                                                                                </div>
-                                                                            )}
-                                                                            {aiItem.hpp_calculation && (
-                                                                                <p className="text-[8px] text-slate-400 italic">{aiItem.hpp_calculation}</p>
-                                                                            )}
-                                                                            {/* HPP Final — editable langsung oleh Procurement */}
                                                                             <div className="pt-1 border-t border-blue-100 space-y-1.5">
                                                                                 <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
                                                                                 {(() => {
@@ -583,31 +487,12 @@ function GRListContent() {
                                                                                             <div className="flex items-center gap-2">
                                                                                                 <div className="relative flex-1">
                                                                                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-blue-400 text-xs font-bold">Rp</span>
-                                                                                                    <input
-                                                                                                        type="number" min="0"
-                                                                                                        value={procPrices[matched.id] || aiVal}
-                                                                                                        onChange={e => setProcPrices(prev => ({ ...prev, [matched.id]: e.target.value }))}
-                                                                                                        className="w-full p-2 pl-8 bg-white border-2 border-blue-300 rounded-xl outline-none text-sm font-black text-blue-700 text-right"
-                                                                                                    />
+                                                                                                    <input type="number" min="0" value={procPrices[matched.id] || aiVal} onChange={e => setProcPrices(prev => ({ ...prev, [matched.id]: e.target.value }))} className="w-full p-2 pl-8 bg-white border-2 border-blue-300 rounded-xl outline-none text-sm font-black text-blue-700 text-right" />
                                                                                                 </div>
-                                                                                                {/* Reset ke nilai AI */}
                                                                                                 {isEdited && (
-                                                                                                    <button
-                                                                                                        onClick={() => setProcPrices(prev => ({ ...prev, [matched.id]: aiVal }))}
-                                                                                                        className="text-[9px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-1.5 rounded-lg active:scale-95 flex-shrink-0">
-                                                                                                        ↩ AI
-                                                                                                    </button>
+                                                                                                    <button onClick={() => setProcPrices(prev => ({ ...prev, [matched.id]: aiVal }))} className="text-[9px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-1.5 rounded-lg flex-shrink-0">↩ AI</button>
                                                                                                 )}
                                                                                             </div>
-                                                                                            {isEdited && (
-                                                                                                <p className="text-[9px] text-amber-500 font-bold">✏️ Diubah manual · AI: Rp {Number(aiVal).toLocaleString('id-ID')}</p>
-                                                                                            )}
-                                                                                            {!currentVal && (
-                                                                                                <button onClick={() => setProcPrices(prev => ({ ...prev, [matched.id]: aiVal }))}
-                                                                                                    className="w-full text-center text-[9px] font-black text-blue-600 bg-white border border-blue-200 rounded-lg py-1.5 active:scale-95">
-                                                                                                    ✓ Pakai HPP AI → Rp {Number(aiVal).toLocaleString('id-ID')}
-                                                                                                </button>
-                                                                                            )}
                                                                                         </div>
                                                                                     ) : (
                                                                                         <p className="text-sm font-black text-blue-700">{formatRp(aiItem.hpp_final)}</p>
@@ -622,12 +507,8 @@ function GRListContent() {
                                                     </div>
                                                 )}
 
-                                                <input type="text" placeholder="Catatan procurement (opsional)..."
-                                                    value={procNote} onChange={e => setProcNote(e.target.value)}
-                                                    className="w-full p-3 bg-white border border-violet-100 rounded-xl outline-none text-sm font-medium text-slate-700" />
-
-                                                <button onClick={handleSubmitProcurement} disabled={submittingProc}
-                                                    className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50">
+                                                <input type="text" placeholder="Catatan procurement (opsional)..." value={procNote} onChange={e => setProcNote(e.target.value)} className="w-full p-3 bg-white border border-violet-100 rounded-xl outline-none text-sm font-medium text-slate-700" />
+                                                <button onClick={handleSubmitProcurement} disabled={submittingProc} className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50">
                                                     {submittingProc ? '⏳ Menyimpan...' : '📋 Submit ke Manager'}
                                                 </button>
                                             </div>
@@ -635,7 +516,7 @@ function GRListContent() {
                                     )}
 
                                     {/* Item list — non-procurement */}
-                                    {(user.role !== 'PROCUREMENT' || selected.approval_status !== 'PENDING') && (
+                                    {((user.role !== 'PROCUREMENT' || (selected.approval_status !== 'PENDING' && selected.approval_status !== 'PENDING_REVISION'))) && (
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Item ({detail.items?.length})</p>
                                             <div className="space-y-2">
@@ -651,9 +532,7 @@ function GRListContent() {
                                                                 <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
                                                                 <p className="text-[10px] text-slate-500">📍 {item.location_name}</p>
                                                                 <p className="text-[10px] text-violet-500 font-bold">
-                                                                    {Number(item.unit_price) > 0
-                                                                        ? `HPP: ${formatRp(Number(item.unit_price))} / ${item.unit}`
-                                                                        : <span className="text-slate-300 italic">HPP belum diisi</span>}
+                                                                    {Number(item.unit_price) > 0 ? `HPP: ${formatRp(Number(item.unit_price))} / ${item.unit}` : <span className="text-slate-300 italic">HPP belum diisi</span>}
                                                                 </p>
                                                             </div>
                                                             <div className="text-right flex-shrink-0">
@@ -670,9 +549,7 @@ function GRListContent() {
                                             <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                 <div>
                                                     <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
-                                                    {detail.items?.some((i: any) => Number(i.unit_price) === 0) && (
-                                                        <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>
-                                                    )}
+                                                    {detail.items?.some((i: any) => Number(i.unit_price) === 0) && <p className="text-[9px] text-slate-400">* Ada item tanpa HPP</p>}
                                                 </div>
                                                 <p className="font-black text-lg">
                                                     {detail.items?.reduce((s: number, i: any) => s + Number(i.qty) * Number(i.unit_price), 0) > 0
@@ -688,27 +565,22 @@ function GRListContent() {
                                         <div className="space-y-3 pt-2">
                                             {showReject ? (
                                                 <div className="space-y-3">
-                                                    <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
-                                                        placeholder="Alasan penolakan *" rows={3}
-                                                        className="w-full p-3.5 bg-red-50 rounded-xl outline-none font-medium text-slate-700 resize-none border border-red-200" />
+                                                    <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Alasan penolakan *" rows={3} className="w-full p-3.5 bg-red-50 rounded-xl outline-none font-medium text-slate-700 resize-none border border-red-200" />
                                                     <div className="flex gap-3">
                                                         <button onClick={() => setShowReject(false)} className="flex-1 bg-slate-100 text-slate-500 font-black py-3.5 rounded-2xl text-xs uppercase">Batal</button>
-                                                        <button onClick={handleReject} disabled={approving}
-                                                            className="flex-1 bg-red-500 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
-                                                            {approving ? 'Menolak...' : '❌ Tolak GR'}
+                                                        <button onClick={handleReject} disabled={approving} className="flex-1 bg-red-500 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                                            {approving ? 'Menolak...' : '❌ Minta Revisi'}
                                                         </button>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="flex gap-3">
                                                     <button onClick={() => setShowReject(true)} className="flex-1 bg-red-50 text-red-600 font-black py-3.5 rounded-2xl text-xs uppercase border border-red-200">❌ Tolak</button>
-                                                    <button onClick={handleApprove} disabled={approving}
-                                                        className="flex-1 bg-emerald-600 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                                    <button onClick={handleApprove} disabled={approving} className="flex-1 bg-emerald-600 text-white font-black py-3.5 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
                                                         {approving ? 'Menyetujui...' : '✅ Approve & Masukkan Stok'}
                                                     </button>
                                                 </div>
                                             )}
-                                            <p className="text-[9px] text-slate-400 text-center">Setelah Approve, stok masuk ke inventory sesuai lokasi.</p>
                                         </div>
                                     )}
 
@@ -728,9 +600,7 @@ function GRListContent() {
             <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-3 py-2">
                 <div className="max-w-2xl mx-auto flex gap-1.5 overflow-x-auto">
                     {visibleTabs.map(s => (
-                        <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }}
-                            className={`flex-shrink-0 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all
-                                ${filterStatus === s ? STATUS_CONFIG[s].tabColor : 'bg-slate-100 text-slate-400'}`}>
+                        <button key={s} onClick={() => { setFilterStatus(s); fetchList(s); }} className={`flex-shrink-0 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${filterStatus === s ? STATUS_CONFIG[s].tabColor : 'bg-slate-100 text-slate-400'}`}>
                             {TAB_ICON[s]} {STATUS_CONFIG[s].label}
                         </button>
                     ))}
@@ -743,15 +613,10 @@ function GRListContent() {
                     <div className="text-center py-20 animate-pulse text-slate-400 font-bold">Memuat...</div>
                 ) : list.length === 0 ? (
                     <div className="text-center py-20 text-slate-300 italic text-sm">
-                        {filterStatus === 'PENDING' ? 'Tidak ada GR yang menunggu.' :
-                            filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada GR menunggu approval manager.' : 'Tidak ada data.'}
+                        {filterStatus === 'PENDING' ? 'Tidak ada GR yang menunggu.' : filterStatus === 'PROCUREMENT_REVIEW' ? 'Tidak ada GR menunggu approval manager.' : 'Tidak ada data.'}
                     </div>
                 ) : list.map((item: any) => (
-                    <button key={item.id} onClick={() => openDetail(item)}
-                        className={`w-full bg-white rounded-2xl shadow-sm border p-4 text-left hover:shadow-md transition-all active:scale-[0.99]
-                            ${item.approval_status === 'PENDING' ? 'border-orange-200' :
-                                item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' :
-                                    item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
+                    <button key={item.id} onClick={() => openDetail(item)} className={`w-full bg-white rounded-2xl shadow-sm border p-4 text-left hover:shadow-md transition-all active:scale-[0.99] ${item.approval_status === 'PENDING' ? 'border-orange-200' : item.approval_status === 'PROCUREMENT_REVIEW' ? 'border-violet-200' : item.approval_status === 'APPROVED' ? 'border-emerald-200' : 'border-red-200'}`}>
                         <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
@@ -772,6 +637,9 @@ function GRListContent() {
                                 </p>
                                 {item.approval_status === 'PENDING' && user.role === 'PROCUREMENT' && (
                                     <p className="text-[9px] font-black text-violet-500 mt-1">→ Review</p>
+                                )}
+                                {item.approval_status === 'PENDING_REVISION' && user.role === 'PROCUREMENT' && (
+                                    <p className="text-[9px] font-black text-red-500 mt-1">→ Revisi</p>
                                 )}
                                 {item.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN') && (
                                     <p className="text-[9px] font-black text-emerald-500 mt-1">→ Approve</p>
