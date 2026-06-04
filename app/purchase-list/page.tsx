@@ -39,7 +39,6 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<str
         reader.readAsDataURL(file);
     });
 
-// Helper untuk membaca file PDF sebagai Base64 String
 const readAsBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -47,6 +46,17 @@ const readAsBase64 = (file: File): Promise<string> =>
         reader.onerror = error => reject(error);
         reader.readAsDataURL(file);
     });
+
+// ── Type untuk manual item ──
+interface ManualItem {
+    id: string;
+    item_name: string;
+    qty: string;
+    unit: string;
+    unit_price: string;
+}
+
+const UNIT_OPTIONS = ['pcs', 'set', 'unit', 'kg', 'meter', 'm', 'roll', 'botol', 'pack', 'box', 'lembar', 'buah'];
 
 function GRListContent() {
     const router = useRouter();
@@ -67,9 +77,30 @@ function GRListContent() {
     const [procNote, setProcNote] = useState('');
     const [procDoc, setProcDoc] = useState('');
     const [procDocPreview, setProcDocPreview] = useState('');
-    const [isPdf, setIsPdf] = useState(false); // State untuk mendeteksi tipe file PDF
+    const [isPdf, setIsPdf] = useState(false);
     const [submittingProc, setSubmittingProc] = useState(false);
     const procDocRef = useRef<HTMLInputElement>(null);
+
+    // Manual item state — Bug #3
+    const [manualItems, setManualItems] = useState<ManualItem[]>([]);
+
+    const addManualItem = () => {
+        setManualItems(prev => [...prev, {
+            id: `manual_${Date.now()}`,
+            item_name: '',
+            qty: '',
+            unit: 'pcs',
+            unit_price: ''
+        }]);
+    };
+
+    const updateManualItem = (id: string, field: string, value: string) => {
+        setManualItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
+    };
+
+    const removeManualItem = (id: string) => {
+        setManualItems(prev => prev.filter(i => i.id !== id));
+    };
 
     // AI review PO state
     const [reviewingPo, setReviewingPo] = useState(false);
@@ -102,6 +133,8 @@ function GRListContent() {
         setSelected(item); setDetail(null); setLoadingDetail(true);
         setShowReject(false); setRejectNote('');
         setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview(''); setIsPdf(false);
+        setManualItems([]); // reset manual items setiap buka detail baru
+        setPoReviewResult(null); setPoReviewError('');
 
         try {
             const res = await fetch(`${BASE_URL}/get_purchase_list.php?id=${item.id}`, { headers: { 'X-API-KEY': API_KEY } });
@@ -128,7 +161,7 @@ function GRListContent() {
                     mode: 'review_po',
                     sj_image_url: `${BASE_URL}/${selected.sj_photo_path}`,
                     po_image: procDoc,
-                    file_type: isPdf ? 'pdf' : 'image' // Kasih flag ke backend php biar dia tau ini pdf/gambar
+                    file_type: isPdf ? 'pdf' : 'image'
                 })
             });
             const r = await res.json();
@@ -136,40 +169,9 @@ function GRListContent() {
                 setPoReviewResult(r.result);
                 if (detail?.items) {
                     const newPrices = { ...procPrices };
-                    const findMatch = (aiItem: any) => {
-                        const poName = (aiItem.po_item_name || '').toLowerCase().trim();
-                        const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
-
-                        let match = detail.items.find((di: any) => {
-                            const diName = di.item_name.toLowerCase().trim();
-                            return diName === poName || diName === sjName;
-                        });
-                        if (match) return match;
-
-                        match = detail.items.find((di: any) => {
-                            const diName = di.item_name.toLowerCase().trim();
-                            return diName.includes(poName) || poName.includes(diName) ||
-                                diName.includes(sjName) || sjName.includes(diName);
-                        });
-                        if (match) return match;
-
-                        const poTokens = poName.split(/\s+/).filter((t: string) => t.length > 2);
-                        const sjTokens = sjName.split(/\s+/).filter((t: string) => t.length > 2);
-                        let bestScore = 0;
-                        let bestMatch: any = null;
-                        detail.items.forEach((di: any) => {
-                            const diTokens = di.item_name.toLowerCase().split(/\s+/);
-                            const score = [...poTokens, ...sjTokens].filter((t: string) =>
-                                diTokens.some((dt: string) => dt.includes(t) || t.includes(dt))
-                            ).length;
-                            if (score > bestScore) { bestScore = score; bestMatch = di; }
-                        });
-                        return bestScore >= 2 ? bestMatch : null;
-                    };
-
                     r.result.items.forEach((aiItem: any) => {
                         if (!aiItem.hpp_final) return;
-                        const matched = findMatch(aiItem);
+                        const matched = findMatchedItem(aiItem, detail.items);
                         if (matched) {
                             newPrices[matched.id] = String(Math.round(aiItem.hpp_final));
                         }
@@ -186,16 +188,22 @@ function GRListContent() {
     const findMatchedItem = (aiItem: any, items: any[]) => {
         const poName = (aiItem.po_item_name || '').toLowerCase().trim();
         const sjName = (aiItem.sj_item_name || '').toLowerCase().trim();
+
+        // exact match
         let m = items.find((di: any) => {
             const n = di.item_name.toLowerCase().trim();
             return n === poName || n === sjName;
         });
         if (m) return m;
+
+        // contains match
         m = items.find((di: any) => {
             const n = di.item_name.toLowerCase().trim();
             return n.includes(poName) || poName.includes(n) || n.includes(sjName) || sjName.includes(n);
         });
         if (m) return m;
+
+        // token match
         const tokens = [...poName.split(/\s+/), ...sjName.split(/\s+/)].filter((t: string) => t.length > 2);
         let best = 0, bestM: any = null;
         items.forEach((di: any) => {
@@ -249,23 +257,54 @@ function GRListContent() {
 
     const handleSubmitProcurement = async () => {
         if (!selected || !detail) return;
+
+        // Validasi HPP item dari DB
         const missingPrice = detail.items?.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
         if (missingPrice?.length > 0) {
             alert(`HPP wajib diisi untuk semua item:\n${missingPrice.map((i: any) => `• ${i.item_name}`).join('\n')}`);
             return;
         }
+
+        // Validasi manual items — kalau ada yang belum lengkap
+        const incompleteManual = manualItems.filter(
+            i => !i.item_name.trim() || !i.qty || Number(i.qty) <= 0 || !i.unit_price || Number(i.unit_price) <= 0
+        );
+        if (incompleteManual.length > 0) {
+            alert(`Item manual belum lengkap. Isi nama, qty, dan HPP — atau hapus item yang kosong.`);
+            return;
+        }
+
         if (!procDoc) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
         if (!confirm("Submit ke Manager untuk approval?")) return;
+
         setSubmittingProc(true);
         try {
             const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
+
+            const manualItemsPayload = manualItems.map(i => ({
+                item_name: i.item_name.trim(),
+                qty: Number(i.qty),
+                unit: i.unit,
+                unit_price: Number(i.unit_price)
+            }));
+
             const res = await fetch(`${BASE_URL}/submit_procurement_review.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ po_id: selected.id, procurement_by: user?.name, procurement_note: procNote, procurement_doc_base64: procDoc, items, file_ext: isPdf ? 'pdf' : 'jpg' })
+                body: JSON.stringify({
+                    po_id: selected.id,
+                    procurement_by: user?.name,
+                    procurement_note: procNote,
+                    procurement_doc_base64: procDoc,
+                    items,
+                    manual_items: manualItemsPayload,
+                    file_ext: isPdf ? 'pdf' : 'jpg'
+                })
             });
             const r = await res.json();
-            if (r.status === 'success') { alert("✅ " + r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
-            else alert("Gagal: " + r.message);
+            if (r.status === 'success') {
+                alert("✅ " + r.message);
+                setSelected(null); setDetail(null); fetchList(filterStatus);
+            } else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
         setSubmittingProc(false);
     };
@@ -277,6 +316,13 @@ function GRListContent() {
         : user.role === 'MANAGER' || user.role === 'ADMIN'
             ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'PENDING_REVISION']
             : ['PENDING', 'APPROVED', 'PENDING_REVISION'];
+
+    // Hitung total GR termasuk manual items
+    const totalGRWithManual = () => {
+        const fromDB = detail?.items?.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0) || 0;
+        const fromManual = manualItems.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0);
+        return fromDB + fromManual;
+    };
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
@@ -376,6 +422,7 @@ function GRListContent() {
                                             </div>
 
                                             <div className="p-4 space-y-4">
+                                                {/* ── HPP per item dari DB ── */}
                                                 <p className="text-[10px] font-black text-violet-700 uppercase">Harga Satuan (HPP) per Item *</p>
 
                                                 {detail.items?.map((item: any) => {
@@ -408,7 +455,8 @@ function GRListContent() {
                                                     );
                                                 })}
 
-                                                {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && (
+                                                {/* Total sementara dari item DB saja */}
+                                                {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && manualItems.length === 0 && (
                                                     <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                         <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
                                                         <p className="font-black text-lg">
@@ -417,7 +465,7 @@ function GRListContent() {
                                                     </div>
                                                 )}
 
-                                                {/* Upload dokumen PO (Mendukung Gambar & PDF) */}
+                                                {/* ── Upload Dokumen PO ── */}
                                                 <div className="space-y-2">
                                                     <p className="text-[10px] font-black text-violet-700 uppercase">Dokumen PO Sedayu (Gambar / PDF) *</p>
                                                     {procDocPreview ? (
@@ -458,22 +506,19 @@ function GRListContent() {
                                                         onChange={async e => {
                                                             const file = e.target.files?.[0]; if (!file) return;
                                                             setPoReviewResult(null); setPoReviewError('');
-
                                                             if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                                                                 setIsPdf(true);
                                                                 const b64 = await readAsBase64(file);
-                                                                setProcDoc(b64);
-                                                                setProcDocPreview(b64);
+                                                                setProcDoc(b64); setProcDocPreview(b64);
                                                             } else {
                                                                 setIsPdf(false);
                                                                 const b64 = await compressImage(file);
-                                                                setProcDoc(b64);
-                                                                setProcDocPreview(b64);
+                                                                setProcDoc(b64); setProcDocPreview(b64);
                                                             }
                                                         }} />
                                                 </div>
 
-                                                {/* ══ AI REVIEW RESULT ══ */}
+                                                {/* ── AI Review Result ── */}
                                                 {poReviewResult && (
                                                     <div className="bg-white border-2 border-blue-200 rounded-2xl overflow-hidden">
                                                         <div className={`px-4 py-3 text-white ${poReviewResult.summary?.match_status === 'SESUAI' ? 'bg-emerald-600' : poReviewResult.summary?.match_status === 'TIDAK SESUAI' ? 'bg-red-500' : 'bg-amber-500'}`}>
@@ -483,6 +528,9 @@ function GRListContent() {
                                                                         {poReviewResult.summary?.match_status === 'SESUAI' ? '✅' : poReviewResult.summary?.match_status === 'TIDAK SESUAI' ? '❌' : '⚠️'} {poReviewResult.summary?.match_status}
                                                                     </p>
                                                                     <p className="text-[10px] opacity-80 mt-0.5">{poReviewResult.summary?.notes}</p>
+                                                                    {poReviewResult.summary?.ppn_detected && (
+                                                                        <p className="text-[9px] opacity-70 mt-0.5">PPN {(poReviewResult.summary.ppn_rate * 100).toFixed(0)}% terdeteksi</p>
+                                                                    )}
                                                                 </div>
                                                                 <button onClick={applyAllHppFromReview} className="flex-shrink-0 bg-white/20 text-white font-black text-[9px] px-3 py-2 rounded-xl active:scale-95">
                                                                     Pakai Semua HPP
@@ -514,6 +562,9 @@ function GRListContent() {
                                                                                 <p className="text-[9px] text-slate-500">Harga satuan PO</p>
                                                                                 <p className="text-[10px] font-bold text-slate-700">{formatRp(aiItem.unit_price_po)}</p>
                                                                             </div>
+                                                                            {aiItem.hpp_breakdown && (
+                                                                                <p className="text-[8px] text-slate-400 italic">{aiItem.hpp_breakdown}</p>
+                                                                            )}
                                                                             <div className="pt-1 border-t border-blue-100 space-y-1.5">
                                                                                 <p className="text-[9px] font-black text-blue-700 uppercase">HPP Final / {aiItem.unit}</p>
                                                                                 {(() => {
@@ -546,6 +597,131 @@ function GRListContent() {
                                                     </div>
                                                 )}
 
+                                                {/* ══ MANUAL ITEM ENTRY — Bug #3 ══ */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-violet-700 uppercase">Item Tambahan Manual</p>
+                                                            <p className="text-[9px] text-slate-400 mt-0.5">Item yang tidak ada di sistem / tidak ter-scan</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={addManualItem}
+                                                            className="flex items-center gap-1 bg-violet-600 text-white font-black text-[10px] px-3 py-2 rounded-xl active:scale-95 shadow-sm"
+                                                        >
+                                                            ＋ Tambah
+                                                        </button>
+                                                    </div>
+
+                                                    {manualItems.length === 0 ? (
+                                                        <button
+                                                            onClick={addManualItem}
+                                                            className="w-full border-2 border-dashed border-violet-200 rounded-2xl py-5 text-center active:bg-violet-50"
+                                                        >
+                                                            <p className="text-lg mb-1">➕</p>
+                                                            <p className="text-[10px] text-violet-400 font-bold">Tap untuk tambah item manual</p>
+                                                            <p className="text-[9px] text-violet-300 mt-0.5">Item baru, item tidak ter-scan QR, dll.</p>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="space-y-3">
+                                                            {manualItems.map((mItem) => {
+                                                                const subtotal = Number(mItem.qty) * Number(mItem.unit_price);
+                                                                const isComplete = mItem.item_name.trim() && Number(mItem.qty) > 0 && Number(mItem.unit_price) > 0;
+                                                                return (
+                                                                    <div key={mItem.id} className={`bg-white rounded-2xl p-3.5 border-2 space-y-2.5 ${isComplete ? 'border-blue-200' : 'border-red-200'}`}>
+                                                                        {/* Nama Item */}
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="Nama item *"
+                                                                                value={mItem.item_name}
+                                                                                onChange={e => updateManualItem(mItem.id, 'item_name', e.target.value)}
+                                                                                className="flex-1 p-2.5 bg-slate-50 rounded-xl outline-none text-sm font-bold text-slate-700 border border-slate-200 placeholder:font-normal placeholder:text-slate-300"
+                                                                            />
+                                                                            <button
+                                                                                onClick={() => removeManualItem(mItem.id)}
+                                                                                className="flex-shrink-0 w-8 h-8 bg-red-50 text-red-400 rounded-xl font-black text-sm flex items-center justify-center active:scale-90"
+                                                                            >✕</button>
+                                                                        </div>
+
+                                                                        {/* Qty + Unit + HPP */}
+                                                                        <div className="grid grid-cols-3 gap-2">
+                                                                            <div>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Qty *</p>
+                                                                                <input
+                                                                                    type="number" min="0"
+                                                                                    placeholder="0"
+                                                                                    value={mItem.qty}
+                                                                                    onChange={e => updateManualItem(mItem.id, 'qty', e.target.value)}
+                                                                                    className="w-full p-2 bg-slate-50 rounded-xl outline-none text-sm font-bold text-slate-700 border border-slate-200 text-center"
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Unit</p>
+                                                                                <select
+                                                                                    value={mItem.unit}
+                                                                                    onChange={e => updateManualItem(mItem.id, 'unit', e.target.value)}
+                                                                                    className="w-full p-2 bg-slate-50 rounded-xl outline-none text-sm font-bold text-slate-700 border border-slate-200"
+                                                                                >
+                                                                                    {UNIT_OPTIONS.map(u => (
+                                                                                        <option key={u} value={u}>{u}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">HPP/unit *</p>
+                                                                                <div className="relative">
+                                                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">Rp</span>
+                                                                                    <input
+                                                                                        type="number" min="0"
+                                                                                        placeholder="0"
+                                                                                        value={mItem.unit_price}
+                                                                                        onChange={e => updateManualItem(mItem.id, 'unit_price', e.target.value)}
+                                                                                        className="w-full p-2 pl-6 bg-slate-50 rounded-xl outline-none text-sm font-bold text-right text-violet-700 border border-slate-200"
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Preview subtotal */}
+                                                                        {isComplete && (
+                                                                            <div className="bg-blue-50 rounded-xl px-3 py-2 flex justify-between items-center">
+                                                                                <p className="text-[9px] text-blue-500 font-bold">
+                                                                                    {mItem.qty} {mItem.unit} × {formatRp(Number(mItem.unit_price))}
+                                                                                </p>
+                                                                                <p className="text-[11px] font-black text-blue-700">
+                                                                                    = {formatRp(subtotal)}
+                                                                                </p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+
+                                                            {/* Total manual items */}
+                                                            {manualItems.some(i => Number(i.qty) > 0 && Number(i.unit_price) > 0) && (
+                                                                <div className="bg-blue-600 text-white rounded-2xl px-4 py-2.5 flex justify-between items-center">
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest">Total Item Manual</p>
+                                                                    <p className="font-black text-sm">
+                                                                        {formatRp(manualItems.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0))}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Total GR keseluruhan (DB + manual) */}
+                                                {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && manualItems.length > 0 && (
+                                                    <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
+                                                        <div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
+                                                            <p className="text-[9px] text-violet-300 mt-0.5">Termasuk {manualItems.filter(i => Number(i.qty) > 0 && Number(i.unit_price) > 0).length} item manual</p>
+                                                        </div>
+                                                        <p className="font-black text-lg">{formatRp(totalGRWithManual())}</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Catatan & Submit */}
                                                 <input type="text" placeholder="Catatan procurement (opsional)..." value={procNote} onChange={e => setProcNote(e.target.value)} className="w-full p-3 bg-white border border-violet-100 rounded-xl outline-none text-sm font-medium text-slate-700" />
                                                 <button onClick={handleSubmitProcurement} disabled={submittingProc} className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-50">
                                                     {submittingProc ? '⏳ Menyimpan...' : '📋 Submit ke Manager'}
@@ -680,7 +856,7 @@ function GRListContent() {
                                 {item.approval_status === 'PENDING_REVISION' && user.role === 'PROCUREMENT' && (
                                     <p className="text-[9px] font-black text-red-500 mt-1">→ Revisi</p>
                                 )}
-                                {item.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN' || user.role === 'ADMIN') && (
+                                {item.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN') && (
                                     <p className="text-[9px] font-black text-emerald-500 mt-1">→ Approve</p>
                                 )}
                             </div>
