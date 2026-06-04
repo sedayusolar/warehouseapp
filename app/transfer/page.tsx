@@ -99,10 +99,10 @@ function TransferContent() {
         ));
     };
 
-    // ── Signature ──
-    const startDraw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string) => {
+    // ── Signature (Telah diperbaiki tipe datanya untuk Vercel) ──
+    const startDraw = (e: any, ref: any, id: string) => {
         const canvas = ref.current; if (!canvas) return;
-        const ctx = canvas.getContext('2d')!;
+        const ctx = canvas.getContext('2d'); if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
         const x = ((e.clientX ?? e.touches?.[0]?.clientX) - rect.left) * (canvas.width / rect.width);
         const y = ((e.clientY ?? e.touches?.[0]?.clientY) - rect.top) * (canvas.height / rect.height);
@@ -111,7 +111,7 @@ function TransferContent() {
         setDrawing(id);
     };
 
-    const draw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string) => {
+    const draw = (e: any, ref: any, id: string) => {
         if (drawing !== id) return;
         const canvas = ref.current; const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
@@ -122,10 +122,10 @@ function TransferContent() {
         if (e.touches) e.preventDefault();
     };
 
-    const clearCanvas = (ref: React.RefObject<HTMLCanvasElement>) =>
+    const clearCanvas = (ref: any) =>
         ref.current?.getContext('2d')?.clearRect(0, 0, 500, 200);
 
-    const getSig = (ref: React.RefObject<HTMLCanvasElement>) =>
+    const getSig = (ref: any) =>
         ref.current?.toDataURL('image/png') || '';
 
     // ── Validate setup ──
@@ -151,9 +151,6 @@ function TransferContent() {
         setSubmitting(true);
         setError('');
         try {
-            const fromLoc = locations.find(l => String(l.id) === fromLocId);
-            const toLoc = locations.find(l => String(l.id) === toLocId);
-
             const res = await fetch(`${BASE_URL}/transfer_stock.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
