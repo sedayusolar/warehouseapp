@@ -59,7 +59,6 @@
             margin-top: 4px;
         }
 
-        /* META — 3 kolom */
         .meta-row {
             display: flex;
             justify-content: space-between;
@@ -301,7 +300,6 @@
             <div class="doc-subtitle" id="sj-ref-text">Dokumen pengeluaran barang dari gudang</div>
         </div>
 
-        <!-- META: kiri, tengah (no+tgl), kanan (QR) -->
         <div class="meta-row">
             <div class="meta-left">
                 Kepada Yang Terhormat,<br>
@@ -373,18 +371,22 @@
                 <div class="sig-name" id="sj-pengirim">—</div>
                 <div class="sig-role">Staff Gudang</div>
             </div>
+            <!-- FIX: Supir — dinamis dari DB -->
             <div class="sig-box">
                 <div class="sig-label">Supir</div>
-                <div class="sig-blank"></div>
+                <div class="sig-img-area" id="sig-driver-area"></div>
                 <div class="sig-line"></div>
-                <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+                <div class="sig-name" id="sj-driver-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    )</div>
                 <div class="sig-role">&nbsp;</div>
             </div>
+            <!-- FIX: Keamanan — dinamis dari DB -->
             <div class="sig-box">
                 <div class="sig-label">Keamanan</div>
-                <div class="sig-blank"></div>
+                <div class="sig-img-area" id="sig-security-area"></div>
                 <div class="sig-line"></div>
-                <div class="sig-name">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
+                <div class="sig-name" id="sj-security-name">(
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</div>
                 <div class="sig-role">&nbsp;</div>
             </div>
         </div>
@@ -406,6 +408,11 @@
         const pengirim = p.get('pengirim') || '—';
         const staffSigUrl = p.get('staff_sig') || '';
         const picSigUrl = p.get('pic_sig') || '';
+        // FIX: baca params supir & security
+        const driverName = p.get('driver_name') || '';
+        const driverSigUrl = p.get('driver_sig') || '';
+        const securityName = p.get('security_name') || '';
+        const securitySigUrl = p.get('security_sig') || '';
         const baseUrl = p.get('base_url') || 'https://sedayu.com/api/warehouse';
 
         let items = [];
@@ -432,21 +439,18 @@
         document.getElementById('sj-penerima').textContent = pic || '—';
         document.getElementById('sj-pengirim').textContent = pengirim || '—';
 
-        // ── QR Code — URL detail transaksi ──
+        // QR Code
         const qrUrl = trxId
             ? 'https://warehouse.sedayu.com/transactions/' + trxId
             : 'https://warehouse.sedayu.com/transactions';
-
         new QRCode(document.getElementById('qr-canvas'), {
             text: qrUrl,
-            width: 80,
-            height: 80,
-            colorDark: '#000000',
-            colorLight: '#ffffff',
+            width: 80, height: 80,
+            colorDark: '#000000', colorLight: '#ffffff',
             correctLevel: QRCode.CorrectLevel.M
         });
 
-        // TTD Staff
+        // TTD Staff Gudang
         if (staffSigUrl) {
             const area = document.getElementById('sig-staff-area');
             const img = document.createElement('img');
@@ -455,7 +459,7 @@
             area.appendChild(img);
         }
 
-        // TTD PIC/Engineer
+        // TTD PIC / Engineer
         if (picSigUrl) {
             const area = document.getElementById('sig-pic-area');
             const img = document.createElement('img');
@@ -464,7 +468,31 @@
             area.appendChild(img);
         }
 
-        // Fill table
+        // FIX: TTD Supir
+        if (driverName) {
+            document.getElementById('sj-driver-name').textContent = driverName;
+        }
+        if (driverSigUrl) {
+            const area = document.getElementById('sig-driver-area');
+            const img = document.createElement('img');
+            img.src = baseUrl + '/' + driverSigUrl;
+            img.alt = 'TTD Supir';
+            area.appendChild(img);
+        }
+
+        // FIX: TTD Keamanan
+        if (securityName) {
+            document.getElementById('sj-security-name').textContent = securityName;
+        }
+        if (securitySigUrl) {
+            const area = document.getElementById('sig-security-area');
+            const img = document.createElement('img');
+            img.src = baseUrl + '/' + securitySigUrl;
+            img.alt = 'TTD Security';
+            area.appendChild(img);
+        }
+
+        // Fill table items
         const tbody = document.getElementById('sj-items');
         items.forEach((item, idx) => {
             const tr = document.createElement('tr');
@@ -483,6 +511,7 @@
             tbody.appendChild(tr);
         });
 
+        // Empty rows padding
         for (let i = items.length; i < 8; i++) {
             const tr = document.createElement('tr');
             tr.className = 'empty-row';

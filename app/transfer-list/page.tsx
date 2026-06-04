@@ -41,6 +41,9 @@ function TransferListContent() {
     const canvasDriver = useRef<HTMLCanvasElement>(null);
     const canvasSecurity = useRef<HTMLCanvasElement>(null);
     const [drawingDelivery, setDrawingDelivery] = useState<string | null>(null);
+    // ── FIX: track apakah sudah ada TTD tersimpan di DB ──
+    const [existingDriverSig, setExistingDriverSig] = useState('');
+    const [existingSecuritySig, setExistingSecuritySig] = useState('');
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -136,18 +139,28 @@ function TransferListContent() {
         setSubmitting(false);
     };
 
-    // Buka modal TTD Supir & Security
+    // ── FIX BUG 1: Buka modal TTD — pre-fill data yang sudah ada di DB ──
     const openDeliveryModal = async (trx: any) => {
         setDeliveryTrx(trx);
-        setDriverName(''); setSecurityName('');
+        // Reset canvas dulu
+        clearCanvas(canvasDriver);
+        clearCanvas(canvasSecurity);
         setCheckedItems(new Set());
-        clearCanvas(canvasDriver); clearCanvas(canvasSecurity);
+        setExistingDriverSig('');
+        setExistingSecuritySig('');
         setShowDelivery(true);
-        // Fetch items
+
         try {
             const res = await fetch(`${BASE_URL}/get_transfer_detail.php?id=${trx.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            if (r.status === 'success') setDeliveryItems(r.items || []);
+            if (r.status === 'success') {
+                setDeliveryItems(r.items || []);
+                // Pre-fill nama & TTD yang sudah tersimpan di DB
+                setDriverName(r.header?.driver_name || '');
+                setSecurityName(r.header?.security_name || '');
+                setExistingDriverSig(r.header?.driver_signature || '');
+                setExistingSecuritySig(r.header?.security_signature || '');
+            }
         } catch { }
     };
 
@@ -159,7 +172,6 @@ function TransferListContent() {
         });
     };
 
-    // Submit TTD Supir & Security ke approve_transfer.php dengan action UPDATE_DELIVERY
     const handleDeliverySubmit = async () => {
         if (checkedItems.size < deliveryItems.length) {
             alert(`Centang semua item (${deliveryItems.length} item) untuk konfirmasi.`); return;
@@ -190,13 +202,20 @@ function TransferListContent() {
         setSubmittingDelivery(false);
     };
 
+    // ── FIX BUG 2: handlePrintSJ — kirim driver & security ke print SJ ──
     const handlePrintSJ = async (trx: any) => {
         try {
             const res = await fetch(`${BASE_URL}/get_transfer_detail.php?id=${trx.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status !== 'success') { alert('Gagal ambil detail.'); return; }
             const { header, items } = r;
-            const itemsData = items.map((i: any) => ({ name: i.item_name, qr_id: i.qr_id, qty: i.qty, unit: i.unit || 'pcs', location_name: i.from_location_name || '—' }));
+            const itemsData = items.map((i: any) => ({
+                name: i.item_name,
+                qr_id: i.qr_id,
+                qty: i.qty,
+                unit: i.unit || 'pcs',
+                location_name: i.from_location_name || '—'
+            }));
             const params = new URLSearchParams({
                 code: header.sj_code || '—',
                 trx_id: String(header.id),
@@ -206,6 +225,11 @@ function TransferListContent() {
                 pengirim: header.submitted_by || '—',
                 staff_sig: header.pic_signature || '',
                 pic_sig: header.pic_signature || '',
+                // ── FIX: tambah data supir & security ──
+                driver_name: header.driver_name || '',
+                driver_sig: header.driver_signature || '',
+                security_name: header.security_name || '',
+                security_sig: header.security_signature || '',
                 base_url: BASE_URL,
                 items: JSON.stringify(itemsData),
             });
@@ -278,7 +302,6 @@ function TransferListContent() {
                                 {isPending && canApprove && <div className="h-1 bg-amber-400 w-full" />}
 
                                 <div className="p-5">
-                                    {/* Top */}
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="flex-1 min-w-0">
                                             <span className="text-[10px] font-mono text-violet-600 font-bold bg-violet-50 px-2 py-0.5 rounded-lg border border-violet-100">{trx.sj_code}</span>
@@ -292,7 +315,6 @@ function TransferListContent() {
                                         <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg border flex-shrink-0 ml-2 ${st.bg} ${st.color}`}>{st.label}</span>
                                     </div>
 
-                                    {/* Meta */}
                                     <div className="grid grid-cols-3 gap-2 py-3 border-t border-slate-50 text-center">
                                         <div><p className="text-[9px] text-slate-400 uppercase font-black">PIC</p><p className="text-xs font-bold text-slate-700 mt-0.5 truncate">{trx.pic_name || '—'}</p></div>
                                         <div><p className="text-[9px] text-slate-400 uppercase font-black">Item</p><p className="text-xs font-bold text-slate-700 mt-0.5">{trx.total_items} jenis</p></div>
@@ -302,7 +324,14 @@ function TransferListContent() {
                                     {isApproved && trx.approved_by && <p className="text-[10px] text-emerald-600 font-bold mb-2">✅ Disetujui oleh {trx.approved_by}</p>}
                                     {trx.approval_status === 'REJECTED' && trx.approved_by && <p className="text-[10px] text-red-500 font-bold mb-2">❌ Ditolak oleh {trx.approved_by}</p>}
 
-                                    {/* Actions */}
+                                    {/* Badge TTD supir/security sudah ada */}
+                                    {isApproved && (trx.driver_name || trx.security_name) && (
+                                        <div className="flex gap-2 mb-2 flex-wrap">
+                                            {trx.driver_name && <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold">🚚 {trx.driver_name}</span>}
+                                            {trx.security_name && <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">🛡️ {trx.security_name}</span>}
+                                        </div>
+                                    )}
+
                                     <div className="flex gap-2 flex-wrap">
                                         <button onClick={() => handleToggleDetail(trx)}
                                             className="flex-1 bg-slate-100 text-slate-600 font-black text-[10px] py-3 rounded-2xl uppercase active:scale-95 min-w-0">
@@ -337,7 +366,6 @@ function TransferListContent() {
                                     </div>
                                 </div>
 
-                                {/* Detail expand */}
                                 {isOpen && (
                                     <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Item Transfer ({trx.total_items} jenis)</p>
@@ -368,7 +396,6 @@ function TransferListContent() {
                     })
                 )}
 
-                {/* FAB staff */}
                 {!canApprove && transfers.length > 0 && (
                     <button onClick={() => router.push('/transfer')}
                         className="fixed bottom-24 right-4 bg-violet-600 text-white font-black w-14 h-14 rounded-full shadow-lg text-2xl flex items-center justify-center active:scale-90 transition-all z-40">
@@ -377,7 +404,7 @@ function TransferListContent() {
                 )}
             </div>
 
-            {/* ══ APPROVE MODAL (Manager) ══ */}
+            {/* ══ APPROVE MODAL ══ */}
             {showApprove && selected && canApprove && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={() => setShowApprove(false)}>
                     <div className="bg-white w-full max-w-2xl mx-auto rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -427,7 +454,6 @@ function TransferListContent() {
             {showDelivery && deliveryTrx && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={() => setShowDelivery(false)}>
                     <div className="bg-white w-full max-w-2xl mx-auto rounded-t-3xl max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
                         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
                             <div>
                                 <p className="font-black text-slate-800 text-base">✍️ Data Pengiriman</p>
@@ -475,9 +501,18 @@ function TransferListContent() {
                                 </div>
                                 <input type="text" placeholder="Nama Supir" value={driverName} onChange={e => setDriverName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
+                                {/* FIX: Tampilkan TTD tersimpan jika ada, bisa di-replace dengan gambar baru */}
+                                {existingDriverSig && !isCanvasSigned(canvasDriver) && (
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] text-emerald-600 font-bold">✅ TTD tersimpan — gambar ulang di bawah untuk mengganti</p>
+                                        <img src={`${BASE_URL}/${existingDriverSig}`} alt="TTD Supir" className="h-16 object-contain border border-slate-100 rounded-xl bg-slate-50 p-1" />
+                                    </div>
+                                )}
                                 <div>
                                     <div className="flex justify-between mb-1.5">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Tanda Tangan Supir</label>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase">
+                                            {existingDriverSig ? 'Gambar Ulang TTD (opsional)' : 'Tanda Tangan Supir'}
+                                        </label>
                                         <button onClick={() => clearCanvas(canvasDriver)} className="text-[10px] text-blue-500 font-black uppercase">Reset</button>
                                     </div>
                                     <canvas ref={canvasDriver} width={500} height={160}
@@ -499,9 +534,17 @@ function TransferListContent() {
                                 </div>
                                 <input type="text" placeholder="Nama Security" value={securityName} onChange={e => setSecurityName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
+                                {existingSecuritySig && !isCanvasSigned(canvasSecurity) && (
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] text-emerald-600 font-bold">✅ TTD tersimpan — gambar ulang di bawah untuk mengganti</p>
+                                        <img src={`${BASE_URL}/${existingSecuritySig}`} alt="TTD Security" className="h-16 object-contain border border-slate-100 rounded-xl bg-slate-50 p-1" />
+                                    </div>
+                                )}
                                 <div>
                                     <div className="flex justify-between mb-1.5">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase">Tanda Tangan Security</label>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase">
+                                            {existingSecuritySig ? 'Gambar Ulang TTD (opsional)' : 'Tanda Tangan Security'}
+                                        </label>
                                         <button onClick={() => clearCanvas(canvasSecurity)} className="text-[10px] text-blue-500 font-black uppercase">Reset</button>
                                     </div>
                                     <canvas ref={canvasSecurity} width={500} height={160}
