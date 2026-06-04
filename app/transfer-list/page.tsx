@@ -77,7 +77,7 @@ function TransferListContent() {
     };
 
     // Signature helpers
-    const startDraw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string, setter: (v: string | null) => void) => {
+    const startDraw = (e: any, ref: React.RefObject<HTMLCanvasElement | null>, id: string, setter: (v: string | null) => void) => {
         const canvas = ref.current; if (!canvas) return;
         const ctx = canvas.getContext('2d')!;
         const rect = canvas.getBoundingClientRect();
@@ -87,7 +87,7 @@ function TransferListContent() {
         ctx.beginPath(); ctx.moveTo(x, y);
         setter(id);
     };
-    const draw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string, currentDrawing: string | null) => {
+    const draw = (e: any, ref: React.RefObject<HTMLCanvasElement | null>, id: string, currentDrawing: string | null) => {
         if (currentDrawing !== id) return;
         const canvas = ref.current; const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
@@ -97,16 +97,16 @@ function TransferListContent() {
         ctx.lineTo(x, y); ctx.stroke();
         if (e.touches) e.preventDefault();
     };
-    const clearCanvas = (ref: React.RefObject<HTMLCanvasElement>) =>
+    const clearCanvas = (ref: React.RefObject<HTMLCanvasElement | null>) =>
         ref.current?.getContext('2d')?.clearRect(0, 0, 500, 200);
-    const isCanvasSigned = (ref: React.RefObject<HTMLCanvasElement>): boolean => {
+    const isCanvasSigned = (ref: React.RefObject<HTMLCanvasElement | null>): boolean => {
         const canvas = ref.current; if (!canvas) return false;
         const data = canvas.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data;
         if (!data) return false;
         for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
         return false;
     };
-    const getSig = (ref: React.RefObject<HTMLCanvasElement>) => ref.current?.toDataURL('image/png') || '';
+    const getSig = (ref: React.RefObject<HTMLCanvasElement | null>) => ref.current?.toDataURL('image/png') || '';
 
     // Approve
     const handleApproveSubmit = async () => {

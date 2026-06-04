@@ -79,7 +79,7 @@ function TransferContent() {
     };
 
     // Signature
-    const startDraw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string) => {
+    const startDraw = (e: any, ref: React.RefObject<HTMLCanvasElement | null>, id: string) => {
         const canvas = ref.current; if (!canvas) return;
         const ctx = canvas.getContext('2d')!;
         const rect = canvas.getBoundingClientRect();
@@ -91,7 +91,7 @@ function TransferContent() {
         ctx.beginPath(); ctx.moveTo(x, y);
         setDrawing(id);
     };
-    const draw = (e: any, ref: React.RefObject<HTMLCanvasElement>, id: string) => {
+    const draw = (e: any, ref: React.RefObject<HTMLCanvasElement | null>, id: string) => {
         if (drawing !== id) return;
         const canvas = ref.current; const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
@@ -103,11 +103,11 @@ function TransferContent() {
         ctx.lineTo(x, y); ctx.stroke();
         if (e.touches) e.preventDefault();
     };
-    const clearCanvas = (ref: React.RefObject<HTMLCanvasElement>) =>
+    const clearCanvas = (ref: React.RefObject<HTMLCanvasElement | null>) =>
         ref.current?.getContext('2d')?.clearRect(0, 0, 500, 200);
 
     // Cek apakah canvas sudah ada coretan (ada pixel non-putih)
-    const isCanvasSigned = (ref: React.RefObject<HTMLCanvasElement>): boolean => {
+    const isCanvasSigned = (ref: React.RefObject<HTMLCanvasElement | null>): boolean => {
         const canvas = ref.current; if (!canvas) return false;
         const ctx = canvas.getContext('2d'); if (!ctx) return false;
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -116,7 +116,7 @@ function TransferContent() {
         }
         return false;
     };
-    const getSig = (ref: React.RefObject<HTMLCanvasElement>) =>
+    const getSig = (ref: React.RefObject<HTMLCanvasElement | null>) =>
         ref.current?.toDataURL('image/png') || '';
 
     const fromLoc = locations.find(l => String(l.id) === fromLocId);
