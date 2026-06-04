@@ -39,6 +39,15 @@ const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<str
         reader.readAsDataURL(file);
     });
 
+// Helper untuk membaca file PDF sebagai Base64 String
+const readAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+    });
+
 function GRListContent() {
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
@@ -58,6 +67,7 @@ function GRListContent() {
     const [procNote, setProcNote] = useState('');
     const [procDoc, setProcDoc] = useState('');
     const [procDocPreview, setProcDocPreview] = useState('');
+    const [isPdf, setIsPdf] = useState(false); // State untuk mendeteksi tipe file PDF
     const [submittingProc, setSubmittingProc] = useState(false);
     const procDocRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +101,7 @@ function GRListContent() {
     const openDetail = async (item: any) => {
         setSelected(item); setDetail(null); setLoadingDetail(true);
         setShowReject(false); setRejectNote('');
-        setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview('');
+        setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview(''); setIsPdf(false);
 
         try {
             const res = await fetch(`${BASE_URL}/get_purchase_list.php?id=${item.id}`, { headers: { 'X-API-KEY': API_KEY } });
@@ -118,6 +128,7 @@ function GRListContent() {
                     mode: 'review_po',
                     sj_image_url: `${BASE_URL}/${selected.sj_photo_path}`,
                     po_image: procDoc,
+                    file_type: isPdf ? 'pdf' : 'image' // Kasih flag ke backend php biar dia tau ini pdf/gambar
                 })
             });
             const r = await res.json();
@@ -166,7 +177,7 @@ function GRListContent() {
                     setProcPrices(newPrices);
                 }
             } else {
-                setPoReviewError('AI gagal membaca dokumen. Pastikan foto jelas dan tidak blur.');
+                setPoReviewError(r.message || 'AI gagal membaca dokumen. Pastikan file jelas dan tidak blur.');
             }
         } catch { setPoReviewError('Koneksi gagal.'); }
         setReviewingPo(false);
@@ -218,7 +229,7 @@ function GRListContent() {
             if (r.status === 'success') { alert(r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
             else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
-        setApproving(true);
+        setApproving(false);
     };
 
     const handleReject = async () => {
@@ -250,7 +261,7 @@ function GRListContent() {
             const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
             const res = await fetch(`${BASE_URL}/submit_procurement_review.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ po_id: selected.id, procurement_by: user?.name, procurement_note: procNote, procurement_doc_base64: procDoc, items })
+                body: JSON.stringify({ po_id: selected.id, procurement_by: user?.name, procurement_note: procNote, procurement_doc_base64: procDoc, items, file_ext: isPdf ? 'pdf' : 'jpg' })
             });
             const r = await res.json();
             if (r.status === 'success') { alert("✅ " + r.message); setSelected(null); setDetail(null); fetchList(filterStatus); }
@@ -273,7 +284,11 @@ function GRListContent() {
             {lightboxUrl && (
                 <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
                     <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
-                    <img src={lightboxUrl} alt="doc" className="max-w-full max-h-full object-contain rounded-xl" />
+                    {lightboxUrl.toLowerCase().endsWith('.pdf') ? (
+                        <iframe src={lightboxUrl} className="w-full h-full max-w-4xl max-h-[85vh] rounded-xl bg-white" title="PDF Viewer" />
+                    ) : (
+                        <img src={lightboxUrl} alt="doc" className="max-w-full max-h-full object-contain rounded-xl" />
+                    )}
                 </div>
             )}
 
@@ -334,9 +349,16 @@ function GRListContent() {
                             {selected.procurement_doc_path && (
                                 <div>
                                     <p className="text-[10px] font-black text-violet-500 uppercase mb-2">📋 Dokumen PO Sedayu</p>
-                                    <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.procurement_doc_path}`)} className="w-full">
-                                        <img src={`${BASE_URL}/${selected.procurement_doc_path}`} className="w-full max-h-48 object-cover rounded-2xl border border-violet-100" alt="PO Doc" />
-                                    </button>
+                                    {selected.procurement_doc_path.toLowerCase().endsWith('.pdf') ? (
+                                        <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.procurement_doc_path}`)} className="w-full p-6 border rounded-2xl bg-slate-50 flex flex-col items-center justify-center gap-2 text-violet-600 font-black text-xs">
+                                            <span className="text-3xl">📕</span>
+                                            <span>Lihat Dokumen PO (PDF)</span>
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => setLightboxUrl(`${BASE_URL}/${selected.procurement_doc_path}`)} className="w-full">
+                                            <img src={`${BASE_URL}/${selected.procurement_doc_path}`} className="w-full max-h-48 object-cover rounded-2xl border border-violet-100" alt="PO Doc" />
+                                        </button>
+                                    )}
                                     {selected.procurement_note && <p className="text-[10px] text-slate-500 italic mt-1">"{selected.procurement_note}"</p>}
                                 </div>
                             )}
@@ -395,19 +417,26 @@ function GRListContent() {
                                                     </div>
                                                 )}
 
-                                                {/* Upload dokumen PO */}
+                                                {/* Upload dokumen PO (Mendukung Gambar & PDF) */}
                                                 <div className="space-y-2">
-                                                    <p className="text-[10px] font-black text-violet-700 uppercase">Dokumen PO Sedayu *</p>
+                                                    <p className="text-[10px] font-black text-violet-700 uppercase">Dokumen PO Sedayu (Gambar / PDF) *</p>
                                                     {procDocPreview ? (
                                                         <div className="space-y-2">
                                                             <div className="relative">
-                                                                <img src={procDocPreview} className="w-full max-h-48 object-cover rounded-2xl border border-violet-200" alt="dok" />
-                                                                <button onClick={() => { setProcDoc(''); setProcDocPreview(''); setPoReviewResult(null); setPoReviewError(''); }} className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">✕ Hapus</button>
-                                                                <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Dokumen tersimpan</p>
+                                                                {isPdf ? (
+                                                                    <div className="w-full py-12 border-2 border-violet-200 bg-white rounded-2xl flex flex-col items-center justify-center gap-1">
+                                                                        <span className="text-4xl">📕</span>
+                                                                        <span className="text-xs font-black text-slate-700">Dokumen Berkas PDF Terlampir</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <img src={procDocPreview} className="w-full max-h-48 object-cover rounded-2xl border border-violet-200" alt="dok" />
+                                                                )}
+                                                                <button onClick={() => { setProcDoc(''); setProcDocPreview(''); setPoReviewResult(null); setPoReviewError(''); setIsPdf(false); }} className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-black">✕ Hapus</button>
+                                                                <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Dokumen berhasil dimuat</p>
                                                             </div>
                                                             <button onClick={handleReviewPo} disabled={reviewingPo} className="w-full bg-gradient-to-r from-violet-600 to-blue-600 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
                                                                 {reviewingPo ? (
-                                                                    <><span className="animate-spin">⏳</span><span>AI membaca & mencocokkan...</span></>
+                                                                    <><span className="animate-spin">⏳</span><span>AI membaca & mengekstrak berkas...</span></>
                                                                 ) : (
                                                                     <><span className="text-base">🤖</span><span>Review & Cocokkan dengan AI</span></>
                                                                 )}
@@ -421,16 +450,26 @@ function GRListContent() {
                                                     ) : (
                                                         <button onClick={() => procDocRef.current?.click()} className="w-full border-2 border-dashed border-violet-300 rounded-2xl py-8 text-center active:bg-violet-50">
                                                             <p className="text-2xl mb-1">📄</p>
-                                                            <p className="font-black text-violet-400 text-sm">Foto / Upload Dokumen PO Sedayu</p>
-                                                            <p className="text-[10px] text-violet-300 mt-0.5">AI akan cocokkan & extract HPP otomatis</p>
+                                                            <p className="font-black text-violet-400 text-sm">Upload Gambar atau Berkas PDF PO Sedayu</p>
+                                                            <p className="text-[10px] text-violet-300 mt-0.5">Sistem otomatis mendeteksi format gambar & PDF</p>
                                                         </button>
                                                     )}
-                                                    <input ref={procDocRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                                    <input ref={procDocRef} type="file" accept="image/*,application/pdf" className="hidden"
                                                         onChange={async e => {
                                                             const file = e.target.files?.[0]; if (!file) return;
-                                                            const b64 = await compressImage(file);
-                                                            setProcDoc(b64); setProcDocPreview(b64);
                                                             setPoReviewResult(null); setPoReviewError('');
+
+                                                            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                                                                setIsPdf(true);
+                                                                const b64 = await readAsBase64(file);
+                                                                setProcDoc(b64);
+                                                                setProcDocPreview(b64);
+                                                            } else {
+                                                                setIsPdf(false);
+                                                                const b64 = await compressImage(file);
+                                                                setProcDoc(b64);
+                                                                setProcDocPreview(b64);
+                                                            }
                                                         }} />
                                                 </div>
 
@@ -641,7 +680,7 @@ function GRListContent() {
                                 {item.approval_status === 'PENDING_REVISION' && user.role === 'PROCUREMENT' && (
                                     <p className="text-[9px] font-black text-red-500 mt-1">→ Revisi</p>
                                 )}
-                                {item.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN') && (
+                                {item.approval_status === 'PROCUREMENT_REVIEW' && (user.role === 'MANAGER' || user.role === 'ADMIN' || user.role === 'ADMIN') && (
                                     <p className="text-[9px] font-black text-emerald-500 mt-1">→ Approve</p>
                                 )}
                             </div>
