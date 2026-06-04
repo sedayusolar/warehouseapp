@@ -304,7 +304,9 @@ function GRListContent() {
             return;
         }
 
-        if (!procDoc) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
+        // Dokumen PO wajib hanya saat PENDING pertama, revisi boleh skip (pakai dok lama)
+        const isRevision = selected.approval_status === 'PENDING_REVISION';
+        if (!procDoc && !isRevision) { alert("Upload dokumen PO dari Sedayu wajib!"); return; }
         if (!confirm("Submit ke Manager untuk approval?")) return;
 
         setSubmittingProc(true);
@@ -585,7 +587,15 @@ function GRListContent() {
 
                                                 {/* ── Upload Dokumen PO ── */}
                                                 <div className="space-y-2">
-                                                    <p className="text-[10px] font-black text-violet-700 uppercase">Dokumen PO Sedayu (Gambar / PDF) *</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-[10px] font-black text-violet-700 uppercase">
+                                                            Dokumen PO Sedayu (Gambar / PDF)
+                                                            {selected.approval_status === 'PENDING' ? ' *' : ' (Opsional)'}
+                                                        </p>
+                                                        {selected.approval_status === 'PENDING_REVISION' && !procDoc && selected.procurement_doc_path && (
+                                                            <span className="text-[9px] text-violet-500 font-bold">📎 Pakai dok lama</span>
+                                                        )}
+                                                    </div>
                                                     {procDocPreview ? (
                                                         <div className="space-y-2">
                                                             <div className="relative">
