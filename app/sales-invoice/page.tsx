@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const PROXY_URL = "https://sedayu.com/api/jurnal_proxy.php";
+const PROXY_URL = "https://sedayu.com/api/warehouse/jurnal_proxy.php";
 const API_KEY = "SedayuSolar_TopSecret_2026";
 
 const STATUS_MAP = {
