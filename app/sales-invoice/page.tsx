@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect, useCallback } from "react";
 
 const PROXY_URL = "https://sedayu.com/api/warehouse/jurnal_proxy.php";
