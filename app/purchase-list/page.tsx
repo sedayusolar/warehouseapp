@@ -84,6 +84,32 @@ function GRListContent() {
     // Manual item state — Bug #3
     const [manualItems, setManualItems] = useState<ManualItem[]>([]);
 
+    // Edit/Delete item state (untuk PENDING_REVISION)
+    const [editedItems, setEditedItems] = useState<Record<number, { item_name: string; qty: string; unit: string }>>({});
+    const [deletedItemIds, setDeletedItemIds] = useState<Set<number>>(new Set());
+    const [expandedEditId, setExpandedEditId] = useState<number | null>(null);
+
+    const toggleDeleteItem = (id: number, itemName: string) => {
+        if (!deletedItemIds.has(id)) {
+            if (!confirm(`Hapus item "${itemName}"?`)) return;
+        }
+        setDeletedItemIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const getEditedItem = (item: any) => ({
+        item_name: editedItems[item.id]?.item_name ?? item.item_name,
+        qty: editedItems[item.id]?.qty ?? String(item.qty),
+        unit: editedItems[item.id]?.unit ?? item.unit,
+    });
+
+    const updateEditedItem = (id: number, field: string, value: string) => {
+        setEditedItems(prev => ({ ...prev, [id]: { ...getEditedItem({ id, ...prev[id] }), [field]: value } }));
+    };
+
     const addManualItem = () => {
         setManualItems(prev => [...prev, {
             id: `manual_${Date.now()}`,
@@ -133,7 +159,8 @@ function GRListContent() {
         setSelected(item); setDetail(null); setLoadingDetail(true);
         setShowReject(false); setRejectNote('');
         setProcPrices({}); setProcNote(''); setProcDoc(''); setProcDocPreview(''); setIsPdf(false);
-        setManualItems([]); // reset manual items setiap buka detail baru
+        setManualItems([]);
+        setEditedItems({}); setDeletedItemIds(new Set()); setExpandedEditId(null);
         setPoReviewResult(null); setPoReviewError('');
 
         try {
@@ -258,14 +285,17 @@ function GRListContent() {
     const handleSubmitProcurement = async () => {
         if (!selected || !detail) return;
 
-        // Validasi HPP item dari DB
-        const missingPrice = detail.items?.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
-        if (missingPrice?.length > 0) {
+        // Item aktif = yang tidak dihapus
+        const activeItems = detail.items?.filter((i: any) => !deletedItemIds.has(i.id)) ?? [];
+
+        // Validasi HPP hanya untuk item aktif
+        const missingPrice = activeItems.filter((i: any) => !procPrices[i.id] || Number(procPrices[i.id]) <= 0);
+        if (missingPrice.length > 0) {
             alert(`HPP wajib diisi untuk semua item:\n${missingPrice.map((i: any) => `• ${i.item_name}`).join('\n')}`);
             return;
         }
 
-        // Validasi manual items — kalau ada yang belum lengkap
+        // Validasi manual items
         const incompleteManual = manualItems.filter(
             i => !i.item_name.trim() || !i.qty || Number(i.qty) <= 0 || !i.unit_price || Number(i.unit_price) <= 0
         );
@@ -279,7 +309,14 @@ function GRListContent() {
 
         setSubmittingProc(true);
         try {
-            const items = detail.items?.map((i: any) => ({ id: i.id, unit_price: Number(procPrices[i.id]) || 0 }));
+            // Item DB aktif: kirim id + unit_price + perubahan nama/qty/unit
+            const items = activeItems.map((i: any) => ({
+                id: i.id,
+                unit_price: Number(procPrices[i.id]) || 0,
+                item_name: editedItems[i.id]?.item_name ?? i.item_name,
+                qty: Number(editedItems[i.id]?.qty ?? i.qty),
+                unit: editedItems[i.id]?.unit ?? i.unit,
+            }));
 
             const manualItemsPayload = manualItems.map(i => ({
                 item_name: i.item_name.trim(),
@@ -297,6 +334,7 @@ function GRListContent() {
                     procurement_doc_base64: procDoc,
                     items,
                     manual_items: manualItemsPayload,
+                    deleted_item_ids: Array.from(deletedItemIds),
                     file_ext: isPdf ? 'pdf' : 'jpg'
                 })
             });
@@ -317,9 +355,14 @@ function GRListContent() {
             ? ['PENDING', 'PROCUREMENT_REVIEW', 'APPROVED', 'PENDING_REVISION']
             : ['PENDING', 'APPROVED', 'PENDING_REVISION'];
 
-    // Hitung total GR termasuk manual items
+    // Hitung total GR: exclude deleted, pakai edited qty jika ada
     const totalGRWithManual = () => {
-        const fromDB = detail?.items?.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0) || 0;
+        const fromDB = detail?.items
+            ?.filter((i: any) => !deletedItemIds.has(i.id))
+            ?.reduce((s: number, i: any) => {
+                const qty = Number(editedItems[i.id]?.qty ?? i.qty);
+                return s + qty * Number(procPrices[i.id] || 0);
+            }, 0) || 0;
         const fromManual = manualItems.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0);
         return fromDB + fromManual;
     };
@@ -426,41 +469,116 @@ function GRListContent() {
                                                 <p className="text-[10px] font-black text-violet-700 uppercase">Harga Satuan (HPP) per Item *</p>
 
                                                 {detail.items?.map((item: any) => {
+                                                    const isDeleted = deletedItemIds.has(item.id);
+                                                    const isExpanded = expandedEditId === item.id;
+                                                    const edited = getEditedItem(item);
                                                     const hasPrice = procPrices[item.id] && Number(procPrices[item.id]) > 0;
+                                                    const isRevision = selected.approval_status === 'PENDING_REVISION';
+
+                                                    if (isDeleted) return (
+                                                        <div key={item.id} className="bg-red-50 border border-red-200 rounded-2xl p-3 flex justify-between items-center opacity-60">
+                                                            <div>
+                                                                <p className="text-xs font-bold text-red-400 line-through">{item.item_name}</p>
+                                                                <p className="text-[9px] text-red-300">Akan dihapus saat submit</p>
+                                                            </div>
+                                                            <button onClick={() => toggleDeleteItem(item.id, item.item_name)} className="text-[9px] font-black text-red-500 bg-white border border-red-200 px-2.5 py-1.5 rounded-xl">
+                                                                ↩ Batal
+                                                            </button>
+                                                        </div>
+                                                    );
+
                                                     return (
-                                                        <div key={item.id} className="bg-white rounded-2xl p-3.5 border border-violet-100 space-y-2">
-                                                            <div className="flex justify-between items-start gap-2">
+                                                        <div key={item.id} className={`bg-white rounded-2xl border space-y-2 overflow-hidden ${isExpanded ? 'border-blue-300' : 'border-violet-100'}`}>
+                                                            {/* Baris utama */}
+                                                            <div className="flex justify-between items-start gap-2 p-3.5">
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                                    <p className="font-bold text-sm text-slate-800">{edited.item_name}</p>
                                                                     <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
-                                                                    <p className="text-[10px] text-slate-500">Qty: <span className="font-black">{item.qty} {item.unit}</span></p>
+                                                                    <p className="text-[10px] text-slate-500">Qty: <span className="font-black">{edited.qty} {edited.unit}</span></p>
                                                                 </div>
-                                                                <div className="flex-shrink-0 w-32">
-                                                                    <div className="relative">
-                                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
-                                                                        <input type="number" min="0"
-                                                                            value={procPrices[item.id] || ''}
-                                                                            onChange={e => setProcPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                                                            placeholder="0"
-                                                                            className={`w-full p-2 pl-7 rounded-xl outline-none text-sm font-bold text-right ${!hasPrice ? 'bg-red-50 border border-red-200 text-red-500' : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
-                                                                    </div>
-                                                                    {hasPrice && (
-                                                                        <p className="text-[9px] text-violet-500 text-right mt-0.5 font-bold">
-                                                                            = {formatRp(item.qty * Number(procPrices[item.id]))}
-                                                                        </p>
+                                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                    {/* Tombol edit & delete hanya saat PENDING_REVISION */}
+                                                                    {isRevision && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => setExpandedEditId(isExpanded ? null : item.id)}
+                                                                                className={`w-8 h-8 rounded-xl font-black text-sm flex items-center justify-center ${isExpanded ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}
+                                                                            >✏️</button>
+                                                                            <button
+                                                                                onClick={() => toggleDeleteItem(item.id, item.item_name)}
+                                                                                className="w-8 h-8 bg-red-50 text-red-400 rounded-xl font-black text-sm flex items-center justify-center"
+                                                                            >🗑️</button>
+                                                                        </>
                                                                     )}
+                                                                    {/* Input HPP */}
+                                                                    <div className="w-32">
+                                                                        <div className="relative">
+                                                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                                            <input type="number" min="0"
+                                                                                value={procPrices[item.id] || ''}
+                                                                                onChange={e => setProcPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                                                                placeholder="0"
+                                                                                className={`w-full p-2 pl-7 rounded-xl outline-none text-sm font-bold text-right ${!hasPrice ? 'bg-red-50 border border-red-200 text-red-500' : 'bg-violet-50 border border-violet-200 text-violet-700'}`} />
+                                                                        </div>
+                                                                        {hasPrice && (
+                                                                            <p className="text-[9px] text-violet-500 text-right mt-0.5 font-bold">
+                                                                                = {formatRp(Number(edited.qty) * Number(procPrices[item.id]))}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
+
+                                                            {/* Panel edit (expand) */}
+                                                            {isExpanded && (
+                                                                <div className="bg-blue-50 border-t border-blue-100 px-3.5 pb-3.5 pt-3 space-y-2.5">
+                                                                    <p className="text-[9px] font-black text-blue-600 uppercase">Edit Item</p>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={edited.item_name}
+                                                                        onChange={e => updateEditedItem(item.id, 'item_name', e.target.value)}
+                                                                        placeholder="Nama item"
+                                                                        className="w-full p-2.5 bg-white rounded-xl outline-none text-sm font-bold text-slate-700 border border-blue-200"
+                                                                    />
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        <div>
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Qty</p>
+                                                                            <input
+                                                                                type="number" min="0"
+                                                                                value={edited.qty}
+                                                                                onChange={e => updateEditedItem(item.id, 'qty', e.target.value)}
+                                                                                className="w-full p-2 bg-white rounded-xl outline-none text-sm font-bold text-center text-slate-700 border border-blue-200"
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Unit</p>
+                                                                            <select
+                                                                                value={edited.unit}
+                                                                                onChange={e => updateEditedItem(item.id, 'unit', e.target.value)}
+                                                                                className="w-full p-2 bg-white rounded-xl outline-none text-sm font-bold text-slate-700 border border-blue-200"
+                                                                            >
+                                                                                {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                                                                            </select>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => setExpandedEditId(null)} className="w-full py-2 bg-blue-600 text-white font-black text-[10px] rounded-xl">
+                                                                        ✓ Selesai Edit
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}
 
                                                 {/* Total sementara dari item DB saja */}
-                                                {detail.items?.every((i: any) => Number(procPrices[i.id]) > 0) && manualItems.length === 0 && (
+                                                {detail.items?.filter((i: any) => !deletedItemIds.has(i.id)).every((i: any) => Number(procPrices[i.id]) > 0) && manualItems.length === 0 && (
                                                     <div className="bg-violet-700 text-white rounded-2xl p-3.5 flex justify-between items-center">
                                                         <p className="text-[10px] font-black uppercase tracking-widest">Total Nilai GR</p>
                                                         <p className="font-black text-lg">
-                                                            {formatRp(detail.items.reduce((s: number, i: any) => s + i.qty * Number(procPrices[i.id] || 0), 0))}
+                                                            {formatRp(detail.items.filter((i: any) => !deletedItemIds.has(i.id)).reduce((s: number, i: any) => {
+                                                                const qty = Number(editedItems[i.id]?.qty ?? i.qty);
+                                                                return s + qty * Number(procPrices[i.id] || 0);
+                                                            }, 0))}
                                                         </p>
                                                     </div>
                                                 )}
