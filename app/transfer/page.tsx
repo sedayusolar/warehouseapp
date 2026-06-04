@@ -511,7 +511,7 @@ function TransferContent() {
                             <div className="flex justify-center">
                                 <div className="text-center w-2/3">
                                     <div className="h-24 border border-slate-100 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center">
-                                        {canvasPic.current && getSig(canvasPic).length > 2000
+                                        {canvasPic.current && getSig(canvasPic).length > 1000
                                             ? <img src={getSig(canvasPic)} className="w-full h-full object-contain" alt="PIC" />
                                             : <span className="text-[9px] text-slate-300">—</span>
                                         }
