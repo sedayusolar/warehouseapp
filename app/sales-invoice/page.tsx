@@ -13,8 +13,8 @@ const STATUS_MAP = {
     draft: { label: "Draft", color: "#7C3AED", bg: "#F5F3FF" },
 };
 
-const fmt = (n) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n || 0);
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fmt = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n || 0);
+const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 // Default date range: last 3 months
 const defaultFrom = () => {
@@ -75,12 +75,12 @@ export default function JurnalInvoiceDashboard() {
             // Summary
             const all = data;
             setSummary({
-                total: all.reduce((s, i) => s + (i.amount || 0), 0),
-                paid: all.filter(i => i.status === "paid").reduce((s, i) => s + (i.amount || 0), 0),
-                unpaid: all.filter(i => ["open", "partial"].includes(i.status)).reduce((s, i) => s + (i.amount || 0), 0),
-                overdue: all.filter(i => i.status === "overdue").reduce((s, i) => s + (i.amount || 0), 0),
+                total: all.reduce((s: number, i: any) => s + (i.amount || 0), 0),
+                paid: all.filter((i: any) => i.status === "paid").reduce((s: number, i: any) => s + (i.amount || 0), 0),
+                unpaid: all.filter((i: any) => ["open", "partial"].includes(i.status)).reduce((s: number, i: any) => s + (i.amount || 0), 0),
+                overdue: all.filter((i: any) => i.status === "overdue").reduce((s: number, i: any) => s + (i.amount || 0), 0),
             });
-        } catch (e) {
+        } catch (e: unknown) {
             setError("Gagal koneksi ke server proxy. Pastikan jurnal_proxy.php sudah di-deploy.");
             setInvoices([]);
         }
@@ -100,8 +100,8 @@ export default function JurnalInvoiceDashboard() {
 
     // Client-side filter & sort
     const filtered = invoices
-        .filter(inv => statusFilter === "all" || inv.status === statusFilter)
-        .sort((a, b) => {
+        .filter((inv: any) => statusFilter === "all" || inv.status === statusFilter)
+        .sort((a: any, b: any) => {
             let va = a[sortKey] ?? "";
             let vb = b[sortKey] ?? "";
             if (typeof va === "string") va = va.toLowerCase();
@@ -109,12 +109,12 @@ export default function JurnalInvoiceDashboard() {
             return sortDir === "asc" ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
         });
 
-    const handleSort = (key) => {
-        if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    const handleSort = (key: string) => {
+        if (sortKey === key) setSortDir((d: string) => d === "asc" ? "desc" : "asc");
         else { setSortKey(key); setSortDir("asc"); }
     };
 
-    const SortIcon = ({ k }) => {
+    const SortIcon = ({ k }: { k: string }) => {
         if (sortKey !== k) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
         return <span style={{ marginLeft: 4, color: "#E8890A" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
     };
@@ -159,7 +159,7 @@ export default function JurnalInvoiceDashboard() {
                             { label: "Lunas", value: fmt(summary.paid), color: "#34D399", icon: "✅" },
                             { label: "Belum Lunas", value: fmt(summary.unpaid), color: "#FBBF24", icon: "⏳" },
                             { label: "Jatuh Tempo", value: fmt(summary.overdue), color: "#F87171", icon: "🔴" },
-                        ].map((c, i) => (
+                        ].map((c: any, i: number) => (
                             <div key={i} style={{
                                 background: "#0D1F35", borderRadius: 12, padding: "12px 16px",
                                 border: "1px solid #1E2D3D",
@@ -187,8 +187,8 @@ export default function JurnalInvoiceDashboard() {
                     <div style={{ display: "flex", flex: "1 1 220px", gap: 0 }}>
                         <input
                             value={searchInput}
-                            onChange={e => setSearchInput(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && handleSearch()}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSearch()}
                             placeholder="Cari nomor invoice, customer..."
                             style={{
                                 flex: 1, background: "#0D1621", border: "1px solid #1E3A5C",
@@ -207,13 +207,13 @@ export default function JurnalInvoiceDashboard() {
                     {/* Date Range */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>DARI</span>
-                        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                        <input type="date" value={fromDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFromDate(e.target.value)}
                             style={{
                                 background: "#0D1621", border: "1px solid #1E3A5C", borderRadius: 10,
                                 padding: "8px 10px", color: "#E2E8F0", fontSize: 12, outline: "none",
                             }} />
                         <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>S/D</span>
-                        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                        <input type="date" value={toDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToDate(e.target.value)}
                             style={{
                                 background: "#0D1621", border: "1px solid #1E3A5C", borderRadius: 10,
                                 padding: "8px 10px", color: "#E2E8F0", fontSize: 12, outline: "none",
@@ -225,12 +225,12 @@ export default function JurnalInvoiceDashboard() {
                     </div>
 
                     {/* Status filter */}
-                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
+                    <select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStatusFilter(e.target.value)} style={{
                         background: "#0D1621", border: "1px solid #1E3A5C", borderRadius: 10,
                         padding: "9px 12px", color: "#E2E8F0", fontSize: 12, outline: "none",
                     }}>
                         <option value="all">Semua Status</option>
-                        {Object.entries(STATUS_MAP).map(([k, v]) => (
+                        {Object.entries(STATUS_MAP).map(([k, v]: [string, any]) => (
                             <option key={k} value={k}>{v.label}</option>
                         ))}
                     </select>
@@ -300,7 +300,7 @@ export default function JurnalInvoiceDashboard() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filtered.map((inv, i) => {
+                                        {filtered.map((inv: any, i: number) => {
                                             const st = STATUS_MAP[inv.status] || { label: inv.status, color: "#94A3B8", bg: "#1E293B" };
                                             const isOverdue = inv.status === "overdue";
                                             return (
@@ -310,8 +310,8 @@ export default function JurnalInvoiceDashboard() {
                                                         background: isOverdue ? "#1A0A0A" : i % 2 === 0 ? "#0F1E2D" : "#0D1B2A",
                                                         transition: "background 0.15s",
                                                     }}
-                                                    onMouseEnter={e => e.currentTarget.style.background = "#162030"}
-                                                    onMouseLeave={e => e.currentTarget.style.background = isOverdue ? "#1A0A0A" : i % 2 === 0 ? "#0F1E2D" : "#0D1B2A"}
+                                                    onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => (e.currentTarget as HTMLElement).style.background = "#162030"}
+                                                    onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => (e.currentTarget as HTMLElement).style.background = isOverdue ? "#1A0A0A" : i % 2 === 0 ? "#0F1E2D" : "#0D1B2A"}
                                                 >
                                                     <td style={{ padding: "11px 16px", fontSize: 12, color: "#60A5FA", fontWeight: 700, fontFamily: "monospace" }}>
                                                         {inv.transaction_no || inv.invoice_no || "—"}
@@ -372,7 +372,7 @@ export default function JurnalInvoiceDashboard() {
                                         fontWeight: 800, fontSize: 12,
                                     }}>← Prev</button>
 
-                                {[...Array(Math.min(totalPages, 7))].map((_, i) => {
+                                {[...Array(Math.min(totalPages, 7))].map((_: any, i: number) => {
                                     const p = i + 1;
                                     return (
                                         <button key={p} onClick={() => fetchInvoices(p)}
