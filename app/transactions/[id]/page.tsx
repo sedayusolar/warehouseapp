@@ -124,25 +124,41 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         } catch { }
     };
 
+    // ─────────────────────────────────────────────────────────────
+    // PATCH untuk transactions/[id]/page.tsx
+    // Cari fungsi handlePrintSJ dan replace seluruhnya dengan ini:
+    // ─────────────────────────────────────────────────────────────
+
     const handlePrintSJ = () => {
         if (!transaction) return;
         const { header, items } = transaction;
         const itemsData = items.map((item: any) => ({
-            name: item.item_name, qr_id: item.qr_id,
-            qty: item.qty, unit: item.unit || 'pcs',
+            name: item.item_name,
+            qr_id: item.qr_id,
+            qty: item.qty,
+            unit: item.unit || 'pcs',
             location_name: item.location_name || '—',
         }));
         const params = new URLSearchParams({
-            code: header.transaction_code, trx_id: String(header.id),
-            project: header.project_name || '—', pic: header.pic_name || '—',
+            code: header.transaction_code,
+            trx_id: String(header.id),
+            project: header.project_name || '—',
+            pic: header.pic_name || '—',
             date: header.checkout_date,
             pengirim: header.staff_name || user?.name || '—',
             staff_sig: header.staff_signature_path || '',
             pic_sig: header.signature_pic_path || '',
-            base_url: BASE_URL, items: JSON.stringify(itemsData),
+            // ── FIX: tambah data supir & security ──
+            driver_name: header.driver_name || '',
+            driver_sig: header.driver_signature || '',
+            security_name: header.security_name || '',
+            security_sig: header.security_signature || '',
+            base_url: BASE_URL,
+            items: JSON.stringify(itemsData),
         });
         window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
     };
+
 
     // TTD Manager drawing
     const startDrawing = (e: any) => {
