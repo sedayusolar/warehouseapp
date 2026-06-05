@@ -21,7 +21,6 @@ const getCondLabel = (condition: string, category: string) => {
     return COND_CONFIG[condition] || { label: condition, color: 'bg-slate-100 text-slate-500' };
 };
 
-// State per item untuk checklist penerimaan
 type ItemReceiveState = {
     checked: boolean;
     qty_received: number;
@@ -59,16 +58,13 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     const [managerComment, setManagerComment] = useState('');
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-    // TTD Manager
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    // TTD PIC/Engineer
     const picCanvasRef = useRef<HTMLCanvasElement>(null);
     const [isPicDrawing, setIsPicDrawing] = useState(false);
     const [submittingPicSig, setSubmittingPicSig] = useState(false);
 
-    // Checklist per item — state
     const [itemReceive, setItemReceive] = useState<Record<string, ItemReceiveState>>({});
     const photoRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -79,17 +75,11 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         fetchDetail();
     }, [id]);
 
-    // Init checklist saat items sudah ada
     useEffect(() => {
         if (!transaction?.items) return;
         const init: Record<string, ItemReceiveState> = {};
         transaction.items.forEach((item: any) => {
-            init[item.qr_id] = {
-                checked: true,
-                qty_received: item.qty,
-                note: '',
-                photo_base64: '',
-            };
+            init[item.qr_id] = { checked: true, qty_received: item.qty, note: '', photo_base64: '' };
         });
         setItemReceive(init);
     }, [transaction?.items]);
@@ -124,43 +114,26 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         } catch { }
     };
 
-    // ─────────────────────────────────────────────────────────────
-    // PATCH untuk transactions/[id]/page.tsx
-    // Cari fungsi handlePrintSJ dan replace seluruhnya dengan ini:
-    // ─────────────────────────────────────────────────────────────
-
     const handlePrintSJ = () => {
         if (!transaction) return;
         const { header, items } = transaction;
         const itemsData = items.map((item: any) => ({
-            name: item.item_name,
-            qr_id: item.qr_id,
-            qty: item.qty,
-            unit: item.unit || 'pcs',
+            name: item.item_name, qr_id: item.qr_id,
+            qty: item.qty, unit: item.unit || 'pcs',
             location_name: item.location_name || '—',
         }));
         const params = new URLSearchParams({
-            code: header.transaction_code,
-            trx_id: String(header.id),
-            project: header.project_name || '—',
-            pic: header.pic_name || '—',
-            date: header.checkout_date,
-            pengirim: header.staff_name || user?.name || '—',
-            staff_sig: header.staff_signature_path || '',
-            pic_sig: header.signature_pic_path || '',
-            // ── FIX: tambah data supir & security ──
-            driver_name: header.driver_name || '',
-            driver_sig: header.driver_signature || '',
-            security_name: header.security_name || '',
-            security_sig: header.security_signature || '',
-            base_url: BASE_URL,
-            items: JSON.stringify(itemsData),
+            code: header.transaction_code, trx_id: String(header.id),
+            project: header.project_name || '—', pic: header.pic_name || '—',
+            date: header.checkout_date, pengirim: header.staff_name || user?.name || '—',
+            staff_sig: header.staff_signature_path || '', pic_sig: header.signature_pic_path || '',
+            driver_name: header.driver_name || '', driver_sig: header.driver_signature || '',
+            security_name: header.security_name || '', security_sig: header.security_signature || '',
+            base_url: BASE_URL, items: JSON.stringify(itemsData),
         });
         window.open(`/print_surat_jalan.html?${params.toString()}`, '_blank');
     };
 
-
-    // TTD Manager drawing
     const startDrawing = (e: any) => {
         const canvas = canvasRef.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
@@ -181,7 +154,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         if (e.touches) e.preventDefault();
     };
 
-    // TTD PIC drawing
     const startPicDrawing = (e: any) => {
         const canvas = picCanvasRef.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
@@ -206,65 +178,45 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         setItemReceive(prev => ({ ...prev, [qr_id]: { ...prev[qr_id], [field]: value } }));
     };
 
-    // Submit TTD PIC + checklist per item
     const handleSubmitPicSignature = async () => {
         const sig = picCanvasRef.current?.toDataURL('image/png');
-        if (!sig || sig.length < 2000) {
-            alert("Tanda tangan PIC wajib diisi!"); return;
-        }
-
-        // Validasi: minimal 1 item dichecklist
+        if (!sig || sig.length < 2000) { alert("Tanda tangan PIC wajib diisi!"); return; }
         const checkedItems = Object.entries(itemReceive).filter(([, v]) => v.checked);
-        if (checkedItems.length === 0) {
-            alert("Centang minimal 1 item yang diterima!"); return;
-        }
-
-        // Cek qty received
+        if (checkedItems.length === 0) { alert("Centang minimal 1 item yang diterima!"); return; }
         for (const [qr_id, state] of checkedItems) {
             if (state.qty_received <= 0) {
                 const item = transaction.items.find((i: any) => i.qr_id === qr_id);
                 alert(`Qty diterima tidak valid untuk: ${item?.item_name}`); return;
             }
         }
-
         if (!confirm("Konfirmasi: barang sudah diterima di site dan Anda akan menandatangani?")) return;
-
         setSubmittingPicSig(true);
         try {
-            // Build receive details
             const receiveDetails = transaction.items.map((item: any) => {
                 const state = itemReceive[item.qr_id];
                 return {
-                    qr_id: item.qr_id,
-                    item_name: item.item_name,
+                    qr_id: item.qr_id, item_name: item.item_name,
                     qty_ordered: item.qty,
                     qty_received: state?.checked ? (state.qty_received || item.qty) : 0,
                     received: state?.checked ?? true,
-                    note: state?.note || '',
-                    photo_base64: state?.photo_base64 || '',
+                    note: state?.note || '', photo_base64: state?.photo_base64 || '',
                 };
             });
-
             const res = await fetch(`${BASE_URL}/submit_pic_signature.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
-                    transaction_id: id,
-                    pic_name: user?.name || transaction?.header?.pic_name,
-                    signature_base64: sig,
-                    receive_details: receiveDetails,
+                    transaction_id: id, pic_name: user?.name || transaction?.header?.pic_name,
+                    signature_base64: sig, receive_details: receiveDetails,
                 })
             });
             const r = await res.json();
-            if (r.status === 'success') {
-                alert("✅ Konfirmasi berhasil! Status → DELIVERED.");
-                fetchDetail();
-            } else alert("Gagal: " + r.message);
+            if (r.status === 'success') { alert("✅ Konfirmasi berhasil! Status → DELIVERED."); fetchDetail(); }
+            else alert("Gagal: " + r.message);
         } catch { alert("Koneksi gagal."); }
         setSubmittingPicSig(false);
     };
 
-    // Approve/Reject CHECKOUT
+    // ── FIX 1: tambah manager_name di payload ──
     const handleCheckoutApproval = async (status: 'APPROVED' | 'REJECTED') => {
         const sig = canvasRef.current?.toDataURL('image/png');
         if (status === 'APPROVED') {
@@ -281,7 +233,11 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         try {
             const res = await fetch(`${BASE_URL}/update_approval.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ id, status, comment: managerComment, manager_signature_base64: status === 'APPROVED' ? sig : '' })
+                body: JSON.stringify({
+                    id, status, comment: managerComment,
+                    manager_signature_base64: status === 'APPROVED' ? sig : '',
+                    manager_name: user?.name || '',  // ← FIX: kirim nama manager
+                })
             });
             const r = await res.json();
             if (r.status === 'success') { alert(`Berhasil di-${status}!`); router.push('/transactions'); }
@@ -290,7 +246,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
         setSubmitting(false);
     };
 
-    // Approve/Reject CHECK IN
     const handleCheckinApproval = async (action: 'approve' | 'reject') => {
         if (!checkinData) return;
         if (action === 'reject' && !managerComment.trim()) { alert("Catatan penolakan wajib."); return; }
@@ -315,7 +270,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
 
     const isSubmitted = header.transaction_status === 'SUBMITTED';
     const isDelivered = header.transaction_status === 'DELIVERED';
-    const isReadyCheckin = header.transaction_status === 'SUBMITTED' && header.manager_approval_status === 'APPROVED';
     const isCheckinPending = header.transaction_status === 'CHECKIN_PENDING';
     const isCheckinApproved = header.transaction_status === 'CHECKIN_APPROVED';
     const hasPicSignature = !!header.signature_pic_path;
@@ -331,7 +285,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
 
-            {/* LIGHTBOX */}
             {lightboxUrl && (
                 <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
                     <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
@@ -376,92 +329,76 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
 
+                    {/* ── FIX 2: tampilkan approved_by di summary card ── */}
+                    {header.approved_by && header.manager_approval_status !== 'PENDING' && (
+                        <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${header.manager_approval_status === 'APPROVED'
+                                ? 'bg-emerald-50 border border-emerald-100'
+                                : 'bg-red-50 border border-red-100'
+                            }`}>
+                            <span className="text-lg">{header.manager_approval_status === 'APPROVED' ? '✅' : '❌'}</span>
+                            <div>
+                                <p className={`text-[9px] font-black uppercase tracking-widest ${header.manager_approval_status === 'APPROVED' ? 'text-emerald-600' : 'text-red-500'
+                                    }`}>
+                                    {header.manager_approval_status === 'APPROVED' ? 'Disetujui Oleh' : 'Ditolak Oleh'}
+                                </p>
+                                <p className="font-bold text-sm text-slate-800">{header.approved_by}</p>
+                            </div>
+                        </div>
+                    )}
 
-                    {/* ── PROGRESS TRACKER ── */}
+                    {/* PROGRESS TRACKER */}
                     {(() => {
                         const steps = [
+                            { key: 'submit', label: 'Submit', sublabel: 'Staff', icon: '📋', done: true },
                             {
-                                key: 'submit',
-                                label: 'Submit',
-                                sublabel: 'Staff',
-                                icon: '📋',
-                                done: true,
-                            },
-                            {
-                                key: 'approved',
-                                label: 'Approve',
-                                sublabel: 'Manager',
-                                icon: '👔',
+                                key: 'approved', label: 'Approve', sublabel: 'Manager', icon: '👔',
                                 done: header.manager_approval_status === 'APPROVED',
                                 rejected: header.manager_approval_status === 'REJECTED',
                                 active: header.manager_approval_status === 'PENDING',
                             },
                             {
-                                key: 'delivered',
-                                label: 'Delivered',
-                                sublabel: 'Engineer',
-                                icon: '✍️',
+                                key: 'delivered', label: 'Delivered', sublabel: 'Engineer', icon: '✍️',
                                 done: isDelivered || isCheckinPending || isCheckinApproved,
                                 active: header.manager_approval_status === 'APPROVED' && !isDelivered && !isCheckinPending && !isCheckinApproved,
                             },
                             {
-                                key: 'checkin',
-                                label: 'Check In',
-                                sublabel: 'Staff',
-                                icon: '📦',
+                                key: 'checkin', label: 'Check In', sublabel: 'Staff', icon: '📦',
                                 done: isCheckinApproved,
                                 active: isCheckinPending || (isDelivered && hasPicSignature),
                             },
                             {
-                                key: 'selesai',
-                                label: 'Selesai',
-                                sublabel: 'Manager',
-                                icon: '✅',
-                                done: isCheckinApproved,
-                                active: isCheckinPending,
+                                key: 'selesai', label: 'Selesai', sublabel: 'Manager', icon: '✅',
+                                done: isCheckinApproved, active: isCheckinPending,
                             },
                         ];
-
-                        // Kalau rejected, potong steps
-                        const visibleSteps = header.manager_approval_status === 'REJECTED'
-                            ? steps.slice(0, 2)
-                            : steps;
-
+                        const visibleSteps = header.manager_approval_status === 'REJECTED' ? steps.slice(0, 2) : steps;
                         return (
                             <div className="bg-slate-50 rounded-2xl p-4">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Progress Transaksi</p>
                                 <div className="flex items-start">
                                     {visibleSteps.map((step, i) => (
                                         <div key={step.key} className="flex-1 flex flex-col items-center relative">
-                                            {/* Connector line kiri */}
                                             {i > 0 && (
                                                 <div className={`absolute top-3.5 right-1/2 left-0 h-0.5 -translate-y-1/2
                                                     ${visibleSteps[i - 1].done ? 'bg-blue-400' : 'bg-slate-200'}`} />
                                             )}
-                                            {/* Circle */}
                                             <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-sm border-2 transition-all
-                                                ${step.rejected
-                                                    ? 'bg-red-100 border-red-400 text-red-600'
-                                                    : step.done
-                                                        ? 'bg-blue-500 border-blue-500 text-white'
-                                                        : step.active
-                                                            ? 'bg-white border-blue-400 shadow-md shadow-blue-100 animate-pulse'
+                                                ${step.rejected ? 'bg-red-100 border-red-400 text-red-600'
+                                                    : step.done ? 'bg-blue-500 border-blue-500 text-white'
+                                                        : step.active ? 'bg-white border-blue-400 shadow-md shadow-blue-100 animate-pulse'
                                                             : 'bg-white border-slate-200 text-slate-300'}`}>
                                                 {step.rejected ? '✕' : step.done ? '✓' : <span className="text-[10px]">{step.icon}</span>}
                                             </div>
-                                            {/* Label */}
                                             <p className={`text-[8px] font-black mt-1.5 text-center leading-tight
                                                 ${step.rejected ? 'text-red-500' : step.done ? 'text-blue-600' : step.active ? 'text-slate-700' : 'text-slate-300'}`}>
                                                 {step.label}
                                             </p>
-                                            <p className={`text-[7px] text-center leading-tight
-                                                ${step.done || step.active ? 'text-slate-400' : 'text-slate-200'}`}>
+                                            <p className={`text-[7px] text-center leading-tight ${step.done || step.active ? 'text-slate-400' : 'text-slate-200'}`}>
                                                 {step.sublabel}
                                             </p>
                                         </div>
                                     ))}
                                 </div>
-                                {/* Current step info */}
                                 <div className="mt-3 pt-3 border-t border-slate-200">
                                     <p className="text-[9px] text-slate-500 text-center">
                                         {header.manager_approval_status === 'REJECTED' ? '❌ Transaksi ditolak Manager' :
@@ -508,20 +445,15 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                     )}
                 </div>
 
-                {/* ══ ENGINEER: CHECKLIST + TTD PIC ══ */}
+                {/* ENGINEER: CHECKLIST + TTD PIC */}
                 {canEngineerSign && (
                     <div className="bg-blue-50 border-2 border-blue-300 rounded-3xl shadow-lg overflow-hidden">
-
-                        {/* Header */}
                         <div className="bg-blue-600 px-5 py-4 text-center">
                             <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest">Konfirmasi Penerimaan Barang</p>
                             <p className="font-black text-white text-base mt-0.5">Validasi & Tanda Tangan PIC</p>
                             <p className="text-xs text-blue-200 mt-1">Centang item yang diterima, lalu TTD untuk konfirmasi</p>
                         </div>
-
                         <div className="p-5 space-y-4">
-
-                            {/* Progress checklist */}
                             <div className="flex items-center justify-between bg-white rounded-2xl px-4 py-2.5">
                                 <p className="text-xs font-black text-slate-600">Item Diverifikasi</p>
                                 <div className="flex items-center gap-2">
@@ -532,8 +464,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     <p className="text-xs font-black text-blue-600">{checkedCount}/{totalItems}</p>
                                 </div>
                             </div>
-
-                            {/* Checklist per item */}
                             <div className="space-y-3">
                                 {items.map((item: any) => {
                                     const state = itemReceive[item.qr_id] || { checked: true, qty_received: item.qty, note: '', photo_base64: '' };
@@ -541,11 +471,8 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     return (
                                         <div key={item.qr_id}
                                             className={`bg-white rounded-2xl p-4 border-2 transition-all ${state.checked ? 'border-blue-200' : 'border-slate-100 opacity-60'}`}>
-
-                                            {/* Row 1: Checkbox + nama */}
                                             <div className="flex items-start gap-3">
-                                                <button
-                                                    onClick={() => updateItemReceive(item.qr_id, 'checked', !state.checked)}
+                                                <button onClick={() => updateItemReceive(item.qr_id, 'checked', !state.checked)}
                                                     className={`w-7 h-7 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-sm transition-all mt-0.5
                                                         ${state.checked ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300'}`}>
                                                     {state.checked ? '✓' : ''}
@@ -561,18 +488,14 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            {/* Row 2: Qty received + foto — hanya jika checked */}
                                             {state.checked && (
                                                 <div className="mt-3 space-y-2 pl-10">
-                                                    {/* Qty diterima */}
                                                     <div className="flex items-center gap-2">
                                                         <label className="text-[10px] font-black text-slate-500 uppercase flex-shrink-0">Qty Diterima:</label>
                                                         <div className="flex items-center gap-1">
                                                             <button onClick={() => updateItemReceive(item.qr_id, 'qty_received', Math.max(0, state.qty_received - 1))}
                                                                 className="w-7 h-7 bg-slate-100 rounded-lg font-black text-slate-500 flex items-center justify-center active:scale-95">−</button>
-                                                            <input type="number" min="0" max={item.qty}
-                                                                value={state.qty_received}
+                                                            <input type="number" min="0" max={item.qty} value={state.qty_received}
                                                                 onChange={e => updateItemReceive(item.qr_id, 'qty_received', Number(e.target.value))}
                                                                 className="w-14 text-center font-black text-blue-600 text-sm border border-slate-200 rounded-lg py-1 outline-none" />
                                                             <button onClick={() => updateItemReceive(item.qr_id, 'qty_received', Math.min(item.qty, state.qty_received + 1))}
@@ -580,25 +503,16 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                                             <span className="text-[10px] text-slate-400 ml-1">/ {item.qty} {item.unit}</span>
                                                         </div>
                                                     </div>
-
-                                                    {/* Warning qty kurang */}
                                                     {isShort && (
                                                         <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-                                                            <p className="text-[10px] font-black text-orange-600">
-                                                                ⚠️ Kurang {item.qty - state.qty_received} {item.unit} — wajib isi catatan
-                                                            </p>
+                                                            <p className="text-[10px] font-black text-orange-600">⚠️ Kurang {item.qty - state.qty_received} {item.unit} — wajib isi catatan</p>
                                                         </div>
                                                     )}
-
-                                                    {/* Catatan */}
                                                     <input type="text"
                                                         placeholder={isShort ? "Catatan kekurangan (wajib)..." : "Catatan opsional..."}
-                                                        value={state.note}
-                                                        onChange={e => updateItemReceive(item.qr_id, 'note', e.target.value)}
+                                                        value={state.note} onChange={e => updateItemReceive(item.qr_id, 'note', e.target.value)}
                                                         className={`w-full p-2.5 rounded-xl outline-none text-xs font-medium text-slate-700
                                                             ${isShort ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50 border border-slate-100'}`} />
-
-                                                    {/* Foto opsional */}
                                                     <div className="flex items-center gap-2">
                                                         <button onClick={() => photoRefs.current[item.qr_id]?.click()}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 font-black text-[10px] rounded-xl active:scale-95">
@@ -621,13 +535,10 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                                     </div>
                                                 </div>
                                             )}
-
-                                            {/* Tidak diterima */}
                                             {!state.checked && (
                                                 <div className="mt-2 pl-10">
                                                     <input type="text" placeholder="Alasan tidak diterima..."
-                                                        value={state.note}
-                                                        onChange={e => updateItemReceive(item.qr_id, 'note', e.target.value)}
+                                                        value={state.note} onChange={e => updateItemReceive(item.qr_id, 'note', e.target.value)}
                                                         className="w-full p-2.5 bg-red-50 border border-red-100 rounded-xl outline-none text-xs font-medium text-slate-700" />
                                                 </div>
                                             )}
@@ -635,8 +546,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     );
                                 })}
                             </div>
-
-                            {/* Validasi warning sebelum TTD */}
                             {(() => {
                                 const shortItems = items.filter((item: any) => {
                                     const s = itemReceive[item.qr_id];
@@ -649,8 +558,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     </div>
                                 ) : null;
                             })()}
-
-                            {/* TTD PIC */}
                             <div className="space-y-2 pt-2 border-t border-blue-200">
                                 <div className="flex justify-between items-center">
                                     <div>
@@ -660,15 +567,12 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                     <button onClick={() => picCanvasRef.current?.getContext('2d')?.clearRect(0, 0, 500, 300)}
                                         className="text-[10px] text-blue-500 font-bold">RESET</button>
                                 </div>
-                                <canvas
-                                    ref={picCanvasRef}
-                                    width={500} height={250}
+                                <canvas ref={picCanvasRef} width={500} height={250}
                                     onMouseDown={startPicDrawing} onMouseMove={drawPic} onMouseUp={() => setIsPicDrawing(false)}
                                     onTouchStart={startPicDrawing} onTouchMove={drawPic} onTouchEnd={() => setIsPicDrawing(false)}
                                     className="w-full h-44 bg-white rounded-2xl border-2 border-blue-200 touch-none shadow-inner" />
                                 <p className="text-[9px] text-slate-400 text-center">Tanda tangani sebagai konfirmasi penerimaan</p>
                             </div>
-
                             <button onClick={handleSubmitPicSignature} disabled={submittingPicSig}
                                 className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg text-sm uppercase tracking-widest active:scale-95 disabled:opacity-50">
                                 {submittingPicSig ? '⏳ Menyimpan...' : `✅ Konfirmasi Terima ${checkedCount}/${totalItems} Item`}
@@ -743,7 +647,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Laporan Check In</p>
                             <div className="flex-1 h-px bg-slate-200" />
                         </div>
-
                         <div className={`rounded-2xl p-4 border ${isCheckinApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                             <div className="flex justify-between items-start">
                                 <div>
@@ -768,7 +671,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                 )}
                             </div>
                         </div>
-
                         <div className="space-y-2">
                             <p className="text-[10px] font-black text-slate-400 uppercase ml-1">Kondisi Barang Dikembalikan</p>
                             {checkinData.items?.map((item: any) => (
@@ -795,8 +697,6 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                                 </div>
                             ))}
                         </div>
-
-                        {/* APPROVAL CHECK IN */}
                         {isCheckinPending && (user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
                             <div className="bg-white p-5 rounded-3xl border-2 border-emerald-400 shadow-xl space-y-4">
                                 <h2 className="font-black text-center text-emerald-700 text-[10px] uppercase tracking-widest">Persetujuan Check In</h2>
@@ -858,6 +758,12 @@ export default function TransactionDetail({ params }: { params: Promise<{ id: st
                         <p className={`text-2xl font-black ${header.manager_approval_status === 'APPROVED' ? 'text-emerald-600' : 'text-red-600'}`}>
                             {header.manager_approval_status}
                         </p>
+                        {/* FIX 2: nama manager di status final */}
+                        {header.approved_by && (
+                            <p className="text-xs text-slate-500">
+                                oleh: <span className="font-black text-slate-700">{header.approved_by}</span>
+                            </p>
+                        )}
                         {header.manager_comment && <p className="text-xs text-slate-600 italic">"{header.manager_comment}"</p>}
                         {header.manager_signature_path && (
                             <button onClick={() => setLightboxUrl(`${BASE_URL}/${header.manager_signature_path}`)}>
