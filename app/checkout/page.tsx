@@ -458,13 +458,13 @@ function CheckoutContent() {
                             <div className="flex justify-between items-center">
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Import Item</p>
-                                    <h2 className="font-black text-lg text-slate-900">Pilih Purchase Order</h2>
+                                    <h2 className="font-black text-lg text-slate-900">Pilih Good Reciept</h2>
                                 </div>
                                 <button onClick={() => { setShowPoModal(false); setSelectedPo(null); setPoDetail(null); }} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
                             </div>
                             {!selectedPo ? (
-                                loadingPo ? <p className="text-center animate-pulse text-slate-400 py-8">Memuat PO...</p>
-                                    : poList.length === 0 ? <p className="text-center text-slate-400 italic py-8">Tidak ada PO yang sudah diapprove.</p>
+                                loadingPo ? <p className="text-center animate-pulse text-slate-400 py-8">Memuat GR...</p>
+                                    : poList.length === 0 ? <p className="text-center text-slate-400 italic py-8">Tidak ada GR yang sudah diapprove.</p>
                                         : (
                                             <div className="space-y-2">
                                                 {poList.map((po: any) => (
@@ -581,7 +581,7 @@ function CheckoutContent() {
                                 <div className="space-y-2">
                                     <button onClick={() => { setShowPoModal(true); fetchApprovedPO(); setShowSearch(false); }}
                                         className="w-full bg-teal-600 text-white font-black py-3 rounded-2xl active:scale-95 uppercase tracking-widest text-xs shadow-md">
-                                        📋 IMPORT DARI PO
+                                        📋 IMPORT DARI GR
                                     </button>
                                     <button onClick={() => setShowSearch(v => !v)}
                                         className="w-full bg-slate-200 text-slate-700 font-black py-3 rounded-2xl active:scale-95 uppercase tracking-widest text-xs">
