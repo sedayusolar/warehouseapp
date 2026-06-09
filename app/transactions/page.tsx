@@ -531,11 +531,11 @@ function TransactionListContent() {
 
                                 <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isCheckinApproved ? 'bg-blue-500' :
-                                            isCheckinPending ? 'bg-amber-500 animate-pulse' :
-                                                isDelivered ? 'bg-violet-500' :
-                                                    isApproved ? 'bg-emerald-500' :
-                                                        trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
-                                                            'bg-orange-500 animate-pulse'}`} />
+                                        isCheckinPending ? 'bg-amber-500 animate-pulse' :
+                                            isDelivered ? 'bg-violet-500' :
+                                                isApproved ? 'bg-emerald-500' :
+                                                    trx.manager_approval_status === 'REJECTED' ? 'bg-red-500' :
+                                                        'bg-orange-500 animate-pulse'}`} />
                                     <span>Status: {
                                         isCheckinApproved ? '✅ SELESAI' :
                                             isCheckinPending ? '⏳ CHECKIN MENUNGGU APPROVAL' :
@@ -552,8 +552,8 @@ function TransactionListContent() {
             </div>
 
             {!user?.role?.includes('MANAGER') && transactions.length > 0 && (
-                <button onClick={() => router.push('/transfer')}
-                    className="fixed bottom-24 right-4 bg-violet-600 text-white font-black w-14 h-14 rounded-full shadow-lg text-2xl flex items-center justify-center active:scale-90 transition-all z-40">
+                <button onClick={() => router.push('/checkout')}
+                    className="fixed bottom-24 right-4 bg-blue-600 text-white font-black w-14 h-14 rounded-full shadow-lg text-2xl flex items-center justify-center active:scale-90 transition-all z-40">
                     ＋
                 </button>
             )}
