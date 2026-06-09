@@ -8,8 +8,6 @@ const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
 
 const TYPE_CONFIG = {
-    PURCHASE: { label: 'Pembelian Baru', icon: '🛒', color: 'emerald', desc: 'Tambah stok dari pembelian atau item baru' },
-    TRANSFER: { label: 'Pindah Lokasi', icon: '🔄', color: 'blue', desc: 'Transfer stok antar gudang/lokasi' },
     OPNAME: { label: 'Koreksi Stok', icon: '📋', color: 'amber', desc: 'Sesuaikan stok berdasarkan hasil hitung fisik' },
     DAMAGE: { label: 'Rusak / Hilang', icon: '⚠️', color: 'red', desc: 'Catat barang rusak atau hilang' },
 };
@@ -37,27 +35,15 @@ function StockAdjustmentContent() {
     const searchTimeout = useRef<any>(null);
     const [showScanner, setShowScanner] = useState(false);
 
-    // PURCHASE - new item fields
-    const [isNewItem, setIsNewItem] = useState(false);
-    const [newItemName, setNewItemName] = useState('');
-    const [newCategory, setNewCategory] = useState('');
-    const [newUnit, setNewUnit] = useState('');
-    const [itemPhotoB64, setItemPhotoB64] = useState('');
-    const [itemPhotoPreview, setItemPhotoPreview] = useState('');
-
     // Shared fields
     const [locationId, setLocationId] = useState('');
-    const [toLocationId, setToLocationId] = useState('');
-    const [fromLocationId, setFromLocationId] = useState('');
     const [qty, setQty] = useState('');
     const [actualQty, setActualQty] = useState('');
-    const [supplier, setSupplier] = useState('');
     const [note, setNote] = useState('');
     const [photoB64, setPhotoB64] = useState('');
     const [photoPreview, setPhotoPreview] = useState('');
 
     const photoRef = useRef<HTMLInputElement>(null);
-    const itemPhotoRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -102,7 +88,6 @@ function StockAdjustmentContent() {
             const r = await res.json();
             if (r.status === 'success') {
                 const item = r.data;
-                // Map ke format yang sama dengan search results
                 const mapped = {
                     qr_id: item.qr_id,
                     item_name: item.item_name,
@@ -117,7 +102,6 @@ function StockAdjustmentContent() {
                 setItemSearch(item.item_name);
                 setItemResults([]);
                 setLocationId('');
-                setFromLocationId('');
                 setActualQty('');
             } else {
                 alert("Barang tidak ditemukan: " + qrId);
@@ -146,7 +130,6 @@ function StockAdjustmentContent() {
         setItemSearch(item.item_name);
         setItemResults([]);
         setLocationId('');
-        setFromLocationId('');
         setActualQty('');
     };
 
@@ -169,20 +152,18 @@ function StockAdjustmentContent() {
         });
     };
 
-    const handlePhotoInput = async (e: React.ChangeEvent<HTMLInputElement>, isItem = false) => {
+    const handlePhotoInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         const b64 = await compressImage(file);
-        if (isItem) { setItemPhotoB64(b64); setItemPhotoPreview(b64); }
-        else { setPhotoB64(b64); setPhotoPreview(b64); }
+        setPhotoB64(b64);
+        setPhotoPreview(b64);
     };
 
     const resetForm = () => {
         setSelectedItem(null); setItemSearch(''); setItemResults([]);
-        setNewItemName(''); setNewCategory(''); setNewUnit('');
-        setItemPhotoB64(''); setItemPhotoPreview('');
-        setLocationId(''); setToLocationId(''); setFromLocationId('');
-        setQty(''); setActualQty(''); setSupplier(''); setNote('');
+        setLocationId('');
+        setQty(''); setActualQty(''); setNote('');
         setPhotoB64(''); setPhotoPreview('');
         setShowScanner(false);
     };
@@ -198,31 +179,7 @@ function StockAdjustmentContent() {
                 note, photo: photoB64
             };
 
-            if (adjType === 'PURCHASE') {
-                if (isNewItem) {
-                    if (!newItemName || !newCategory || !newUnit) throw new Error("Nama, kategori, dan satuan wajib diisi.");
-                    payload = { ...payload, item_name: newItemName, category: newCategory, unit: newUnit, item_photo: itemPhotoB64 };
-                } else {
-                    if (!selectedItem) throw new Error("Pilih item terlebih dahulu.");
-                    payload.qr_id = selectedItem.qr_id;
-                }
-                if (!locationId) throw new Error("Pilih lokasi penyimpanan.");
-                if (!qty || Number(qty) <= 0) throw new Error("Qty harus lebih dari 0.");
-                payload.location_id = locationId;
-                payload.qty = Number(qty);
-                payload.supplier = supplier;
-            }
-            else if (adjType === 'TRANSFER') {
-                if (!selectedItem) throw new Error("Pilih item.");
-                if (!fromLocationId) throw new Error("Pilih lokasi asal.");
-                if (!toLocationId) throw new Error("Pilih lokasi tujuan.");
-                if (!qty || Number(qty) <= 0) throw new Error("Qty harus lebih dari 0.");
-                payload.qr_id = selectedItem.qr_id;
-                payload.from_location_id = fromLocationId;
-                payload.to_location_id = toLocationId;
-                payload.qty = Number(qty);
-            }
-            else if (adjType === 'OPNAME') {
+            if (adjType === 'OPNAME') {
                 if (!selectedItem) throw new Error("Pilih item.");
                 if (!locationId) throw new Error("Pilih lokasi.");
                 if (actualQty === '') throw new Error("Isi stok aktual hasil hitung.");
@@ -246,7 +203,7 @@ function StockAdjustmentContent() {
             });
             const r = await res.json();
             if (r.status === 'success') {
-                setResult({ ok: true, msg: r.message + (r.qr_id ? ` QR: ${r.qr_id}` : '') });
+                setResult({ ok: true, msg: r.message });
                 resetForm();
                 fetchItems();
             } else {
@@ -270,13 +227,9 @@ function StockAdjustmentContent() {
         setLoadingLogs(false);
     };
 
-    // Stok at selected location (for OPNAME pre-fill)
     const stockAtLoc = selectedItem?.locations?.find((l: any) => String(l.location_id) === String(locationId));
-    const stockAtFromLoc = selectedItem?.locations?.find((l: any) => String(l.location_id) === String(fromLocationId));
 
     const typeColors: Record<string, string> = {
-        PURCHASE: 'bg-emerald-100 text-emerald-700 border-emerald-300',
-        TRANSFER: 'bg-blue-100 text-blue-700 border-blue-300',
         OPNAME: 'bg-amber-100 text-amber-700 border-amber-300',
         DAMAGE: 'bg-red-100 text-red-700 border-red-300',
     };
@@ -285,8 +238,19 @@ function StockAdjustmentContent() {
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
-
             <div className="p-4 max-w-2xl mx-auto space-y-5">
+
+                {/* INFO BANNER */}
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+                    <span className="text-lg flex-shrink-0">💡</span>
+                    <div>
+                        <p className="text-[10px] font-black text-blue-700 uppercase">Catatan Penting</p>
+                        <p className="text-[10px] text-blue-600 mt-0.5">
+                            Penambahan stok (pembelian) → gunakan <strong>Input GR</strong>.
+                            Perpindahan antar gudang → gunakan <strong>Transfer Gudang</strong>.
+                        </p>
+                    </div>
+                </div>
 
                 {/* RESULT BANNER */}
                 {result && (
@@ -295,18 +259,18 @@ function StockAdjustmentContent() {
                     </div>
                 )}
 
-                {/* TYPE SELECTOR */}
+                {/* TYPE SELECTOR — hanya 2 */}
                 <div className="grid grid-cols-2 gap-3">
                     {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
                         <button
                             key={key}
-                            onClick={() => { setAdjType(key); setResult(null); resetForm(); setIsNewItem(false); }}
+                            onClick={() => { setAdjType(key); setResult(null); resetForm(); }}
                             className={`p-4 rounded-2xl border-2 text-left transition-all active:scale-95
                                 ${adjType === key
                                     ? `${typeColors[key]} border-2 shadow-md scale-[1.02]`
                                     : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
                         >
-                            <p className="text-xl mb-1">{cfg.icon}</p>
+                            <p className="text-2xl mb-2">{cfg.icon}</p>
                             <p className="font-black text-xs uppercase tracking-widest">{cfg.label}</p>
                             <p className="text-[10px] mt-0.5 opacity-70 leading-tight">{cfg.desc}</p>
                         </button>
@@ -317,146 +281,28 @@ function StockAdjustmentContent() {
                 {adjType && (
                     <div className="bg-white rounded-3xl shadow-lg p-5 space-y-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.icon} {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.label}
+                            {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.icon}{' '}
+                            {TYPE_CONFIG[adjType as keyof typeof TYPE_CONFIG]?.label}
                         </p>
-
-                        {/* ===== PURCHASE ===== */}
-                        {adjType === 'PURCHASE' && (
-                            <>
-                                {/* Toggle new/existing */}
-                                <div className="flex gap-2">
-                                    <button onClick={() => { resetForm(); setIsNewItem(false); }}
-                                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${!isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        Item Existing
-                                    </button>
-                                    <button onClick={() => { resetForm(); setTimeout(() => setIsNewItem(true), 0); }}
-                                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${isNewItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        ＋ Item Baru
-                                    </button>
-                                </div>
-
-                                {isNewItem ? (
-                                    /* NEW ITEM FIELDS */
-                                    <div className="space-y-3">
-                                        <input type="text" placeholder="Nama Barang *" value={newItemName}
-                                            onChange={e => setNewItemName(e.target.value)}
-                                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
-                                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                                <option value="">Kategori *</option>
-                                                <option value="Material">Material</option>
-                                                <option value="Tools">Tools</option>
-                                            </select>
-                                            <input type="text" placeholder="Satuan * (pcs, m...)" value={newUnit}
-                                                onChange={e => setNewUnit(e.target.value)}
-                                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                        </div>
-                                        {/* Foto item baru */}
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang</label>
-                                            <div className="mt-1.5 flex gap-3 items-center">
-                                                <button onClick={() => itemPhotoRef.current?.click()}
-                                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95">
-                                                    📷 Upload Foto
-                                                </button>
-                                                {itemPhotoPreview && (
-                                                    <img src={itemPhotoPreview} alt="preview" className="w-14 h-14 object-cover rounded-xl border border-slate-200" />
-                                                )}
-                                            </div>
-                                            <input ref={itemPhotoRef} type="file" accept="image/*" className="hidden"
-                                                onChange={e => handlePhotoInput(e, true)} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    /* EXISTING ITEM SEARCH */
-                                    <ItemSearchBox
-                                        value={itemSearch} onChange={handleItemSearch}
-                                        results={itemResults} searching={searchingItem}
-                                        onSelect={handleSelectItem} selected={selectedItem}
-                                        showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)}
-                                    />
-                                )}
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Lokasi *</label>
-                                        <select value={locationId} onChange={e => setLocationId(e.target.value)}
-                                            className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                            <option value="">-- Pilih --</option>
-                                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah *</label>
-                                        <input type="number" min="1" placeholder="0" value={qty}
-                                            onChange={e => setQty(e.target.value)}
-                                            className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
-                                    </div>
-                                </div>
-                                <input type="text" placeholder="Supplier / Vendor (opsional)" value={supplier}
-                                    onChange={e => setSupplier(e.target.value)}
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            </>
-                        )}
-
-                        {/* ===== TRANSFER ===== */}
-                        {adjType === 'TRANSFER' && (
-                            <>
-                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
-                                    results={itemResults} searching={searchingItem}
-                                    onSelect={handleSelectItem} selected={selectedItem}
-                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
-                                {selectedItem && (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Dari Lokasi *</label>
-                                            <select value={fromLocationId} onChange={e => setFromLocationId(e.target.value)}
-                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                                <option value="">-- Asal --</option>
-                                                {selectedItem.locations?.filter((l: any) => l.stock_qty > 0).map((l: any) => (
-                                                    <option key={l.location_id} value={l.location_id}>
-                                                        {l.location_name} (stok: {l.available_qty ?? l.stock_qty})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {stockAtFromLoc && (
-                                                <p className="text-[10px] text-slate-400 mt-1 ml-1">Tersedia: {stockAtFromLoc.available_qty ?? stockAtFromLoc.stock_qty}</p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Ke Lokasi *</label>
-                                            <select value={toLocationId} onChange={e => setToLocationId(e.target.value)}
-                                                className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
-                                                <option value="">-- Tujuan --</option>
-                                                {locations.filter((l: any) => String(l.id) !== String(fromLocationId)).map((l: any) => (
-                                                    <option key={l.id} value={l.id}>{l.location_name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                )}
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Jumlah Dipindah *</label>
-                                    <input type="number" min="1" placeholder="0" value={qty}
-                                        onChange={e => setQty(e.target.value)}
-                                        className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
-                                </div>
-                            </>
-                        )}
 
                         {/* ===== OPNAME ===== */}
                         {adjType === 'OPNAME' && (
                             <>
-                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                                    <p className="text-[10px] font-black text-amber-700">📋 Koreksi stok berdasarkan hasil hitung fisik. Selisih akan dicatat di log.</p>
+                                </div>
+                                <ItemSearchBox
+                                    value={itemSearch} onChange={handleItemSearch}
                                     results={itemResults} searching={searchingItem}
                                     onSelect={handleSelectItem} selected={selectedItem}
-                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
+                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)}
+                                />
                                 {selectedItem && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Lokasi *</label>
-                                            <select value={locationId} onChange={e => { setLocationId(e.target.value); setActualQty(''); }}
+                                            <select value={locationId}
+                                                onChange={e => { setLocationId(e.target.value); setActualQty(''); }}
                                                 className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
                                                 <option value="">-- Pilih --</option>
                                                 {selectedItem.locations?.map((l: any) => (
@@ -474,11 +320,9 @@ function StockAdjustmentContent() {
                                         </div>
                                     </div>
                                 )}
-                                {/* Preview selisih */}
                                 {stockAtLoc && actualQty !== '' && (
                                     <div className={`px-4 py-3 rounded-xl text-sm font-bold ${Number(actualQty) >= stockAtLoc.stock_qty ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-                                        Stok sistem: {stockAtLoc.stock_qty} → Aktual: {actualQty} →
-                                        Selisih: {Number(actualQty) >= stockAtLoc.stock_qty ? '+' : ''}{Number(actualQty) - stockAtLoc.stock_qty}
+                                        Sistem: <strong>{stockAtLoc.stock_qty}</strong> → Aktual: <strong>{actualQty}</strong> → Selisih: <strong>{Number(actualQty) >= stockAtLoc.stock_qty ? '+' : ''}{Number(actualQty) - stockAtLoc.stock_qty}</strong>
                                     </div>
                                 )}
                             </>
@@ -487,10 +331,15 @@ function StockAdjustmentContent() {
                         {/* ===== DAMAGE ===== */}
                         {adjType === 'DAMAGE' && (
                             <>
-                                <ItemSearchBox value={itemSearch} onChange={handleItemSearch}
+                                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                                    <p className="text-[10px] font-black text-red-700">⚠️ Catat barang rusak atau hilang. Stok akan dikurangi sejumlah yang diinput.</p>
+                                </div>
+                                <ItemSearchBox
+                                    value={itemSearch} onChange={handleItemSearch}
                                     results={itemResults} searching={searchingItem}
                                     onSelect={handleSelectItem} selected={selectedItem}
-                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)} />
+                                    showScanner={showScanner} onToggleScanner={() => setShowScanner(v => !v)}
+                                />
                                 {selectedItem && (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -516,7 +365,7 @@ function StockAdjustmentContent() {
                             </>
                         )}
 
-                        {/* SHARED: Note + Foto bukti */}
+                        {/* SHARED: Catatan + Foto */}
                         <input type="text" placeholder="Catatan (opsional)" value={note}
                             onChange={e => setNote(e.target.value)}
                             className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
@@ -537,7 +386,7 @@ function StockAdjustmentContent() {
                                 )}
                             </div>
                             <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                                onChange={e => handlePhotoInput(e, false)} />
+                                onChange={handlePhotoInput} />
                         </div>
 
                         <button onClick={handleSubmit} disabled={submitting}
@@ -562,44 +411,42 @@ function StockAdjustmentContent() {
                             <p className="text-center text-slate-300 italic text-sm py-4">Belum ada log.</p>
                         ) : (
                             <div className="space-y-2 max-h-96 overflow-y-auto">
-                                {logs.map((log: any) => (
-                                    <div key={log.id} className="border border-slate-100 rounded-2xl p-3.5">
-                                        <div className="flex justify-between items-start gap-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${typeColors[log.adjustment_type] || 'bg-slate-100 text-slate-500'}`}>
-                                                        {log.adjustment_type}
-                                                    </span>
-                                                    <span className={`text-xs font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                        {log.diff > 0 ? `+${log.diff}` : log.diff}
-                                                    </span>
+                                {logs
+                                    .filter((log: any) => ['OPNAME', 'DAMAGE'].includes(log.adjustment_type))
+                                    .map((log: any) => (
+                                        <div key={log.id} className="border border-slate-100 rounded-2xl p-3.5">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${typeColors[log.adjustment_type] || 'bg-slate-100 text-slate-500'}`}>
+                                                            {log.adjustment_type}
+                                                        </span>
+                                                        <span className={`text-xs font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                            {log.diff > 0 ? `+${log.diff}` : log.diff}
+                                                        </span>
+                                                    </div>
+                                                    <p className="font-bold text-sm text-slate-800">{log.item_name}</p>
+                                                    <p className="text-[10px] text-slate-400">{log.location_name}</p>
+                                                    <p className="text-[10px] text-slate-400">
+                                                        {log.stock_before} → {log.stock_after} · {log.adjusted_by}
+                                                    </p>
+                                                    {log.note && <p className="text-[10px] text-slate-500 italic">"{log.note}"</p>}
                                                 </div>
-                                                <p className="font-bold text-sm text-slate-800">{log.item_name}</p>
-                                                <p className="text-[10px] text-slate-400">
-                                                    {log.location_name}
-                                                    {log.to_location_name ? ` → ${log.to_location_name}` : ''}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400">
-                                                    {log.stock_before} → {log.stock_after} · {log.adjusted_by}
-                                                </p>
-                                                {log.note && <p className="text-[10px] text-slate-500 italic">"{log.note}"</p>}
-                                                {log.supplier && <p className="text-[10px] text-blue-500">🏪 {log.supplier}</p>}
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <p className="text-[9px] text-slate-300">
-                                                    {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}
-                                                </p>
-                                                <p className="text-[9px] text-slate-300">
-                                                    {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                </p>
-                                                {log.photo_path && (
-                                                    <a href={`https://sedayu.com/api/warehouse/${log.photo_path}`} target="_blank" rel="noreferrer"
-                                                        className="text-[9px] text-blue-500 font-bold">📷 Foto</a>
-                                                )}
+                                                <div className="text-right flex-shrink-0">
+                                                    <p className="text-[9px] text-slate-300">
+                                                        {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                    </p>
+                                                    <p className="text-[9px] text-slate-300">
+                                                        {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                    {log.photo_path && (
+                                                        <a href={`${BASE_URL}/${log.photo_path}`} target="_blank" rel="noreferrer"
+                                                            className="text-[9px] text-blue-500 font-bold">📷 Foto</a>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                             </div>
                         )}
                     </div>
@@ -610,7 +457,6 @@ function StockAdjustmentContent() {
     );
 }
 
-// Reusable item search component
 function ItemSearchBox({ value, onChange, results, searching, onSelect, selected, showScanner, onToggleScanner }: any) {
     return (
         <div className="space-y-2">
@@ -625,13 +471,10 @@ function ItemSearchBox({ value, onChange, results, searching, onSelect, selected
                 </div>
             ) : (
                 <>
-                    {/* Scan / Search toggle */}
                     <div className="flex gap-2">
-                        <button
-                            onClick={onToggleScanner}
+                        <button onClick={onToggleScanner}
                             className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95
-                                ${showScanner ? 'bg-red-500 text-white' : 'bg-blue-600 text-white shadow-md shadow-blue-200'}`}
-                        >
+                                ${showScanner ? 'bg-red-500 text-white' : 'bg-blue-600 text-white shadow-md shadow-blue-200'}`}>
                             {showScanner ? '✕ Batal Scan' : '📷 Scan QR'}
                         </button>
                         <div className="flex-1 relative">
@@ -640,12 +483,9 @@ function ItemSearchBox({ value, onChange, results, searching, onSelect, selected
                                 className="w-full p-2.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm focus:bg-white focus:ring-2 ring-blue-200 transition-all" />
                         </div>
                     </div>
-
-                    {/* Scanner */}
                     {showScanner && (
                         <div id="adj-reader" className="overflow-hidden rounded-2xl border-2 border-blue-600 bg-black"></div>
                     )}
-
                     {searching && <p className="text-[10px] text-slate-400 animate-pulse text-center">Mencari...</p>}
                     {!showScanner && results.length > 0 && (
                         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-lg">
