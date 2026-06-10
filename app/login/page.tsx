@@ -24,9 +24,7 @@ export default function LoginPage() {
             const result = await res.json();
 
             if (result.status === 'success') {
-                // --- INI BARIS YANG TADI LO TULIS, TAPI DI DALAM LOGIC SUCCESS ---
                 localStorage.setItem('user', JSON.stringify(result.user));
-
                 alert(`Selamat datang, ${result.user.name}!`);
                 router.push('/transactions');
             } else {
@@ -40,10 +38,20 @@ export default function LoginPage() {
     };
 
     return (
-        <main className="min-h-screen bg-slate-900 flex items-center justify-center p-6 font-sans">
+        <main className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans">
+
+            {/* Logo di atas box */}
+            <div className="mb-6">
+                <img
+                    src="https://sedayu.com/wp-content/uploads/2021/10/sdu-200x150-1.png"
+                    alt="SEDAYUSolar"
+                    className="h-20 w-auto object-contain drop-shadow-lg"
+                />
+            </div>
+
             <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl space-y-8">
 
-                {/* Logo & Header */}
+                {/* Header */}
                 <div className="text-center space-y-2">
                     <h1 className="text-3xl font-black text-slate-900 tracking-tighter">SEDAYU SOLAR</h1>
                     <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">Warehouse Management</p>
@@ -75,7 +83,7 @@ export default function LoginPage() {
                     </div>
 
                     {error && (
-                        <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg animate-shake">
+                        <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg">
                             ⚠️ {error}
                         </p>
                     )}
