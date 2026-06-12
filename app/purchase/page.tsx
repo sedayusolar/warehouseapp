@@ -16,22 +16,26 @@ type CartItem = {
     qty: number;
     item_photo: string;
     isNew: boolean;
-    aiMatched?: boolean; // hasil match dari AI
 };
 
+// State per item di AI review panel
 type AiItem = {
     item_name: string;
     qty: number;
     unit: string;
     category: string;
-    supplier?: string;
-    po_number?: string;
-    // hasil match inventory
-    matched?: any;
-    matchLoading?: boolean;
-    confirmed?: boolean;
-    confidence?: 'high' | 'medium' | 'low' | 'none' | null;
-    matchReason?: string;
+    // Suggestion dari AI (bukan keputusan)
+    suggestion: any | null;        // inventory item yang disuggest AI
+    suggestionConfidence: 'high' | 'medium' | 'low' | null;
+    suggestionReason: string;
+    // Keputusan staff — WAJIB diisi sebelum submit
+    decision: 'existing' | 'new' | null;
+    decidedItem: any | null;       // inventory item yang dipilih staff (kalau existing)
+    // UI state
+    searchOpen: boolean;
+    searchQuery: string;
+    searchResults: any[];
+    searching: boolean;
 };
 
 const compressImage = (file: File, maxWidth = 1600, quality = 0.85): Promise<string> =>
@@ -73,13 +77,7 @@ function GRContent() {
     const [showAiReview, setShowAiReview] = useState(false);
     const [aiError, setAiError] = useState('');
     const [defaultLocationId, setDefaultLocationId] = useState('');
-
-    // Koreksi per item — search existing inventory
-    const [correcting, setCorrecting] = useState<number | null>(null); // index item yang sedang dikoreksi
-    const [correctQuery, setCorrectQuery] = useState('');
-    const [correctResults, setCorrectResults] = useState<any[]>([]);
-    const [correctSearching, setCorrectSearching] = useState(false);
-    const correctTimeout = useRef<any>(null);
+    const [useAI, setUseAI] = useState(true);
 
     // Manual modal
     const [showAddModal, setShowAddModal] = useState(false);
@@ -89,6 +87,7 @@ function GRContent() {
     const [searching, setSearching] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const searchTimeout = useRef<any>(null);
+    const itemSearchTimeouts = useRef<Record<number, any>>({});
 
     const [newName, setNewName] = useState('');
     const [newCategory, setNewCategory] = useState('Material');
@@ -102,7 +101,6 @@ function GRContent() {
 
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<any>(null);
-    const [useAI, setUseAI] = useState(true);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -114,128 +112,142 @@ function GRContent() {
             .then(r => r.json()).then(r => { if (r.status === 'success') setLocations(r.data); });
     }, []);
 
-    // ── AI SCAN SJ — 2 step: scan foto → AI match inventory ──
+    // ── AI SCAN: extract items + suggest inventory (tapi staff yang decide) ──
     const handleAiScan = async () => {
         if (!sjPhoto) { alert("Upload foto surat jalan dulu!"); return; }
         setScanning(true); setAiError(''); setAiItems([]);
 
         try {
-            // STEP 1: Scan foto SJ → extract items
+            // Step 1: Scan SJ — extract nama + qty saja
             const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({ mode: 'scan_sj', image_base64: sjPhoto })
             });
             const r = await res.json();
-
             if (r.status !== 'success' || !Array.isArray(r.result)) {
                 setAiError('AI gagal membaca dokumen. Coba foto ulang dengan pencahayaan lebih baik.');
                 setScanning(false); return;
             }
 
-            // Auto-fill supplier & po_number
+            // Auto-fill supplier & po_number dari hasil scan
             if (r.result[0]?.supplier && !supplier) setSupplier(r.result[0].supplier);
             if (r.result[0]?.po_number && !poNumber) setPoNumber(r.result[0].po_number);
-
             const sjItems = r.result;
 
-            // Init items dengan loading state
-            const initItems: AiItem[] = sjItems.map((item: any) => ({
-                ...item,
-                matched: null,
-                matchLoading: true,
-                confidence: null,
-                matchReason: '',
-            }));
-            setAiItems(initItems);
-            setShowAiReview(true);
-
-            // STEP 2: Ambil semua inventory untuk AI matching
+            // Step 2: Ambil inventory untuk AI suggest
             const invRes = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
             const invData = await invRes.json();
             const inventoryList = invData.status === 'success' ? invData.data : [];
 
-            // STEP 3: AI match — kirim semua item SJ + inventory ke AI sekaligus
+            // Step 3: AI suggest (bukan auto-assign)
             const matchRes = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
                     mode: 'match_inventory',
                     sj_items: sjItems,
-                    inventory: inventoryList.slice(0, 200), // limit 200 item
+                    inventory: inventoryList.slice(0, 200),
                 })
             });
             const matchData = await matchRes.json();
             const matches: any[] = Array.isArray(matchData.result) ? matchData.result : [];
 
-            // STEP 4: Merge hasil match ke items
-            setAiItems(sjItems.map((item: any, i: number) => {
-                const match = matches.find((m: any) =>
+            // Build AI items — semua default ke decision=null (belum dikonfirmasi staff)
+            const built: AiItem[] = sjItems.map((item: any, i: number) => {
+                const matchResult = matches.find((m: any) =>
                     m.sj_item_name?.toLowerCase() === item.item_name?.toLowerCase()
-                    || matches[i]
-                );
-                const matchResult = match || matches[i];
+                ) || matches[i];
 
-                // Cari inventory item berdasarkan qr_id dari AI
-                const inventoryItem = matchResult?.matched_qr_id
+                const suggestedInv = matchResult?.matched_qr_id
                     ? inventoryList.find((inv: any) => inv.qr_id === matchResult.matched_qr_id)
                     : null;
 
                 return {
-                    ...item,
-                    matched: inventoryItem || null,
-                    matchLoading: false,
-                    confidence: matchResult?.confidence || 'none',
-                    matchReason: matchResult?.reason || '',
+                    item_name: item.item_name,
+                    qty: item.qty,
+                    unit: item.unit || 'pcs',
+                    category: item.category || 'Material',
+                    // AI hanya suggest — staff belum decide
+                    suggestion: suggestedInv || null,
+                    suggestionConfidence: matchResult?.confidence || null,
+                    suggestionReason: matchResult?.reason || '',
+                    // Staff belum memutuskan apapun
+                    decision: null,
+                    decidedItem: null,
+                    searchOpen: false,
+                    searchQuery: '',
+                    searchResults: [],
+                    searching: false,
                 };
-            }));
+            });
 
-        } catch (e) {
+            setAiItems(built);
+            setShowAiReview(true);
+        } catch {
             setAiError('Koneksi gagal. Pastikan internet stabil.');
         }
         setScanning(false);
     };
 
-    // ── Search koreksi per item ──
-    const handleCorrectSearch = (val: string) => {
-        setCorrectQuery(val);
-        if (correctTimeout.current) clearTimeout(correctTimeout.current);
-        if (val.length < 2) { setCorrectResults([]); return; }
-        correctTimeout.current = setTimeout(async () => {
-            setCorrectSearching(true);
+    // Update satu field di aiItems
+    const updateAiItem = (i: number, patch: Partial<AiItem>) => {
+        setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p));
+    };
+
+    // Staff pilih: item ini = existing inventory
+    const decideExisting = (i: number, inventoryItem: any) => {
+        updateAiItem(i, {
+            decision: 'existing',
+            decidedItem: inventoryItem,
+            searchOpen: false,
+            searchQuery: '',
+            searchResults: [],
+        });
+    };
+
+    // Staff pilih: item ini = baru
+    const decideNew = (i: number) => {
+        updateAiItem(i, {
+            decision: 'new',
+            decidedItem: null,
+            searchOpen: false,
+        });
+    };
+
+    // Search inventory per item
+    const handleItemSearch = (i: number, val: string) => {
+        updateAiItem(i, { searchQuery: val, searching: val.length >= 2 });
+        if (itemSearchTimeouts.current[i]) clearTimeout(itemSearchTimeouts.current[i]);
+        if (val.length < 2) { updateAiItem(i, { searchResults: [], searching: false }); return; }
+        itemSearchTimeouts.current[i] = setTimeout(async () => {
             try {
                 const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
-                setCorrectResults(r.status === 'success' ? r.data : []);
-            } catch { setCorrectResults([]); }
-            setCorrectSearching(false);
+                updateAiItem(i, { searchResults: r.status === 'success' ? r.data : [], searching: false });
+            } catch { updateAiItem(i, { searchResults: [], searching: false }); }
         }, 350);
     };
 
-    const applyCorrection = (itemIdx: number, inventoryItem: any) => {
-        setAiItems(prev => prev.map((p, idx) =>
-            idx === itemIdx ? { ...p, matched: inventoryItem, confidence: 'high', matchReason: 'Dipilih manual oleh staff' } : p
-        ));
-        setCorrecting(null);
-        setCorrectQuery('');
-        setCorrectResults([]);
-    };
+    // Semua item sudah dikonfirmasi?
+    const allDecided = aiItems.length > 0 && aiItems.every(item => item.decision !== null);
+    const decidedCount = aiItems.filter(item => item.decision !== null).length;
 
-    // Konfirmasi semua AI items ke cart
+    // Konfirmasi semua ke cart
     const handleConfirmAiItems = () => {
         if (!defaultLocationId) { alert("Pilih lokasi penyimpanan dulu!"); return; }
+        if (!allDecided) { alert(`Konfirmasi semua item dulu (${decidedCount}/${aiItems.length} selesai).`); return; }
 
         const newItems: CartItem[] = aiItems.map(item => ({
             key: `ai_${Date.now()}_${Math.random()}`,
-            qr_id: item.matched?.qr_id || '',
-            item_name: item.item_name,
-            category: item.category || 'Material',
+            qr_id: item.decision === 'existing' ? (item.decidedItem?.qr_id || '') : '',
+            item_name: item.decision === 'existing' ? item.decidedItem.item_name : item.item_name,
+            category: item.category,
             unit: item.unit,
             location_id: defaultLocationId,
             qty: item.qty,
             item_photo: '',
-            isNew: !item.matched,
-            aiMatched: !!item.matched,
+            isNew: item.decision === 'new',
         }));
 
         setCart(prev => [...prev, ...newItems]);
@@ -243,7 +255,7 @@ function GRContent() {
         setAiItems([]);
     };
 
-    // Manual search
+    // Manual search (modal)
     const handleSearch = (val: string) => {
         setSearchQuery(val); setSelectedItem(null);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -259,13 +271,8 @@ function GRContent() {
         }, 350);
     };
 
-    const handleSelectItem = (item: any) => {
-        setSelectedItem(item); setSearchQuery(item.item_name); setSearchResults([]);
-    };
-
     const addExistingToCart = () => {
-        if (!selectedItem) { alert("Pilih item terlebih dahulu."); return; }
-        if (!modalLocationId || Number(modalQty) <= 0) { alert("Pilih lokasi dan isi qty."); return; }
+        if (!selectedItem || !modalLocationId || Number(modalQty) <= 0) { alert("Lengkapi semua field."); return; }
         setCart(prev => [...prev, {
             key: `${selectedItem.qr_id}_${Date.now()}`,
             qr_id: selectedItem.qr_id, item_name: selectedItem.item_name,
@@ -277,8 +284,9 @@ function GRContent() {
     };
 
     const addNewToCart = () => {
-        if (!newName || !newCategory || !newUnit) { alert("Nama, kategori, satuan wajib."); return; }
-        if (!modalLocationId || Number(modalQty) <= 0) { alert("Pilih lokasi dan isi qty."); return; }
+        if (!newName || !newCategory || !newUnit || !modalLocationId || Number(modalQty) <= 0) {
+            alert("Lengkapi semua field wajib."); return;
+        }
         setCart(prev => [...prev, {
             key: `new_${Date.now()}`,
             qr_id: '', item_name: newName,
@@ -334,6 +342,19 @@ function GRContent() {
     const locName = (id: string) => locations.find(l => String(l.id) === id)?.location_name || id;
     if (!user) return null;
 
+    const confidenceBadge = (c: string | null) => {
+        if (c === 'high') return 'bg-emerald-100 text-emerald-700';
+        if (c === 'medium') return 'bg-amber-100 text-amber-700';
+        if (c === 'low') return 'bg-orange-100 text-orange-700';
+        return 'bg-slate-100 text-slate-500';
+    };
+    const confidenceLabel = (c: string | null) => {
+        if (c === 'high') return '✅ Sangat mirip';
+        if (c === 'medium') return '⚠️ Kemungkinan sama';
+        if (c === 'low') return '❓ Mungkin sama';
+        return '🆕 Tidak ditemukan';
+    };
+
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans">
 
@@ -349,19 +370,37 @@ function GRContent() {
                                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">🤖 Hasil Scan AI</p>
                                     <p className="font-black text-slate-800">{aiItems.length} item terdeteksi</p>
                                 </div>
-                                <button onClick={() => setShowAiReview(false)}
-                                    className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                                <button onClick={() => setShowAiReview(false)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                            </div>
+
+                            {/* Progress konfirmasi */}
+                            <div className={`rounded-2xl px-4 py-3 border ${allDecided ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <p className={`text-[10px] font-black uppercase ${allDecided ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                        {allDecided ? '✅ Semua item sudah dikonfirmasi' : `⏳ Konfirmasi item (${decidedCount}/${aiItems.length})`}
+                                    </p>
+                                    <p className="text-[10px] font-black text-slate-500">{decidedCount}/{aiItems.length}</p>
+                                </div>
+                                <div className="w-full bg-white rounded-full h-1.5">
+                                    <div className={`h-1.5 rounded-full transition-all ${allDecided ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                                        style={{ width: `${(decidedCount / Math.max(aiItems.length, 1)) * 100}%` }} />
+                                </div>
+                                {!allDecided && (
+                                    <p className="text-[9px] text-amber-600 mt-1.5">Setiap item harus dikonfirmasi — pilih dari inventory atau buat baru</p>
+                                )}
                             </div>
 
                             {/* Info */}
                             <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
-                                <p className="text-[10px] font-black text-blue-600">✅ = Item sudah ada di inventory · 🆕 = Item baru</p>
-                                <p className="text-[10px] text-blue-500 mt-0.5">Review hasil AI sebelum konfirmasi. Bisa edit nama, qty, dan satuan.</p>
+                                <p className="text-[10px] font-black text-blue-700 mb-1">📌 Cara konfirmasi per item:</p>
+                                <p className="text-[10px] text-blue-600">• Kalau AI suggest cocok → tap <strong>✅ Ya, ini item tersebut</strong></p>
+                                <p className="text-[10px] text-blue-600">• Kalau salah / tidak ada → tap <strong>🆕 Buat item baru</strong></p>
+                                <p className="text-[10px] text-blue-600">• Atau cari sendiri di inventory pakai search</p>
                             </div>
 
-                            {/* Lokasi default untuk semua item */}
+                            {/* Lokasi default */}
                             <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
-                                <p className="text-[10px] font-black text-slate-500 uppercase">📍 Lokasi Penyimpanan (semua item)</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase">📍 Lokasi Penyimpanan (untuk semua item)</p>
                                 <select value={defaultLocationId} onChange={e => setDefaultLocationId(e.target.value)}
                                     className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
                                     <option value="">-- Pilih Lokasi *</option>
@@ -369,148 +408,183 @@ function GRContent() {
                                 </select>
                             </div>
 
-                            {/* List item hasil AI */}
+                            {/* List item */}
                             <div className="space-y-3">
-                                {aiItems.map((item, i) => (
-                                    <div key={i} className={`rounded-2xl p-4 border-2 ${item.matched ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}>
-                                        {/* Status badge */}
-                                        <div className="flex items-center gap-2 mb-2">
-                                            {item.matchLoading ? (
-                                                <span className="text-[9px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full animate-pulse">🤖 AI mencocokkan...</span>
-                                            ) : item.matched && item.confidence === 'high' ? (
-                                                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Match yakin · {item.matched.qr_id}</span>
-                                            ) : item.matched && item.confidence === 'medium' ? (
-                                                <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠️ Match ragu · {item.matched.qr_id}</span>
-                                            ) : item.matched && item.confidence === 'low' ? (
-                                                <span className="text-[9px] font-black bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">❓ Match lemah · {item.matched.qr_id}</span>
-                                            ) : (
-                                                <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🆕 Item Baru</span>
-                                            )}
-                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                {item.category}
-                                            </span>
-                                        </div>
-
-                                        {/* Nama item — editable */}
-                                        <input type="text" value={item.item_name}
-                                            onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, item_name: e.target.value } : p))}
-                                            className="w-full font-bold text-sm text-slate-800 bg-transparent border-b border-slate-200 pb-1 outline-none mb-2" />
-
-                                        {/* Qty + Unit */}
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase flex-shrink-0">Qty:</label>
-                                            <div className="flex items-center gap-1">
-                                                <button onClick={() => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: Math.max(1, p.qty - 1) } : p))}
-                                                    className="w-7 h-7 bg-white rounded-lg font-black text-slate-500 flex items-center justify-center border active:scale-95">−</button>
-                                                <input type="number" min="1" value={item.qty}
-                                                    onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: Number(e.target.value) } : p))}
-                                                    className="w-14 text-center font-black text-blue-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
-                                                <button onClick={() => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, qty: p.qty + 1 } : p))}
-                                                    className="w-7 h-7 bg-white rounded-lg font-black text-slate-500 flex items-center justify-center border active:scale-95">＋</button>
-                                            </div>
-                                            <input type="text" value={item.unit}
-                                                onChange={e => setAiItems(prev => prev.map((p, idx) => idx === i ? { ...p, unit: e.target.value } : p))}
-                                                className="w-16 text-center font-medium text-slate-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
-                                            <button onClick={() => setAiItems(prev => prev.filter((_, idx) => idx !== i))}
-                                                className="ml-auto text-red-300 font-black text-lg leading-none">✕</button>
-                                        </div>
-
-                                        {/* Match info + reason */}
-                                        {item.matched && (
-                                            <div className="mt-2 space-y-1">
-                                                <p className="text-[9px] text-slate-600">
-                                                    📦 <span className="font-black">{item.matched.item_name}</span>
-                                                </p>
-                                                <p className="text-[9px] text-slate-500">
-                                                    Stok: <span className="font-black">{item.matched.stock_qty} {item.matched.unit}</span>
-                                                </p>
-                                                {item.matchReason && (
-                                                    <p className="text-[9px] text-slate-400 italic">💬 {item.matchReason}</p>
-                                                )}
-                                                {/* Tombol batalkan match — jadikan item baru */}
-                                                {(item.confidence === 'medium' || item.confidence === 'low') && (
-                                                    <button
-                                                        onClick={() => setAiItems(prev => prev.map((p, idx2) =>
-                                                            idx2 === i ? { ...p, matched: null, confidence: 'none' } : p
-                                                        ))}
-                                                        className="text-[9px] font-black text-red-400 underline">
-                                                        ✕ Bukan item ini — jadikan item baru
+                                {aiItems.map((item, i) => {
+                                    const isDecided = item.decision !== null;
+                                    return (
+                                        <div key={i} className={`rounded-2xl border-2 overflow-hidden transition-all ${item.decision === 'existing' ? 'border-emerald-400 bg-emerald-50' :
+                                                item.decision === 'new' ? 'border-blue-400 bg-blue-50' :
+                                                    'border-slate-200 bg-white'
+                                            }`}>
+                                            {/* Status bar atas */}
+                                            {isDecided && (
+                                                <div className={`px-4 py-2 flex items-center gap-2 ${item.decision === 'existing' ? 'bg-emerald-500' : 'bg-blue-500'}`}>
+                                                    <span className="text-white text-[10px] font-black">
+                                                        {item.decision === 'existing'
+                                                            ? `✅ Existing: ${item.decidedItem?.qr_id} — ${item.decidedItem?.item_name}`
+                                                            : '🆕 Item baru — QR akan digenerate'}
+                                                    </span>
+                                                    {/* Ubah keputusan */}
+                                                    <button onClick={() => updateAiItem(i, { decision: null, decidedItem: null, searchOpen: false })}
+                                                        className="ml-auto text-white/70 text-[9px] font-black bg-white/20 px-2 py-0.5 rounded-lg">
+                                                        Ubah
                                                     </button>
-                                                )}
-                                            </div>
-                                        )}
-                                        {!item.matched && !item.matchLoading && (
-                                            <p className="text-[9px] text-blue-400 mt-1 italic">Item baru akan dibuat di inventory</p>
-                                        )}
+                                                </div>
+                                            )}
 
-                                        {/* Tombol koreksi */}
-                                        {!item.matchLoading && (
-                                            <button
-                                                onClick={() => { setCorrecting(correcting === i ? null : i); setCorrectQuery(''); setCorrectResults([]); }}
-                                                className={`mt-2 text-[9px] font-black px-2.5 py-1.5 rounded-lg transition-all
-                                                    ${correcting === i ? 'bg-slate-200 text-slate-600' : 'bg-white border border-slate-200 text-blue-500'}`}>
-                                                {correcting === i ? '✕ Tutup' : '🔍 Koreksi — pilih dari inventory'}
-                                            </button>
-                                        )}
+                                            <div className="p-4 space-y-3">
+                                                {/* Nama + Qty */}
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1">
+                                                        <input type="text" value={item.item_name}
+                                                            onChange={e => updateAiItem(i, { item_name: e.target.value })}
+                                                            className="w-full font-bold text-sm text-slate-800 bg-transparent border-b border-slate-200 pb-1 outline-none" />
+                                                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full mt-1 inline-block ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.category}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        <button onClick={() => updateAiItem(i, { qty: Math.max(1, item.qty - 1) })}
+                                                            className="w-7 h-7 bg-slate-100 rounded-lg font-black text-slate-500 flex items-center justify-center active:scale-95">−</button>
+                                                        <input type="number" min="1" value={item.qty}
+                                                            onChange={e => updateAiItem(i, { qty: Number(e.target.value) })}
+                                                            className="w-12 text-center font-black text-blue-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
+                                                        <button onClick={() => updateAiItem(i, { qty: item.qty + 1 })}
+                                                            className="w-7 h-7 bg-slate-100 rounded-lg font-black text-slate-500 flex items-center justify-center active:scale-95">＋</button>
+                                                        <input type="text" value={item.unit}
+                                                            onChange={e => updateAiItem(i, { unit: e.target.value })}
+                                                            className="w-14 text-center font-medium text-slate-600 text-sm border border-slate-200 rounded-lg py-1 outline-none bg-white" />
+                                                    </div>
+                                                </div>
 
-                                        {/* Panel search koreksi */}
-                                        {correcting === i && (
-                                            <div className="mt-2 space-y-2">
-                                                <input type="text" value={correctQuery}
-                                                    onChange={e => handleCorrectSearch(e.target.value)}
-                                                    placeholder="Cari nama item di inventory..."
-                                                    autoFocus
-                                                    className="w-full p-2.5 bg-white border border-blue-200 rounded-xl outline-none text-xs font-medium text-slate-700" />
-                                                {correctSearching && <p className="text-[9px] text-slate-400 animate-pulse text-center">Mencari...</p>}
-                                                {correctResults.length > 0 && (
-                                                    <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-40 overflow-y-auto shadow-sm">
-                                                        {correctResults.map((inv: any) => (
-                                                            <button key={inv.qr_id} onClick={() => applyCorrection(i, inv)}
-                                                                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 flex justify-between items-center gap-2">
-                                                                <div className="min-w-0">
-                                                                    <p className="font-bold text-xs text-slate-800 truncate">{inv.item_name}</p>
-                                                                    <p className="text-[9px] font-mono text-slate-400">{inv.qr_id} · Stok: {inv.stock_qty} {inv.unit}</p>
+                                                {/* AI Suggestion — hanya tampil kalau belum decide */}
+                                                {!isDecided && (
+                                                    <div className="space-y-2">
+                                                        {item.suggestion ? (
+                                                            <div className="bg-slate-50 rounded-xl p-3 space-y-2 border border-slate-200">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[9px] font-black">🤖 AI Suggest:</span>
+                                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${confidenceBadge(item.suggestionConfidence)}`}>
+                                                                        {confidenceLabel(item.suggestionConfidence)}
+                                                                    </span>
                                                                 </div>
-                                                                <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg flex-shrink-0">Pilih</span>
+                                                                <div className="bg-white rounded-lg px-3 py-2 border border-slate-100">
+                                                                    <p className="font-bold text-sm text-slate-800">{item.suggestion.item_name}</p>
+                                                                    <p className="text-[10px] font-mono text-slate-400">{item.suggestion.qr_id}</p>
+                                                                    <p className="text-[10px] text-slate-500">Stok: {item.suggestion.stock_qty} {item.suggestion.unit}</p>
+                                                                    {item.suggestionReason && <p className="text-[9px] text-slate-400 italic mt-0.5">"{item.suggestionReason}"</p>}
+                                                                </div>
+                                                                {/* Tombol keputusan staff */}
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => decideExisting(i, item.suggestion)}
+                                                                        className="flex-1 bg-emerald-600 text-white font-black text-[10px] py-2.5 rounded-xl active:scale-95">
+                                                                        ✅ Ya, ini item tersebut
+                                                                    </button>
+                                                                    <button onClick={() => decideNew(i)}
+                                                                        className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 font-black text-[10px] py-2.5 rounded-xl active:scale-95">
+                                                                        🆕 Bukan, buat baru
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            /* Tidak ada suggestion dari AI */
+                                                            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                                                                <p className="text-[10px] text-blue-600 font-bold mb-2">🤖 AI tidak menemukan item serupa di inventory</p>
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={() => decideNew(i)}
+                                                                        className="flex-1 bg-blue-600 text-white font-black text-[10px] py-2.5 rounded-xl active:scale-95">
+                                                                        🆕 Buat Item Baru
+                                                                    </button>
+                                                                    <button onClick={() => updateAiItem(i, { searchOpen: !item.searchOpen })}
+                                                                        className="flex-1 bg-white text-slate-600 border border-slate-200 font-black text-[10px] py-2.5 rounded-xl active:scale-95">
+                                                                        🔍 Cari Manual
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Tombol cari manual (kalau ada suggestion tapi staff mau cari sendiri) */}
+                                                        {item.suggestion && (
+                                                            <button onClick={() => updateAiItem(i, { searchOpen: !item.searchOpen })}
+                                                                className="w-full text-[9px] font-black text-slate-400 underline text-center">
+                                                                {item.searchOpen ? '▲ Tutup pencarian' : '🔍 Cari item lain di inventory'}
                                                             </button>
-                                                        ))}
+                                                        )}
+
+                                                        {/* Search panel */}
+                                                        {item.searchOpen && (
+                                                            <div className="space-y-2 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                                                <input type="text" value={item.searchQuery}
+                                                                    onChange={e => handleItemSearch(i, e.target.value)}
+                                                                    placeholder="Ketik nama item di inventory..."
+                                                                    autoFocus
+                                                                    className="w-full p-2.5 bg-white border border-blue-200 rounded-xl outline-none text-xs font-medium text-slate-700" />
+                                                                {item.searching && <p className="text-[9px] text-slate-400 animate-pulse text-center">Mencari...</p>}
+                                                                {item.searchResults.length > 0 && (
+                                                                    <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-40 overflow-y-auto shadow-sm">
+                                                                        {item.searchResults.map((inv: any) => (
+                                                                            <button key={inv.qr_id} onClick={() => decideExisting(i, inv)}
+                                                                                className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 flex justify-between items-center gap-2 active:scale-[0.98]">
+                                                                                <div className="min-w-0">
+                                                                                    <p className="font-bold text-xs text-slate-800 truncate">{inv.item_name}</p>
+                                                                                    <p className="text-[9px] font-mono text-slate-400">{inv.qr_id} · Stok: {inv.stock_qty} {inv.unit}</p>
+                                                                                </div>
+                                                                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg flex-shrink-0 border border-emerald-200">Pilih</span>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                {item.searchQuery.length >= 2 && !item.searching && item.searchResults.length === 0 && (
+                                                                    <div className="text-center py-2 space-y-1.5">
+                                                                        <p className="text-[9px] text-slate-400 italic">Tidak ditemukan di inventory</p>
+                                                                        <button onClick={() => decideNew(i)}
+                                                                            className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg">
+                                                                            🆕 Buat sebagai item baru
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
-                                                {correctQuery.length >= 2 && !correctSearching && correctResults.length === 0 && (
-                                                    <p className="text-[9px] text-slate-400 italic text-center py-2">Tidak ditemukan — biarkan sebagai item baru</p>
-                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+                                        </div>
+                                    );
+                                })}
                             </div>
 
-                            {/* Tombol tambah item manual */}
-                            <button onClick={() => setAiItems(prev => [...prev, { item_name: '', qty: 1, unit: 'pcs', category: 'Material', matched: null, matchLoading: false }])}
-                                className="w-full border-2 border-dashed border-slate-200 rounded-2xl py-3 text-[10px] font-black text-slate-400 uppercase active:bg-slate-50">
+                            {/* Tambah item manual */}
+                            <button onClick={() => setAiItems(prev => [...prev, {
+                                item_name: '', qty: 1, unit: 'pcs', category: 'Material',
+                                suggestion: null, suggestionConfidence: null, suggestionReason: '',
+                                decision: null, decidedItem: null,
+                                searchOpen: false, searchQuery: '', searchResults: [], searching: false,
+                            }])} className="w-full border-2 border-dashed border-slate-200 rounded-2xl py-3 text-[10px] font-black text-slate-400 uppercase active:bg-slate-50">
                                 ＋ Tambah Item Manual
                             </button>
 
-                            {/* Konfirmasi */}
-                            <button onClick={handleConfirmAiItems}
-                                className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
-                                ✅ Konfirmasi {aiItems.length} Item ke GR
+                            {/* Konfirmasi ke cart */}
+                            <button onClick={handleConfirmAiItems} disabled={!allDecided || !defaultLocationId}
+                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg transition-all
+                                    ${allDecided && defaultLocationId
+                                        ? 'bg-emerald-600 text-white active:scale-95'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                                {!defaultLocationId ? '📍 Pilih lokasi dulu' :
+                                    !allDecided ? `⏳ Konfirmasi ${aiItems.length - decidedCount} item lagi` :
+                                        `✅ Konfirmasi ${aiItems.length} Item ke GR`}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ADD ITEM MODAL — manual */}
+            {/* ══ ADD ITEM MODAL (manual) ══ */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={resetModal}>
-                    <div className="bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4"
-                        onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tambah Item Manual</p>
                             <button onClick={resetModal} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 text-sm">✕</button>
                         </div>
-
                         <div className="flex gap-2">
                             <button onClick={() => { setAddMode('search'); setSelectedItem(null); }}
                                 className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase ${addMode === 'search' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
@@ -531,7 +605,7 @@ function GRContent() {
                                 {searchResults.length > 0 && !selectedItem && (
                                     <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-50 max-h-48 overflow-y-auto shadow-md">
                                         {searchResults.map((item: any) => (
-                                            <button key={item.qr_id} onClick={() => handleSelectItem(item)}
+                                            <button key={item.qr_id} onClick={() => { setSelectedItem(item); setSearchQuery(item.item_name); setSearchResults([]); }}
                                                 className="w-full text-left p-3.5 hover:bg-blue-50 flex justify-between items-center">
                                                 <div>
                                                     <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
@@ -549,8 +623,7 @@ function GRContent() {
                                             <p className="text-[10px] font-mono text-blue-400">{selectedItem.qr_id} · {selectedItem.unit}</p>
                                             <p className="text-[10px] text-blue-500 font-bold">Stok: {selectedItem.stock_qty} {selectedItem.unit}</p>
                                         </div>
-                                        <button onClick={() => { setSelectedItem(null); setSearchQuery(''); }}
-                                            className="text-blue-400 font-black text-sm bg-white rounded-lg px-2 py-1">✕</button>
+                                        <button onClick={() => { setSelectedItem(null); setSearchQuery(''); }} className="text-blue-400 font-black text-sm bg-white rounded-lg px-2 py-1">✕</button>
                                     </div>
                                 )}
                             </div>
@@ -558,8 +631,7 @@ function GRContent() {
 
                         {addMode === 'new' && (
                             <div className="space-y-3">
-                                <input type="text" placeholder="Nama Item *" value={newName}
-                                    onChange={e => setNewName(e.target.value)}
+                                <input type="text" placeholder="Nama Item *" value={newName} onChange={e => setNewName(e.target.value)}
                                     className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 <div className="grid grid-cols-2 gap-3">
                                     <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
@@ -567,8 +639,7 @@ function GRContent() {
                                         <option value="Material">Material</option>
                                         <option value="Tools">Tools</option>
                                     </select>
-                                    <input type="text" placeholder="Satuan (pcs, m...)" value={newUnit}
-                                        onChange={e => setNewUnit(e.target.value)}
+                                    <input type="text" placeholder="Satuan (pcs, m...)" value={newUnit} onChange={e => setNewUnit(e.target.value)}
                                         className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 </div>
                                 <div className="bg-violet-50 border border-violet-100 rounded-xl px-3 py-2.5">
@@ -605,14 +676,12 @@ function GRContent() {
                             </div>
                         </div>
 
-                        {addMode === 'search' && (
+                        {addMode === 'search' ? (
                             <button onClick={addExistingToCart} disabled={!selectedItem}
-                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95
-                                    ${selectedItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                                className={`w-full font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 ${selectedItem ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
                                 {selectedItem ? `＋ Tambahkan "${selectedItem.item_name}"` : 'Pilih item dulu'}
                             </button>
-                        )}
-                        {addMode === 'new' && (
+                        ) : (
                             <button onClick={addNewToCart}
                                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95">
                                 ＋ Tambahkan ke GR
@@ -632,18 +701,16 @@ function GRContent() {
                         <p className="text-sm text-emerald-600">{success.message}</p>
                         <div className="bg-white rounded-2xl p-4 space-y-2 text-left">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alur Selanjutnya</p>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center font-black text-xs flex-shrink-0">1</div>
-                                <p className="text-xs text-slate-600">📋 Tim Procurement kroscek item & input HPP</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-black text-xs flex-shrink-0">2</div>
-                                <p className="text-xs text-slate-600">✅ Manager review & approve</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-black text-xs flex-shrink-0">3</div>
-                                <p className="text-xs text-slate-600">📦 Stok masuk ke inventory otomatis</p>
-                            </div>
+                            {[
+                                { n: 1, c: 'violet', t: '📋 Tim Procurement kroscek item & input HPP' },
+                                { n: 2, c: 'amber', t: '✅ Manager review & approve' },
+                                { n: 3, c: 'emerald', t: '📦 Stok masuk ke inventory otomatis' },
+                            ].map(s => (
+                                <div key={s.n} className="flex items-center gap-2">
+                                    <div className={`w-6 h-6 rounded-full bg-${s.c}-100 text-${s.c}-600 flex items-center justify-center font-black text-xs flex-shrink-0`}>{s.n}</div>
+                                    <p className="text-xs text-slate-600">{s.t}</p>
+                                </div>
+                            ))}
                         </div>
                         <div className="space-y-1">
                             {success.items?.map((item: any) => (
@@ -657,20 +724,15 @@ function GRContent() {
                         </div>
                         <div className="flex gap-3 pt-2">
                             <button onClick={() => { setSuccess(null); setPoNumber(''); setSupplier(''); setNote(''); setSjPhoto(''); setSjPhotoPreview(''); }}
-                                className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase">
-                                ＋ Input GR Baru
-                            </button>
+                                className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase">＋ Input GR Baru</button>
                             <button onClick={() => router.push('/purchase-list')}
-                                className="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">
-                                📋 Lihat Status GR
-                            </button>
+                                className="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">📋 Lihat Status GR</button>
                         </div>
                     </div>
                 )}
 
                 {!success && (
                     <>
-                        {/* Info flow */}
                         <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-start gap-3">
                             <span className="text-lg flex-shrink-0">💡</span>
                             <div>
@@ -679,14 +741,12 @@ function GRContent() {
                             </div>
                         </div>
 
-                        {/* FOTO SURAT JALAN + AI SCAN */}
+                        {/* FOTO SJ + AI SCAN */}
                         <div className="bg-white rounded-3xl shadow-sm p-5 space-y-3">
                             <div className="flex items-center justify-between">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📄 Surat Jalan / Packing List</p>
-                                {/* Toggle AI */}
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📄 Surat Jalan</p>
                                 <button onClick={() => setUseAI(v => !v)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all
-                                        ${useAI ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${useAI ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                                     <div className={`w-3 h-3 rounded-full transition-all ${useAI ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                                     🤖 AI {useAI ? 'ON' : 'OFF'}
                                 </button>
@@ -700,34 +760,14 @@ function GRContent() {
                                             className="absolute top-2 right-2 bg-red-500 text-white font-black text-xs px-2 py-1 rounded-lg">✕ Hapus</button>
                                         <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">✅ Foto tersimpan</p>
                                     </div>
-
-                                    {/* TOMBOL AI SCAN — hanya tampil kalau useAI ON */}
-                                    {useAI && <button onClick={handleAiScan} disabled={scanning}
-                                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
-                                        {scanning ? (
-                                            <>
-                                                <span className="animate-spin">⏳</span>
-                                                <span>AI sedang membaca SJ...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>🤖</span>
-                                                <span>Scan Item dengan AI</span>
-                                            </>
-                                        )}
-                                    </button>
-
-                                    }
-
-                                    {aiError && (
-                                        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                                            <p className="text-[10px] font-black text-red-600">⚠️ {aiError}</p>
-                                        </div>
+                                    {useAI && (
+                                        <button onClick={handleAiScan} disabled={scanning}
+                                            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2">
+                                            {scanning ? <><span className="animate-spin">⏳</span><span>AI membaca SJ & cari di inventory...</span></> : <><span>🤖</span><span>Scan Item dengan AI</span></>}
+                                        </button>
                                     )}
-
-                                    <p className="text-[9px] text-slate-400 text-center">
-                                        {useAI ? 'atau tambah item manual di bawah' : 'Tambah item manual di bawah'}
-                                    </p>
+                                    {aiError && <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2"><p className="text-[10px] font-black text-red-600">⚠️ {aiError}</p></div>}
+                                    <p className="text-[9px] text-slate-400 text-center">{useAI ? 'atau tambah item manual di bawah' : 'Tambah item manual di bawah'}</p>
                                 </div>
                             ) : (
                                 <button onClick={() => sjPhotoRef.current?.click()}
@@ -748,31 +788,18 @@ function GRContent() {
                         {/* INFO PO */}
                         <div className="bg-white rounded-3xl shadow-sm p-5 space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📋 Info PO</p>
-                            <input type="text" placeholder="No. Surat Jalan / Referensi (opsional)" value={poNumber}
-                                onChange={e => setPoNumber(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            <input type="text" placeholder="Supplier / Vendor" value={supplier}
-                                onChange={e => setSupplier(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            <input type="date" value={poDate} onChange={e => setPoDate(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                            <input type="text" placeholder="Catatan (opsional)" value={note}
-                                onChange={e => setNote(e.target.value)}
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <input type="text" placeholder="No. Surat Jalan / Referensi (opsional)" value={poNumber} onChange={e => setPoNumber(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <input type="text" placeholder="Supplier / Vendor" value={supplier} onChange={e => setSupplier(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <input type="date" value={poDate} onChange={e => setPoDate(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <input type="text" placeholder="Catatan (opsional)" value={note} onChange={e => setNote(e.target.value)} className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                         </div>
 
-                        {/* DAFTAR ITEM */}
+                        {/* CART */}
                         <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                    Item ({cart.length})
-                                </p>
-                                <button onClick={() => setShowAddModal(true)}
-                                    className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase shadow-md active:scale-95">
-                                    ＋ Manual
-                                </button>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Item ({cart.length})</p>
+                                <button onClick={() => setShowAddModal(true)} className="bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs uppercase shadow-md active:scale-95">＋ Manual</button>
                             </div>
-
                             {cart.length === 0 ? (
                                 <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center space-y-2">
                                     <p className="text-2xl">☝️</p>
@@ -780,16 +807,17 @@ function GRContent() {
                                     <p className="text-slate-300 text-xs">atau tambah manual</p>
                                 </div>
                             ) : cart.map(item => (
-                                <div key={item.key} className={`bg-white rounded-2xl shadow-sm border-l-4 p-4
-                                    ${item.category === 'Tools' ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
+                                <div key={item.key} className={`bg-white rounded-2xl shadow-sm border-l-4 p-4 ${item.category === 'Tools' ? 'border-l-amber-500' : 'border-l-emerald-500'}`}>
                                     <div className="flex justify-between items-start gap-2">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                                {item.isNew && <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">🆕 BARU</span>}
-                                                {item.aiMatched && <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">🤖 AI</span>}
+                                                {item.isNew
+                                                    ? <span className="text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">🆕 BARU</span>
+                                                    : <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">✅ EXISTING</span>}
                                                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{item.category}</span>
                                             </div>
                                             <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                            {item.qr_id && <p className="text-[9px] font-mono text-slate-400">{item.qr_id}</p>}
                                             <p className="text-[10px] text-slate-400">📍 {locName(item.location_id)}</p>
                                             <p className="text-[9px] text-violet-400 font-bold mt-0.5">HPP diisi Procurement</p>
                                         </div>
@@ -798,8 +826,7 @@ function GRContent() {
                                                 <p className="font-black text-lg text-blue-600">{item.qty}</p>
                                                 <p className="text-[10px] text-slate-400">{item.unit}</p>
                                             </div>
-                                            <button onClick={() => setCart(prev => prev.filter(i => i.key !== item.key))}
-                                                className="text-red-300 font-black p-1">✕</button>
+                                            <button onClick={() => setCart(prev => prev.filter(i => i.key !== item.key))} className="text-red-300 font-black p-1">✕</button>
                                         </div>
                                     </div>
                                     <div className="flex gap-2 mt-2">
@@ -807,8 +834,7 @@ function GRContent() {
                                             className="flex-1 p-2 bg-slate-50 rounded-lg outline-none text-xs font-medium text-slate-600 appearance-none">
                                             {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
                                         </select>
-                                        <input type="number" min="1" value={item.qty}
-                                            onChange={e => updateCartItem(item.key, 'qty', Number(e.target.value))}
+                                        <input type="number" min="1" value={item.qty} onChange={e => updateCartItem(item.key, 'qty', Number(e.target.value))}
                                             className="w-16 p-2 bg-slate-50 rounded-lg outline-none font-bold text-slate-700 text-center text-sm" />
                                     </div>
                                 </div>
