@@ -458,15 +458,28 @@ function InventoryImportContent() {
                                                             className="w-full p-2.5 bg-white border border-blue-200 rounded-xl outline-none text-xs font-medium text-slate-700" />
                                                         {item.searching && <p className="text-[9px] text-slate-400 animate-pulse text-center">Mencari...</p>}
                                                         {item.searchResults.length > 0 && (
-                                                            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-40 overflow-y-auto shadow-sm">
+                                                            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-52 overflow-y-auto shadow-sm">
                                                                 {item.searchResults.map((inv: any) => (
                                                                     <button key={inv.qr_id} onClick={() => decideExisting(item.key, inv)}
-                                                                        className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 flex justify-between items-center gap-2 active:scale-[0.98]">
-                                                                        <div className="min-w-0">
-                                                                            <p className="font-bold text-xs text-slate-800 truncate">{inv.item_name}</p>
-                                                                            <p className="text-[9px] font-mono text-slate-400">{inv.qr_id} · Stok: {inv.stock_qty} {inv.unit}</p>
+                                                                        className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 active:scale-[0.98] transition-all">
+                                                                        <div className="flex justify-between items-start gap-2">
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="font-bold text-xs text-slate-800 truncate">{inv.item_name}</p>
+                                                                                <p className="text-[9px] font-mono text-slate-400">{inv.qr_id} · Total: {inv.stock_qty} {inv.unit}</p>
+                                                                                {/* Lokasi per gudang */}
+                                                                                {inv.locations && inv.locations.length > 0 && (
+                                                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                                                        {inv.locations.map((loc: any) => (
+                                                                                            <span key={loc.location_id}
+                                                                                                className="text-[8px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md">
+                                                                                                📍 {loc.location_name}: {loc.stock_qty} {inv.unit}
+                                                                                            </span>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 flex-shrink-0 mt-0.5">Pilih</span>
                                                                         </div>
-                                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 flex-shrink-0">Pilih</span>
                                                                     </button>
                                                                 ))}
                                                             </div>
