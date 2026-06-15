@@ -53,23 +53,37 @@ function InventoryImportContent() {
     }, []);
 
     // ── Step 1: parse chat → Step 2: AI suggest match ──
+    // Normalize fraction unicode agar AI cocok dengan inventory
+    const normalizeFractions = (text: string): string => text
+        .replace(/¼/g, '1/4').replace(/½/g, '1/2').replace(/¾/g, '3/4')
+        .replace(/⅓/g, '1/3').replace(/⅔/g, '2/3')
+        .replace(/⅛/g, '1/8').replace(/⅜/g, '3/8')
+        .replace(/⅝/g, '5/8').replace(/⅞/g, '7/8');
+
     const handleParse = async () => {
         if (!chatText.trim()) { alert("Paste teks chat dulu!"); return; }
         setParsing(true); setParseError(''); setItems([]);
+
+        // Normalize fraction sebelum kirim ke AI
+        const normalizedText = normalizeFractions(chatText);
 
         try {
             // Step 1: parse teks → extract items
             const res = await fetch(`${BASE_URL}/openai_proxy.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ mode: 'parse_chat', chat_text: chatText })
+                body: JSON.stringify({ mode: 'parse_chat', chat_text: normalizedText })
             });
             const r = await res.json();
             if (r.status !== 'success' || !Array.isArray(r.result) || r.result.length === 0) {
                 setParseError(r.message || 'AI tidak menemukan item. Coba format teks yang lebih jelas.');
                 setParsing(false); return;
             }
-            const parsedItems = r.result;
+            // Normalize juga nama hasil parse
+            const parsedItems = r.result.map((item: any) => ({
+                ...item,
+                item_name: normalizeFractions(item.item_name || ''),
+            }));
 
             // Step 2: ambil inventory untuk AI suggest
             const invRes = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
