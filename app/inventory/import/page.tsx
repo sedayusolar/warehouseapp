@@ -54,18 +54,25 @@ function InventoryImportContent() {
 
     // ── Step 1: parse chat → Step 2: AI suggest match ──
     // Normalize fraction unicode agar AI cocok dengan inventory
-    const normalizeFractions = (text: string): string => text
+    const normalizeText = (text: string): string => text
+        // Fraction unicode → teks biasa
         .replace(/¼/g, '1/4').replace(/½/g, '1/2').replace(/¾/g, '3/4')
         .replace(/⅓/g, '1/3').replace(/⅔/g, '2/3')
         .replace(/⅛/g, '1/8').replace(/⅜/g, '3/8')
-        .replace(/⅝/g, '5/8').replace(/⅞/g, '7/8');
+        .replace(/⅝/g, '5/8').replace(/⅞/g, '7/8')
+        // Em dash, en dash → hyphen biasa
+        .replace(/–/g, '-').replace(/—/g, '-').replace(/−/g, '-')
+        // Koma desimal → titik (0,75mm → 0.75mm)
+        .replace(/(\d),(\d)/g, '$1.$2')
+        // Multiple spaces → single
+        .replace(/\s+/g, ' ').trim();
 
     const handleParse = async () => {
         if (!chatText.trim()) { alert("Paste teks chat dulu!"); return; }
         setParsing(true); setParseError(''); setItems([]);
 
         // Normalize fraction sebelum kirim ke AI
-        const normalizedText = normalizeFractions(chatText);
+        const normalizedText = normalizeText(chatText);
 
         try {
             // Step 1: parse teks → extract items
@@ -82,7 +89,7 @@ function InventoryImportContent() {
             // Normalize juga nama hasil parse
             const parsedItems = r.result.map((item: any) => ({
                 ...item,
-                item_name: normalizeFractions(item.item_name || ''),
+                item_name: normalizeText(item.item_name || ''),
             }));
 
             // Step 2: ambil inventory untuk AI suggest
@@ -90,24 +97,47 @@ function InventoryImportContent() {
             const invData = await invRes.json();
             const inventoryList = invData.status === 'success' ? invData.data : [];
 
-            // Step 3: AI match suggest
-            const matchRes = await fetch(`${BASE_URL}/openai_proxy.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({
-                    mode: 'match_inventory',
-                    sj_items: parsedItems,
-                    inventory: inventoryList.slice(0, 200),
-                })
-            });
-            const matchData = await matchRes.json();
-            const matches: any[] = Array.isArray(matchData.result) ? matchData.result : [];
+            // Step 3: AI match suggest — batch per 20 item agar lebih akurat
+            const BATCH_SIZE = 20;
+            const allMatches: any[] = [];
+            for (let b = 0; b < parsedItems.length; b += BATCH_SIZE) {
+                const batchItems = parsedItems.slice(b, b + BATCH_SIZE);
+                try {
+                    const matchRes = await fetch(`${BASE_URL}/openai_proxy.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                        body: JSON.stringify({
+                            mode: 'match_inventory',
+                            sj_items: batchItems,
+                            inventory: inventoryList.slice(0, 200),
+                        })
+                    });
+                    const matchData = await matchRes.json();
+                    const batchMatches = Array.isArray(matchData.result) ? matchData.result : [];
+                    allMatches.push(...batchMatches);
+                } catch {
+                    // Kalau batch gagal, isi dengan null matches
+                    batchItems.forEach((item: any) => allMatches.push({ sj_item_name: item.item_name, matched_qr_id: null, confidence: 'none' }));
+                }
+            }
+            const matches: any[] = allMatches;
 
-            // Build items dengan suggestion (decision = null, staff yang decide)
+            // Build items dengan suggestion — gunakan index utama, nama sebagai fallback
             const built: ParsedItem[] = parsedItems.map((item: any, i: number) => {
-                const matchResult = matches.find((m: any) =>
-                    m.sj_item_name?.toLowerCase() === item.item_name?.toLowerCase()
-                ) || matches[i];
+                // Cari match by nama dulu (exact case-insensitive)
+                let matchResult = matches.find((m: any) =>
+                    m.sj_item_name?.toLowerCase().trim() === item.item_name?.toLowerCase().trim()
+                );
+                // Fallback: cari yang mengandung nama item
+                if (!matchResult) {
+                    matchResult = matches.find((m: any) => {
+                        const mName = m.sj_item_name?.toLowerCase().trim() || '';
+                        const iName = item.item_name?.toLowerCase().trim() || '';
+                        return mName.includes(iName) || iName.includes(mName);
+                    });
+                }
+                // Final fallback: by index
+                if (!matchResult) matchResult = matches[i];
 
                 const suggestedInv = matchResult?.matched_qr_id
                     ? inventoryList.find((inv: any) => inv.qr_id === matchResult.matched_qr_id)
