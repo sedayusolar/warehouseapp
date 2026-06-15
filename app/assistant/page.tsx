@@ -10,6 +10,7 @@ type Message = {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    message?: string;
     type?: 'answer' | 'query_result' | 'propose_change' | 'error';
     data?: any[];
     sql?: string;
