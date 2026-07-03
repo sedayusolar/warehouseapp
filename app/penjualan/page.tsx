@@ -16,6 +16,13 @@ function PenjualanContent() {
     const [saleDate, setSaleDate] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [invoiceNo, setInvoiceNo] = useState('');
+    const [invoiceMode, setInvoiceMode] = useState<'picker' | 'manual'>('picker');
+    const [showInvoicePicker, setShowInvoicePicker] = useState(false);
+    const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+    const [invoiceResults, setInvoiceResults] = useState<any[]>([]);
+    const [invoiceLoading, setInvoiceLoading] = useState(false);
+    const [invoiceError, setInvoiceError] = useState('');
+    const invoiceSearchTimeout = useRef<any>(null);
     const [note, setNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -24,6 +31,10 @@ function PenjualanContent() {
     const [searching, setSearching] = useState(false);
     const searchTimeout = useRef<any>(null);
     const [pendingItem, setPendingItem] = useState<any>(null);
+    const [showScanner, setShowScanner] = useState(false);
+    const [scannerError, setScannerError] = useState('');
+    const [scanLoading, setScanLoading] = useState(false);
+    const html5QrRef = useRef<any>(null);
 
     // ── List ──
     const [listStatus, setListStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING');
@@ -105,6 +116,83 @@ function PenjualanContent() {
         setPendingItem(item);
     };
 
+    const loadHtml5QrcodeScript = (): Promise<void> => {
+        return new Promise((resolve, reject) => {
+            if ((window as any).Html5Qrcode) { resolve(); return; }
+            const existing = document.getElementById('html5-qrcode-script');
+            if (existing) { existing.addEventListener('load', () => resolve()); return; }
+            const script = document.createElement('script');
+            script.id = 'html5-qrcode-script';
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Gagal load library scanner'));
+            document.body.appendChild(script);
+        });
+    };
+
+    const closeScanner = () => {
+        const scanner = html5QrRef.current;
+        if (scanner) {
+            scanner.stop().then(() => scanner.clear()).catch(() => { });
+            html5QrRef.current = null;
+        }
+        setShowScanner(false);
+    };
+
+    const handleScanned = async (decodedText: string) => {
+        closeScanner();
+        setScanLoading(true);
+        try {
+            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr_id=${encodeURIComponent(decodedText)}`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            const item = r?.data || r?.item;
+            if (r.status !== 'success' || !item) {
+                alert(`QR "${decodedText}" tidak ditemukan di inventory.`);
+            } else if (item.category !== 'Produk') {
+                alert(`"${item.item_name}" bukan kategori Produk (kategori: ${item.category}). Penjualan hanya untuk item Produk.`);
+            } else {
+                setPendingItem(item);
+            }
+        } catch {
+            alert('Gagal ambil data produk. Cek koneksi.');
+        }
+        setScanLoading(false);
+    };
+
+    const openScanner = async () => {
+        setScannerError('');
+        setShowScanner(true);
+        try {
+            await loadHtml5QrcodeScript();
+            setTimeout(async () => {
+                try {
+                    const Html5Qrcode = (window as any).Html5Qrcode;
+                    const Formats = (window as any).Html5QrcodeSupportedFormats;
+                    const scanner = new Html5Qrcode('penjualan-qr-reader', {
+                        formatsToSupport: [
+                            Formats.QR_CODE, Formats.CODE_128, Formats.CODE_39, Formats.CODE_93,
+                            Formats.EAN_13, Formats.EAN_8, Formats.UPC_A, Formats.UPC_E,
+                            Formats.CODABAR, Formats.ITF, Formats.DATA_MATRIX,
+                        ],
+                        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                        verbose: false,
+                    });
+                    html5QrRef.current = scanner;
+                    await scanner.start(
+                        { facingMode: 'environment' },
+                        { fps: 10, qrbox: { width: 260, height: 160 } },
+                        (decodedText: string) => { handleScanned(decodedText); },
+                        () => { /* ignore per-frame no-match */ }
+                    );
+                } catch {
+                    setScannerError('Tidak bisa akses kamera. Pastikan izin kamera diizinkan, atau cari manual.');
+                }
+            }, 150);
+        } catch {
+            setScannerError('Gagal load scanner. Cek koneksi internet, atau cari manual.');
+        }
+    };
+
     const confirmLocation = (loc: any) => {
         if (!pendingItem) return;
         if (cart.find(i => i.qr_id === pendingItem.qr_id && String(i.location_id) === String(loc.location_id))) {
@@ -117,6 +205,47 @@ function PenjualanContent() {
         }]);
         setPendingItem(null);
     };
+
+    const fetchJurnalInvoices = async (q: string = '') => {
+        setInvoiceLoading(true); setInvoiceError('');
+        try {
+            const from = new Date(); from.setMonth(from.getMonth() - 3);
+            const params = new URLSearchParams({
+                action: 'list_invoices', page: '1', per_page: '20',
+                from_date: from.toISOString().split('T')[0],
+                to_date: new Date().toISOString().split('T')[0],
+            });
+            if (q) params.set('search', q);
+            const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            setInvoiceResults(r.sales_invoices || []);
+        } catch {
+            setInvoiceError('Gagal ambil data invoice dari Jurnal.');
+            setInvoiceResults([]);
+        }
+        setInvoiceLoading(false);
+    };
+
+    const openInvoicePicker = () => {
+        setShowInvoicePicker(true);
+        setInvoiceSearchQuery('');
+        fetchJurnalInvoices('');
+    };
+
+    const handleInvoiceSearchInput = (val: string) => {
+        setInvoiceSearchQuery(val);
+        if (invoiceSearchTimeout.current) clearTimeout(invoiceSearchTimeout.current);
+        invoiceSearchTimeout.current = setTimeout(() => fetchJurnalInvoices(val), 400);
+    };
+
+    const selectInvoice = (inv: any) => {
+        setInvoiceNo(inv.transaction_no);
+        setCustomerName(inv.person?.display_name || '');
+        setShowInvoicePicker(false);
+    };
+
+    const fmtInvoiceRp = (v: string | number) =>
+        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(String(v)) || 0);
 
     const handleSubmitSale = async () => {
         if (!saleDate || cart.length === 0) { alert("Tanggal dan minimal 1 produk wajib diisi!"); return; }
@@ -178,9 +307,15 @@ function PenjualanContent() {
                     <>
                         <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cari Produk</p>
-                            <input type="text" value={searchQuery} onChange={e => handleSearchInput(e.target.value)}
-                                placeholder="Ketik nama produk / QR code..."
-                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <div className="flex gap-2">
+                                <input type="text" value={searchQuery} onChange={e => handleSearchInput(e.target.value)}
+                                    placeholder="Ketik nama produk / QR code..."
+                                    className="flex-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                                <button type="button" onClick={openScanner} disabled={scanLoading}
+                                    className="px-4 bg-violet-600 text-white font-black text-xs rounded-xl active:scale-95 transition-all flex-shrink-0 disabled:opacity-50">
+                                    {scanLoading ? '...' : '📷 Scan'}
+                                </button>
+                            </div>
                             {searching && <p className="text-center text-xs text-slate-400 animate-pulse py-2">Mencari...</p>}
                             {!searching && searchResults.length > 0 && (
                                 <div className="bg-slate-50 rounded-2xl overflow-hidden divide-y divide-white max-h-64 overflow-y-auto">
@@ -238,10 +373,31 @@ function PenjualanContent() {
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-violet-500 uppercase ml-1">No. Invoice Jurnal (opsional)</label>
-                                    <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
-                                        placeholder="SDUH/INV/2026/1085"
-                                        className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl outline-none font-mono font-bold text-slate-700" />
-                                    <p className="text-[9px] text-slate-400 mt-1 ml-1">Copy dari "Transaction no." di Jurnal, buat rekonsiliasi nanti.</p>
+                                    {invoiceMode === 'picker' ? (
+                                        <>
+                                            <button type="button" onClick={openInvoicePicker}
+                                                className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl text-left font-mono font-bold text-slate-700 flex justify-between items-center">
+                                                <span className={invoiceNo ? 'text-slate-700' : 'text-slate-400 font-sans font-medium'}>
+                                                    {invoiceNo || 'Pilih invoice dari Jurnal...'}
+                                                </span>
+                                                <span className="text-violet-500 text-xs">🔍 Cari</span>
+                                            </button>
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">
+                                                Nama customer otomatis terisi kalau pilih invoice.{' '}
+                                                <button type="button" onClick={() => setInvoiceMode('manual')} className="underline text-violet-500">Ketik manual</button>
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
+                                                placeholder="SDUH/INV/2026/1085"
+                                                className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl outline-none font-mono font-bold text-slate-700" />
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">
+                                                Copy dari "Transaction no." di Jurnal.{' '}
+                                                <button type="button" onClick={() => setInvoiceMode('picker')} className="underline text-violet-500">Pilih dari Jurnal</button>
+                                            </p>
+                                        </>
+                                    )}
                                 </div>
                                 <input type="text" value={note} onChange={e => setNote(e.target.value)}
                                     placeholder="Catatan (opsional)..."
@@ -288,6 +444,66 @@ function PenjualanContent() {
                     </>
                 )}
             </div>
+
+            {/* JURNAL INVOICE PICKER MODAL */}
+            {showInvoicePicker && (
+                <div className="fixed inset-0 z-[60] bg-black/60 flex flex-col" onClick={() => setShowInvoicePicker(false)}>
+                    <div className="mt-16 flex-1 bg-white rounded-t-3xl p-5 overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-black text-sm text-slate-800">📄 Pilih Invoice Jurnal</h3>
+                            <button onClick={() => setShowInvoicePicker(false)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
+                        </div>
+                        <input type="text" value={invoiceSearchQuery} onChange={e => handleInvoiceSearchInput(e.target.value)}
+                            placeholder="Cari no. invoice / nama customer..."
+                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 mb-3" />
+                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan invoice 3 bulan terakhir. Ketik buat cari lebih spesifik.</p>
+
+                        {invoiceLoading && <p className="text-center text-xs text-slate-400 animate-pulse py-6">Memuat dari Jurnal...</p>}
+                        {invoiceError && <p className="text-center text-xs text-red-500 py-6">{invoiceError}</p>}
+                        {!invoiceLoading && !invoiceError && invoiceResults.length === 0 && (
+                            <p className="text-center text-xs text-slate-300 italic py-6">Tidak ada invoice ditemukan.</p>
+                        )}
+                        <div className="space-y-2">
+                            {invoiceResults.map((inv: any) => (
+                                <button key={inv.id} onClick={() => selectInvoice(inv)}
+                                    className="w-full text-left bg-slate-50 hover:bg-violet-50 rounded-2xl p-3.5 transition-all active:scale-[0.99]">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-mono font-black text-xs text-violet-600">{inv.transaction_no}</p>
+                                            <p className="font-bold text-sm text-slate-800 truncate mt-0.5">{inv.person?.display_name || '—'}</p>
+                                            <p className="text-[10px] text-slate-400 mt-0.5">{inv.transaction_date} · {inv.transaction_status?.name}</p>
+                                        </div>
+                                        <p className="font-black text-sm text-slate-900 flex-shrink-0">{fmtInvoiceRp(inv.original_amount)}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button type="button" onClick={() => { setInvoiceMode('manual'); setShowInvoicePicker(false); }}
+                            className="w-full mt-4 text-center text-xs text-slate-400 underline py-2">
+                            Gak ketemu? Ketik manual aja
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* SCANNER MODAL */}
+            {showScanner && (
+                <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-5">
+                    <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-black text-sm text-slate-800">📷 Scan QR / Barcode</h3>
+                            <button onClick={closeScanner} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
+                        </div>
+                        {scannerError ? (
+                            <p className="text-xs text-red-500 font-medium py-6 text-center">{scannerError}</p>
+                        ) : (
+                            <div id="penjualan-qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
+                        )}
+                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code atau barcode produk.</p>
+                    </div>
+                </div>
+            )}
 
             {/* LOCATION PICKER MODAL */}
             {pendingItem && (
