@@ -216,9 +216,7 @@ export default function Navbar() {
         router.push('/login');
     };
 
-    if (!user) return null;
-
-    const role = user.role;
+    const role = user?.role;
 
     const bottomItems =
         role === 'MANAGER' ? BOTTOM_MANAGER :
@@ -239,6 +237,9 @@ export default function Navbar() {
     useEffect(() => {
         if (activeGroup) setOpenGroups(prev => new Set(prev).add(activeGroup));
     }, [pathname]); // eslint-disable-line
+
+    if (!user) return null;
+
 
     const isGroupOpen = (group: string) => openGroups.has(group);
     const toggleGroup = (group: string) => {
