@@ -237,15 +237,15 @@ function DeliveryOrderContent() {
         try {
             const from = new Date(); from.setMonth(from.getMonth() - 3);
             const params = new URLSearchParams({
-                action: 'list_invoices', page: '1', per_page: '20',
+                action: 'list_sales_orders', page: '1', per_page: '20',
                 from_date: from.toISOString().split('T')[0],
                 to_date: new Date().toISOString().split('T')[0],
             });
             if (q) params.set('search', q);
             const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            setInvoiceResults(r.sales_invoices || []);
-        } catch { setInvoiceError('Gagal ambil data invoice dari Jurnal.'); setInvoiceResults([]); }
+            setInvoiceResults(r.sales_orders || []);
+        } catch { setInvoiceError('Gagal ambil data Sales Order dari Jurnal.'); setInvoiceResults([]); }
         setInvoiceLoading(false);
     };
     const openInvoicePicker = () => { setShowInvoicePicker(true); setInvoiceSearchQuery(''); fetchJurnalInvoices(''); };
@@ -539,28 +539,28 @@ function DeliveryOrderContent() {
                                         className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-violet-500 uppercase ml-1">No. Invoice Jurnal (opsional)</label>
+                                    <label className="text-[10px] font-black text-violet-500 uppercase ml-1">No. Sales Order (SO) Jurnal (opsional)</label>
                                     {invoiceMode === 'picker' ? (
                                         <>
                                             <button type="button" onClick={openInvoicePicker}
                                                 className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl text-left font-mono font-bold text-slate-700 flex justify-between items-center">
                                                 <span className={invoiceNo ? 'text-slate-700' : 'text-slate-400 font-sans font-medium'}>
-                                                    {invoiceNo || 'Pilih invoice dari Jurnal...'}
+                                                    {invoiceNo || 'Pilih Sales Order dari Jurnal...'}
                                                 </span>
                                                 <span className="text-violet-500 text-xs">🔍 Cari</span>
                                             </button>
                                             <p className="text-[9px] text-slate-400 mt-1 ml-1">
-                                                Nama customer otomatis terisi kalau pilih invoice.{' '}
+                                                Nama customer otomatis terisi kalau pilih SO.{' '}
                                                 <button type="button" onClick={() => setInvoiceMode('manual')} className="underline text-violet-500">Ketik manual</button>
                                             </p>
                                         </>
                                     ) : (
                                         <>
                                             <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
-                                                placeholder="SDUH/INV/2026/1085"
+                                                placeholder="No. Sales Order dari Jurnal"
                                                 className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl outline-none font-mono font-bold text-slate-700" />
                                             <p className="text-[9px] text-slate-400 mt-1 ml-1">
-                                                Copy dari "Transaction no." di Jurnal.{' '}
+                                                Copy dari "Transaction no." di Sales Order Jurnal.{' '}
                                                 <button type="button" onClick={() => setInvoiceMode('picker')} className="underline text-violet-500">Pilih dari Jurnal</button>
                                             </p>
                                         </>
@@ -616,17 +616,17 @@ function DeliveryOrderContent() {
                 <div className="fixed inset-0 z-[60] bg-black/60 flex flex-col" onClick={() => setShowInvoicePicker(false)}>
                     <div className="mt-16 flex-1 bg-white rounded-t-3xl p-5 overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-black text-sm text-slate-800">📄 Pilih Invoice Jurnal</h3>
+                            <h3 className="font-black text-sm text-slate-800">📄 Pilih Sales Order Jurnal</h3>
                             <button onClick={() => setShowInvoicePicker(false)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
                         </div>
                         <input type="text" value={invoiceSearchQuery} onChange={e => handleInvoiceSearchInput(e.target.value)}
-                            placeholder="Cari no. invoice / nama customer..."
+                            placeholder="Cari no. SO / nama customer..."
                             className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 mb-3" />
-                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan invoice 3 bulan terakhir. Ketik buat cari lebih spesifik.</p>
+                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan Sales Order 3 bulan terakhir. Ketik buat cari lebih spesifik.</p>
                         {invoiceLoading && <p className="text-center text-xs text-slate-400 animate-pulse py-6">Memuat dari Jurnal...</p>}
                         {invoiceError && <p className="text-center text-xs text-red-500 py-6">{invoiceError}</p>}
                         {!invoiceLoading && !invoiceError && invoiceResults.length === 0 && (
-                            <p className="text-center text-xs text-slate-300 italic py-6">Tidak ada invoice ditemukan.</p>
+                            <p className="text-center text-xs text-slate-300 italic py-6">Tidak ada Sales Order ditemukan.</p>
                         )}
                         <div className="space-y-2">
                             {invoiceResults.map((inv: any) => (
