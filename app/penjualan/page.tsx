@@ -1,122 +1,148 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Navbar from '../components/Navbar';
 import { useRouter } from 'next/navigation';
 
 const API_KEY = "SedayuSolar_TopSecret_2026";
 const BASE_URL = "https://sedayu.com/api/warehouse";
 
-function PenjualanContent() {
+function InventoryContent() {
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
-    const [tab, setTab] = useState<'baru' | 'list'>('baru');
-
-    // ── Form baru ──
-    const [cart, setCart] = useState<any[]>([]);
-    const [saleDate, setSaleDate] = useState('');
-    const [customerName, setCustomerName] = useState('');
-    const [invoiceNo, setInvoiceNo] = useState('');
-    const [invoiceMode, setInvoiceMode] = useState<'picker' | 'manual'>('picker');
-    const [showInvoicePicker, setShowInvoicePicker] = useState(false);
-    const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
-    const [invoiceResults, setInvoiceResults] = useState<any[]>([]);
-    const [invoiceLoading, setInvoiceLoading] = useState(false);
-    const [invoiceError, setInvoiceError] = useState('');
-    const invoiceSearchTimeout = useRef<any>(null);
-    const [note, setNote] = useState('');
+    const [items, setItems] = useState<any[]>([]);
+    const [locations, setLocations] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    const [filterLocation, setFilterLocation] = useState('');
+    const [filterCategory, setFilterCategory] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [searching, setSearching] = useState(false);
-    const searchTimeout = useRef<any>(null);
-    const [pendingItem, setPendingItem] = useState<any>(null);
+
+    const [form, setForm] = useState({ item_name: '', category: '', unit: '' });
+    const [formLocations, setFormLocations] = useState<{ location_id: string, qty: number }[]>([{ location_id: '', qty: 0 }]);
+    const [newItemQr, setNewItemQr] = useState('');
+    const [newItemName, setNewItemName] = useState('');
+    const [qrMode, setQrMode] = useState<'auto' | 'existing'>('auto');
+    const [manualQr, setManualQr] = useState('');
     const [showScanner, setShowScanner] = useState(false);
     const [scannerError, setScannerError] = useState('');
     const [cameras, setCameras] = useState<{ id: string, label: string }[]>([]);
     const [cameraIndex, setCameraIndex] = useState(0);
     const [switchingCamera, setSwitchingCamera] = useState(false);
-    const [scanLoading, setScanLoading] = useState(false);
+    const [scanTarget, setScanTarget] = useState<'search' | 'form'>('form');
     const html5QrRef = useRef<any>(null);
+    const [itemPhotoB64, setItemPhotoB64] = useState('');
+    const [itemPhotoPreview, setItemPhotoPreview] = useState('');
+    const itemPhotoRef = useRef<HTMLInputElement>(null);
 
-    // ── List ──
-    const [listStatus, setListStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING');
-    const [sales, setSales] = useState<any[]>([]);
-    const [loadingList, setLoadingList] = useState(false);
-    const [detailSale, setDetailSale] = useState<any>(null);
-    const [detailItems, setDetailItems] = useState<any[]>([]);
+    const [editingQr, setEditingQr] = useState<string | null>(null);
+    const [editItem, setEditItem] = useState<any>(null);
+    const [editForm, setEditForm] = useState<any>({});
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [editPhotoB64, setEditPhotoB64] = useState('');
+    const [editPhotoPreview, setEditPhotoPreview] = useState('');
+    const editPhotoRef = useRef<HTMLInputElement>(null);
+
+    const [logQr, setLogQr] = useState<string | null>(null);
+    const [deletingQr, setDeletingQr] = useState<string | null>(null);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [loadingLog, setLoadingLog] = useState(false);
+
+    const [detailItem, setDetailItem] = useState<any>(null);
+    const [detailData, setDetailData] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    const [processingId, setProcessingId] = useState<number | null>(null);
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+    const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
 
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
         setUser(JSON.parse(u));
-        setSaleDate(new Date().toISOString().slice(0, 10));
+        fetchLocations();
+        fetchItems();
     }, []);
 
-    useEffect(() => { if (tab === 'list') fetchSales(listStatus); }, [tab, listStatus]);
-
-    const fetchSales = async (status: string) => {
-        setLoadingList(true);
+    const fetchLocations = async () => {
         try {
-            const params = new URLSearchParams();
-            if (status) params.append('status', status);
-            const res = await fetch(`${BASE_URL}/get_sales_list.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_locations.php`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            if (r.status === 'success') setSales(r.data);
+            if (r.status === 'success') setLocations(r.data);
         } catch { }
-        setLoadingList(false);
     };
 
-    const openDetail = async (sale: any) => {
-        setDetailSale(sale); setDetailItems([]); setLoadingDetail(true);
+    const fetchItems = async (locId = '', cat = '') => {
+        setLoading(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_sales_detail.php?id=${sale.id}`, { headers: { 'X-API-KEY': API_KEY } });
+            const params = new URLSearchParams();
+            if (locId) params.append('location_id', locId);
+            if (cat) params.append('category', cat);
+            const res = await fetch(`${BASE_URL}/get_items.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            if (r.status === 'success') setDetailItems(r.items);
+            if (r.status === 'success') setItems(r.data);
+        } catch { }
+        setLoading(false);
+    };
+
+    const handleFilterChange = (locId: string, cat: string) => {
+        setFilterLocation(locId); setFilterCategory(cat);
+        fetchItems(locId, cat);
+    };
+
+    const openDetail = async (item: any) => {
+        setDetailItem(item); setDetailData(null); setLoadingDetail(true);
+        try {
+            const res = await fetch(`${BASE_URL}/get_item_detail.php?qr_id=${item.qr_id}`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            if (r.status === 'success') setDetailData(r);
         } catch { }
         setLoadingDetail(false);
     };
 
-    const handleProcess = async (action: 'approve' | 'reject') => {
-        if (!detailSale) return;
-        if (action === 'reject' && !confirm(`Tolak penjualan ${detailSale.sale_code}?`)) return;
-        setProcessingId(detailSale.id);
+    const closeDetail = () => { setDetailItem(null); setDetailData(null); };
+
+    const handleSubmitItem = async () => {
+        if (!form.item_name || !form.category || !form.unit) { alert("Nama, kategori, dan satuan wajib!"); return; }
+        if (qrMode === 'existing' && !manualQr.trim()) { alert("Isi/scan dulu QR code yang mau dipakai!"); return; }
+        const validLocs = formLocations.filter(l => l.location_id && l.qty > 0);
+        setSubmitting(true);
         try {
-            const res = await fetch(`${BASE_URL}/approve_sales.php`, {
+            const res = await fetch(`${BASE_URL}/add_item.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ id: detailSale.id, action, approved_by: user?.name || 'unknown' })
+                body: JSON.stringify({
+                    ...form, locations: validLocs, item_photo: itemPhotoB64 || null,
+                    qr_id: qrMode === 'existing' ? manualQr.trim().toUpperCase() : ''
+                })
             });
             const r = await res.json();
             if (r.status === 'success') {
-                alert(r.message);
-                setDetailSale(null);
-                fetchSales(listStatus);
-            } else alert('Gagal: ' + r.message);
-        } catch { alert('Gagal koneksi.'); }
-        setProcessingId(null);
-    };
-
-    const handleSearchInput = (val: string) => {
-        setSearchQuery(val);
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        if (val.trim().length < 2) { setSearchResults([]); return; }
-        searchTimeout.current = setTimeout(async () => {
-            setSearching(true);
-            try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
-                const r = await res.json();
-                const onlyProduk = (r.status === 'success' ? r.data : []).filter((it: any) => it.category === 'Produk');
-                setSearchResults(onlyProduk);
-            } catch { setSearchResults([]); }
-            setSearching(false);
-        }, 400);
-    };
-
-    const handleSelectSearch = (item: any) => {
-        setSearchQuery(''); setSearchResults([]);
-        setPendingItem(item);
+                setNewItemQr(r.qr_id); setNewItemName(form.item_name);
+                setForm({ item_name: '', category: '', unit: '' });
+                setFormLocations([{ location_id: '', qty: 0 }]);
+                setItemPhotoB64(''); setItemPhotoPreview('');
+                setQrMode('auto'); setManualQr('');
+                fetchItems(filterLocation, filterCategory);
+            } else alert("Gagal: " + r.message);
+        } catch { alert("Gagal koneksi."); }
+        setSubmitting(false);
     };
 
     const loadHtml5QrcodeScript = (): Promise<void> => {
@@ -133,39 +159,10 @@ function PenjualanContent() {
         });
     };
 
-    const closeScanner = () => {
-        const scanner = html5QrRef.current;
-        if (scanner) {
-            scanner.stop().then(() => scanner.clear()).catch(() => { });
-            html5QrRef.current = null;
-        }
-        setShowScanner(false);
-    };
-
-    const handleScanned = async (decodedText: string) => {
-        closeScanner();
-        setScanLoading(true);
-        try {
-            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr_id=${encodeURIComponent(decodedText)}`, { headers: { 'X-API-KEY': API_KEY } });
-            const r = await res.json();
-            const item = r?.data || r?.item;
-            if (r.status !== 'success' || !item) {
-                alert(`QR "${decodedText}" tidak ditemukan di inventory.`);
-            } else if (item.category !== 'Produk') {
-                alert(`"${item.item_name}" bukan kategori Produk (kategori: ${item.category}). Penjualan hanya untuk item Produk.`);
-            } else {
-                setPendingItem(item);
-            }
-        } catch {
-            alert('Gagal ambil data produk. Cek koneksi.');
-        }
-        setScanLoading(false);
-    };
-
     const startScannerWithCamera = async (camId: string) => {
         const Html5Qrcode = (window as any).Html5Qrcode;
         const Formats = (window as any).Html5QrcodeSupportedFormats;
-        const scanner = new Html5Qrcode('penjualan-qr-reader', {
+        const scanner = new Html5Qrcode('qr-reader', {
             formatsToSupport: [
                 Formats.QR_CODE, Formats.CODE_128, Formats.CODE_39, Formats.CODE_93,
                 Formats.EAN_13, Formats.EAN_8, Formats.UPC_A, Formats.UPC_E,
@@ -178,33 +175,40 @@ function PenjualanContent() {
         await scanner.start(
             camId,
             { fps: 10, qrbox: { width: 260, height: 160 } },
-            (decodedText: string) => { handleScanned(decodedText); },
+            (decodedText: string) => {
+                if (scanTarget === 'search') setSearchQuery(decodedText);
+                else setManualQr(decodedText);
+                closeScanner();
+            },
             () => { /* ignore per-frame no-match */ }
         );
     };
 
-    const openScanner = async () => {
+    const openScanner = async (target: 'search' | 'form' = 'form') => {
+        setScanTarget(target);
         setScannerError('');
         setShowScanner(true);
         try {
             await loadHtml5QrcodeScript();
+            // Tunggu satu tick biar div#qr-reader sudah ke-render
             setTimeout(async () => {
                 try {
                     const Html5Qrcode = (window as any).Html5Qrcode;
                     const devices = await Html5Qrcode.getCameras();
                     setCameras(devices || []);
+                    // Prioritaskan kamera "back/rear/belakang" utama, hindari ultrawide/tele kalau labelnya kebaca
                     let idx = (devices || []).findIndex((d: any) => /back|rear|belakang/i.test(d.label) && !/ultra|wide angle|tele/i.test(d.label));
                     if (idx < 0) idx = (devices || []).findIndex((d: any) => /back|rear|belakang/i.test(d.label));
                     if (idx < 0) idx = 0;
                     setCameraIndex(idx);
                     const camId = devices?.[idx]?.id;
                     await startScannerWithCamera(camId || { facingMode: 'environment' } as any);
-                } catch {
-                    setScannerError('Tidak bisa akses kamera. Pastikan izin kamera diizinkan, atau cari manual.');
+                } catch (e: any) {
+                    setScannerError('Tidak bisa akses kamera. Pastikan izin kamera diizinkan, atau ketik manual.');
                 }
             }, 150);
         } catch {
-            setScannerError('Gagal load scanner. Cek koneksi internet, atau cari manual.');
+            setScannerError('Gagal load scanner. Cek koneksi internet, atau ketik manual.');
         }
     };
 
@@ -224,301 +228,151 @@ function PenjualanContent() {
         setSwitchingCamera(false);
     };
 
-    const confirmLocation = (loc: any) => {
-        if (!pendingItem) return;
-        if (cart.find(i => i.qr_id === pendingItem.qr_id && String(i.location_id) === String(loc.location_id))) {
-            alert(`${pendingItem.item_name} dari ${loc.location_name} sudah ada di list!`); return;
+    const closeScanner = () => {
+        const scanner = html5QrRef.current;
+        if (scanner) {
+            scanner.stop().then(() => scanner.clear()).catch(() => { });
+            html5QrRef.current = null;
         }
-        setCart(prev => [...prev, {
-            qr_id: pendingItem.qr_id, name: pendingItem.item_name, unit: pendingItem.unit,
-            qty: 1, available_qty: loc.available_qty ?? loc.stock_qty,
-            location_id: loc.location_id, location_name: loc.location_name,
-        }]);
-        setPendingItem(null);
+        setShowScanner(false);
     };
 
-    const fetchJurnalInvoices = async (q: string = '') => {
-        setInvoiceLoading(true); setInvoiceError('');
+    const handlePrintQr = (qrId: string, itemName: string) => {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        win.document.write(`<!DOCTYPE html><html><head><title>QR - ${qrId}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f8f9fa}.label{background:white;border:2px solid #000;border-radius:8px;padding:16px;width:200px;text-align:center}.company{font-size:9px;font-weight:bold;letter-spacing:2px;color:#666;margin-bottom:8px}.qr-box{display:flex;justify-content:center;margin:8px 0}.qr-id{font-size:12px;font-weight:900;letter-spacing:1px;margin:6px 0 4px}.item-name{font-size:10px;color:#333;line-height:1.3;word-break:break-word}@media print{body{background:white}}</style>
+</head><body><div class="label"><div class="company">⚡ SEDAYU SOLAR</div><div class="qr-box" id="qrcode"></div><div class="qr-id">${qrId}</div><div class="item-name">${itemName}</div></div>
+<script>new QRCode(document.getElementById('qrcode'),{text:'${qrId}',width:130,height:130,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});setTimeout(()=>window.print(),800);<\/script>
+</body></html>`);
+        win.document.close();
+    };
+
+    const handleStartEdit = (item: any) => {
+        setEditItem(item);
+        setEditingQr(item.qr_id); setLogQr(null);
+        setEditPhotoB64(''); setEditPhotoPreview('');
+        setEditForm({
+            item_name: item.item_name, category: item.category, unit: item.unit,
+            unit_price: item.unit_price || 0,
+            locations: item.locations?.length
+                ? item.locations.map((l: any) => ({ location_id: String(l.location_id), qty: l.stock_qty }))
+                : [{ location_id: '', qty: 0 }],
+            note: ''
+        });
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editForm.item_name || !editForm.category || !editForm.unit) { alert("Nama, kategori, satuan wajib."); return; }
+        setSavingEdit(true);
         try {
-            const from = new Date(); from.setMonth(from.getMonth() - 3);
-            const params = new URLSearchParams({
-                action: 'list_invoices', page: '1', per_page: '20',
-                from_date: from.toISOString().split('T')[0],
-                to_date: new Date().toISOString().split('T')[0],
-            });
-            if (q) params.set('search', q);
-            const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
-            const r = await res.json();
-            setInvoiceResults(r.sales_invoices || []);
-        } catch {
-            setInvoiceError('Gagal ambil data invoice dari Jurnal.');
-            setInvoiceResults([]);
-        }
-        setInvoiceLoading(false);
-    };
-
-    const openInvoicePicker = () => {
-        setShowInvoicePicker(true);
-        setInvoiceSearchQuery('');
-        fetchJurnalInvoices('');
-    };
-
-    const handleInvoiceSearchInput = (val: string) => {
-        setInvoiceSearchQuery(val);
-        if (invoiceSearchTimeout.current) clearTimeout(invoiceSearchTimeout.current);
-        invoiceSearchTimeout.current = setTimeout(() => fetchJurnalInvoices(val), 400);
-    };
-
-    const selectInvoice = (inv: any) => {
-        setInvoiceNo(inv.transaction_no);
-        setCustomerName(inv.person?.display_name || '');
-        setShowInvoicePicker(false);
-    };
-
-    const fmtInvoiceRp = (v: string | number) =>
-        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(parseFloat(String(v)) || 0);
-
-    const handleSubmitSale = async () => {
-        if (!saleDate || cart.length === 0) { alert("Tanggal dan minimal 1 produk wajib diisi!"); return; }
-        for (const item of cart) {
-            if (Number(item.qty) > Number(item.available_qty)) {
-                alert(`❌ Qty ${item.name} melebihi stok tersedia (${item.available_qty})`); return;
-            }
-        }
-        setSubmitting(true);
-        try {
-            const res = await fetch(`${BASE_URL}/add_sales.php`, {
+            const res = await fetch(`${BASE_URL}/update_item.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
                 body: JSON.stringify({
-                    jurnal_invoice_no: invoiceNo, customer_name: customerName, sale_date: saleDate,
-                    staff_name: user?.name || 'unknown', note,
-                    items: cart.map(i => ({ qr_id: i.qr_id, qty: i.qty, location_id: i.location_id }))
+                    qr_id: editingQr, item_name: editForm.item_name,
+                    category: editForm.category, unit: editForm.unit,
+                    locations: editForm.locations.filter((l: any) => l.location_id),
+                    unit_price: Number(editForm.unit_price) || 0,
+                    adjusted_by: user?.name || 'unknown', note: editForm.note,
+                    item_photo: editPhotoB64 || null,
                 })
             });
             const r = await res.json();
-            if (r.status === 'success') {
-                alert(`✅ ${r.sale_code} berhasil disubmit! Menunggu approval Manager.`);
-                setCart([]); setCustomerName(''); setInvoiceNo(''); setNote('');
-                setSaleDate(new Date().toISOString().slice(0, 10));
-                setTab('list'); setListStatus('PENDING');
-            } else alert('Gagal: ' + r.message);
-        } catch { alert('Gagal koneksi.'); }
-        setSubmitting(false);
+            if (r.status === 'success') { setEditingQr(null); setEditItem(null); fetchItems(filterLocation, filterCategory); }
+            else alert("Gagal: " + r.message);
+        } catch { alert("Gagal koneksi."); }
+        setSavingEdit(false);
     };
 
-    const statusColor = (s: string) => {
-        switch (s) {
+    const handleDelete = async (item: any) => {
+        if (!confirm(`Hapus "${item.item_name}" (${item.qr_id})? \nStok: ${item.stock_qty} ${item.unit}\n\nAksi ini tidak bisa dibatalkan.`)) return;
+        setDeletingQr(item.qr_id);
+        try {
+            const res = await fetch('https://sedayu.com/api/warehouse/delete_inventory.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-KEY': 'SedayuSolar_TopSecret_2026' },
+                body: JSON.stringify({ qr_id: item.qr_id })
+            });
+            const r = await res.json();
+            if (r.status === 'success') {
+                alert(r.message);
+                fetchItems(filterLocation, filterCategory);
+            } else {
+                alert('Gagal: ' + r.message);
+            }
+        } catch { alert('Gagal koneksi.'); }
+        setDeletingQr(null);
+    };
+
+    const fetchLog = async (qrId: string) => {
+        if (logQr === qrId) { setLogQr(null); return; }
+        setLogQr(qrId); setLoadingLog(true);
+        try {
+            const res = await fetch(`${BASE_URL}/get_stock_logs.php?qr_id=${qrId}`, { headers: { 'X-API-KEY': API_KEY } });
+            const r = await res.json();
+            if (r.status === 'success') setLogs(r.data); else setLogs([]);
+        } catch { setLogs([]); }
+        setLoadingLog(false);
+    };
+
+    const filtered = items.filter(item =>
+        item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.qr_id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const statusColor = (status: string) => {
+        switch (status) {
             case 'APPROVED': return 'text-emerald-600 bg-emerald-50';
             case 'PENDING': return 'text-orange-500 bg-orange-50';
             case 'REJECTED': return 'text-red-500 bg-red-50';
+            case 'DRAFT': return 'text-slate-400 bg-slate-50';
             default: return 'text-slate-500 bg-slate-50';
         }
     };
 
     if (!user) return null;
-    const canApprove = user.role === 'ADMIN' || user.role === 'MANAGER';
 
     return (
         <main className="min-h-screen bg-slate-50 pt-16 pb-24 font-sans text-slate-900">
-            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm px-4 py-2">
-                <div className="max-w-2xl mx-auto flex gap-2 bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setTab('baru')}
-                        className={`flex-1 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all ${tab === 'baru' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>
-                        🛒 Penjualan Baru
-                    </button>
-                    <button onClick={() => setTab('list')}
-                        className={`flex-1 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all ${tab === 'list' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>
-                        📋 Riwayat
-                    </button>
-                </div>
-            </div>
 
-            <div className="p-4 max-w-2xl mx-auto space-y-4">
-                {tab === 'baru' && (
-                    <>
-                        <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cari Produk</p>
-                            <div className="flex gap-2">
-                                <input type="text" value={searchQuery} onChange={e => handleSearchInput(e.target.value)}
-                                    placeholder="Ketik nama produk / QR code..."
-                                    className="flex-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                <button type="button" onClick={openScanner} disabled={scanLoading}
-                                    className="px-4 bg-violet-600 text-white font-black text-xs rounded-xl active:scale-95 transition-all flex-shrink-0 disabled:opacity-50">
-                                    {scanLoading ? '...' : '📷 Scan'}
-                                </button>
-                            </div>
-                            {searching && <p className="text-center text-xs text-slate-400 animate-pulse py-2">Mencari...</p>}
-                            {!searching && searchResults.length > 0 && (
-                                <div className="bg-slate-50 rounded-2xl overflow-hidden divide-y divide-white max-h-64 overflow-y-auto">
-                                    {searchResults.map((item: any) => (
-                                        <button key={item.qr_id} onClick={() => handleSelectSearch(item)} className="w-full text-left p-3.5 hover:bg-blue-50">
-                                            <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
-                                            <p className="text-[10px] text-slate-400 font-mono">{item.qr_id}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            {!searching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-                                <p className="text-center text-xs text-slate-300 italic py-2">Produk tidak ditemukan.</p>
-                            )}
-                        </div>
-
-                        {cart.length > 0 && (
-                            <div className="space-y-2">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Produk Dijual ({cart.length})</p>
-                                {cart.map((item, idx) => {
-                                    const over = Number(item.qty) > Number(item.available_qty);
-                                    return (
-                                        <div key={idx} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${over ? 'border-l-red-400' : 'border-l-violet-500'}`}>
-                                            <div className="flex justify-between items-start gap-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-bold text-sm text-slate-800">{item.name}</p>
-                                                    <p className="text-[10px] text-slate-400">📍 {item.location_name} · Tersedia: {item.available_qty} {item.unit}</p>
-                                                    {over && <p className="text-[10px] font-black text-red-500 mt-1">⚠️ Melebihi stok tersedia</p>}
-                                                </div>
-                                                <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                                                    <input type="number" min="1" value={item.qty}
-                                                        onChange={e => { const nc = [...cart]; nc[idx].qty = Number(e.target.value); setCart(nc); }}
-                                                        className={`w-14 text-center border-2 rounded-lg font-black py-1 ${over ? 'border-red-400 text-red-500' : 'border-slate-200 text-blue-600'}`} />
-                                                    <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-300 font-black text-xs">✕ Hapus</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {cart.length > 0 && (
-                            <div className="bg-white rounded-3xl shadow-xl p-6 space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Tanggal Penjualan *</label>
-                                    <input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)}
-                                        className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nama Customer (opsional)</label>
-                                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)}
-                                        placeholder="PT Mulya Adhi Paramita..."
-                                        className="w-full mt-1 p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-violet-500 uppercase ml-1">No. Invoice Jurnal (opsional)</label>
-                                    {invoiceMode === 'picker' ? (
-                                        <>
-                                            <button type="button" onClick={openInvoicePicker}
-                                                className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl text-left font-mono font-bold text-slate-700 flex justify-between items-center">
-                                                <span className={invoiceNo ? 'text-slate-700' : 'text-slate-400 font-sans font-medium'}>
-                                                    {invoiceNo || 'Pilih invoice dari Jurnal...'}
-                                                </span>
-                                                <span className="text-violet-500 text-xs">🔍 Cari</span>
-                                            </button>
-                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">
-                                                Nama customer otomatis terisi kalau pilih invoice.{' '}
-                                                <button type="button" onClick={() => setInvoiceMode('manual')} className="underline text-violet-500">Ketik manual</button>
-                                            </p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)}
-                                                placeholder="SDUH/INV/2026/1085"
-                                                className="w-full mt-1 p-3.5 bg-violet-50 border border-violet-200 rounded-xl outline-none font-mono font-bold text-slate-700" />
-                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">
-                                                Copy dari "Transaction no." di Jurnal.{' '}
-                                                <button type="button" onClick={() => setInvoiceMode('picker')} className="underline text-violet-500">Pilih dari Jurnal</button>
-                                            </p>
-                                        </>
-                                    )}
-                                </div>
-                                <input type="text" value={note} onChange={e => setNote(e.target.value)}
-                                    placeholder="Catatan (opsional)..."
-                                    className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
-                                <button onClick={handleSubmitSale} disabled={submitting}
-                                    className="w-full bg-violet-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
-                                    {submitting ? 'Menyimpan...' : '✓ Submit ke Manager'}
-                                </button>
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {tab === 'list' && (
-                    <>
-                        <div className="flex gap-2">
-                            {(['PENDING', 'APPROVED', 'REJECTED', ''] as const).map(s => (
-                                <button key={s} onClick={() => setListStatus(s)}
-                                    className={`flex-1 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all ${listStatus === s ? 'bg-blue-600 text-white shadow' : 'bg-slate-100 text-slate-500'}`}>
-                                    {s || 'Semua'}
-                                </button>
-                            ))}
-                        </div>
-                        {loadingList ? (
-                            <p className="text-center py-16 text-slate-400 font-bold text-[10px] uppercase animate-pulse">Memuat...</p>
-                        ) : sales.length === 0 ? (
-                            <p className="text-center py-16 text-slate-300 italic text-sm">Belum ada penjualan.</p>
-                        ) : sales.map((s: any) => (
-                            <button key={s.id} onClick={() => openDetail(s)}
-                                className="w-full bg-white rounded-2xl p-4 shadow-sm text-left hover:shadow-md transition-all active:scale-[0.99]">
-                                <div className="flex justify-between items-start gap-2">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${statusColor(s.manager_approval_status)}`}>{s.manager_approval_status}</span>
-                                            <span className="text-[10px] font-mono text-slate-400">{s.sale_code}</span>
-                                        </div>
-                                        <p className="font-bold text-sm text-slate-800 mt-1">{s.customer_name || '(Tanpa nama customer)'}</p>
-                                        <p className="text-[10px] text-slate-400">{s.total_items} item · {s.sale_date} · by {s.staff_name}</p>
-                                        {s.jurnal_invoice_no && <p className="text-[10px] text-violet-500 font-mono mt-0.5">📄 {s.jurnal_invoice_no}</p>}
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                    </>
-                )}
-            </div>
-
-            {/* JURNAL INVOICE PICKER MODAL */}
-            {showInvoicePicker && (
-                <div className="fixed inset-0 z-[60] bg-black/60 flex flex-col" onClick={() => setShowInvoicePicker(false)}>
-                    <div className="mt-16 flex-1 bg-white rounded-t-3xl p-5 overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-black text-sm text-slate-800">📄 Pilih Invoice Jurnal</h3>
-                            <button onClick={() => setShowInvoicePicker(false)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
-                        </div>
-                        <input type="text" value={invoiceSearchQuery} onChange={e => handleInvoiceSearchInput(e.target.value)}
-                            placeholder="Cari no. invoice / nama customer..."
-                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 mb-3" />
-                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan invoice 3 bulan terakhir. Ketik buat cari lebih spesifik.</p>
-
-                        {invoiceLoading && <p className="text-center text-xs text-slate-400 animate-pulse py-6">Memuat dari Jurnal...</p>}
-                        {invoiceError && <p className="text-center text-xs text-red-500 py-6">{invoiceError}</p>}
-                        {!invoiceLoading && !invoiceError && invoiceResults.length === 0 && (
-                            <p className="text-center text-xs text-slate-300 italic py-6">Tidak ada invoice ditemukan.</p>
-                        )}
-                        <div className="space-y-2">
-                            {invoiceResults.map((inv: any) => (
-                                <button key={inv.id} onClick={() => selectInvoice(inv)}
-                                    className="w-full text-left bg-slate-50 hover:bg-violet-50 rounded-2xl p-3.5 transition-all active:scale-[0.99]">
-                                    <div className="flex justify-between items-start gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-mono font-black text-xs text-violet-600">{inv.transaction_no}</p>
-                                            <p className="font-bold text-sm text-slate-800 truncate mt-0.5">{inv.person?.display_name || '—'}</p>
-                                            <p className="text-[10px] text-slate-400 mt-0.5">{inv.transaction_date} · {inv.transaction_status?.name}</p>
-                                        </div>
-                                        <p className="font-black text-sm text-slate-900 flex-shrink-0">{fmtInvoiceRp(inv.original_amount)}</p>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-
-                        <button type="button" onClick={() => { setInvoiceMode('manual'); setShowInvoicePicker(false); }}
-                            className="w-full mt-4 text-center text-xs text-slate-400 underline py-2">
-                            Gak ketemu? Ketik manual aja
+            {/* SEARCH + FILTER BAR */}
+            <div className="sticky top-16 z-20 bg-white border-b border-slate-100 shadow-sm">
+                <div className="p-3 space-y-2 max-w-4xl mx-auto">
+                    <div className="flex gap-2 items-center">
+                        <input type="text" placeholder="🔍 Cari nama / QR ID..." value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="flex-1 p-2.5 bg-slate-100 text-slate-700 placeholder-slate-400 rounded-xl outline-none text-sm font-medium" />
+                        <button onClick={() => openScanner('search')}
+                            className="px-3 py-2.5 rounded-xl font-black text-xs bg-slate-800 text-white shadow-sm flex-shrink-0">
+                            📷
                         </button>
+                        {user.role !== 'MANAGER' && (
+                            <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); if (showScanner) closeScanner(); }}
+                                className={`px-3 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex-shrink-0 ${showForm ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-sm'}`}>
+                                {showForm ? '✕' : '＋'}
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        <select value={filterLocation} onChange={e => handleFilterChange(e.target.value, filterCategory)}
+                            className="flex-1 p-2 bg-slate-100 text-slate-600 rounded-xl outline-none text-xs font-bold appearance-none">
+                            <option value="">Semua Lokasi</option>
+                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+                        </select>
+                        <select value={filterCategory} onChange={e => handleFilterChange(filterLocation, e.target.value)}
+                            className="flex-1 p-2 bg-slate-100 text-slate-600 rounded-xl outline-none text-xs font-bold appearance-none">
+                            <option value="">Semua Kategori</option>
+                            <option value="Material">Material</option>
+                            <option value="Tools">Tools</option>
+                            <option value="Produk">Produk</option>
+                        </select>
                     </div>
                 </div>
-            )}
+            </div>
 
-            {/* SCANNER MODAL */}
+
+            {/* QR SCANNER MODAL */}
             {showScanner && (
                 <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-5">
                     <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3">
@@ -529,7 +383,7 @@ function PenjualanContent() {
                         {scannerError ? (
                             <p className="text-xs text-red-500 font-medium py-6 text-center">{scannerError}</p>
                         ) : (
-                            <div id="penjualan-qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
+                            <div id="qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
                         )}
                         {cameras.length > 1 && !scannerError && (
                             <button onClick={switchCamera} disabled={switchingCamera}
@@ -540,92 +394,523 @@ function PenjualanContent() {
                         {cameras[cameraIndex]?.label && !scannerError && (
                             <p className="text-[9px] text-slate-300 text-center truncate">{cameras[cameraIndex].label}</p>
                         )}
-                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code atau barcode produk.</p>
+                        <p className="text-[10px] text-slate-400 text-center">
+                            {scanTarget === 'search' ? 'Scan buat langsung cari item ini di list.' : 'Arahkan kamera ke QR code atau barcode di kemasan produk.'}
+                        </p>
                     </div>
                 </div>
             )}
 
-            {/* LOCATION PICKER MODAL */}
-            {pendingItem && (
-                <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setPendingItem(null)}>
-                    <div className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
-                        <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilih Lokasi</p>
-                            <p className="font-bold text-slate-800 mt-1">{pendingItem.item_name}</p>
-                        </div>
-                        <div className="space-y-2">
-                            {pendingItem.locations?.map((loc: any) => (
-                                <button key={loc.location_id} onClick={() => confirmLocation(loc)}
-                                    disabled={(loc.available_qty ?? loc.stock_qty) <= 0}
-                                    className={`w-full flex justify-between items-center p-4 rounded-2xl border-2 transition-all active:scale-95
-                                        ${(loc.available_qty ?? loc.stock_qty) > 0 ? 'border-slate-200 hover:border-violet-400 hover:bg-violet-50' : 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'}`}>
-                                    <p className="font-bold text-sm text-slate-800">📍 {loc.location_name}</p>
-                                    <p className={`font-black text-lg ${(loc.available_qty ?? loc.stock_qty) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{loc.available_qty ?? loc.stock_qty}</p>
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={() => setPendingItem(null)} className="w-full bg-slate-100 text-slate-500 font-black py-3 rounded-2xl text-xs uppercase">Batal</button>
-                    </div>
-                </div>
-            )}
-
-            {/* DETAIL / APPROVAL MODAL */}
-            {detailSale && (
-                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => setDetailSale(null)}>
+            {/* DETAIL MODAL */}
+            {detailItem && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={closeDetail}>
                     <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
-                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-28 space-y-4">
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-28 space-y-5">
                             <div className="flex justify-between items-start">
-                                <div>
-                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${statusColor(detailSale.manager_approval_status)}`}>{detailSale.manager_approval_status}</span>
-                                    <h2 className="font-black text-lg text-slate-900 mt-1">{detailSale.sale_code}</h2>
-                                    <p className="text-xs text-slate-500">{detailSale.customer_name || '(Tanpa nama customer)'} · {detailSale.sale_date}</p>
-                                    {detailSale.jurnal_invoice_no && <p className="text-[10px] text-violet-500 font-mono mt-1">📄 {detailSale.jurnal_invoice_no}</p>}
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Staff: {detailSale.staff_name}</p>
-                                    {detailSale.approved_by && <p className="text-[10px] text-slate-400">{detailSale.manager_approval_status === 'REJECTED' ? 'Ditolak' : 'Disetujui'} oleh: {detailSale.approved_by}</p>}
-                                    {detailSale.rejected_reason && <p className="text-[10px] text-red-400 italic mt-0.5">"{detailSale.rejected_reason}"</p>}
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{detailItem.category}</p>
+                                    <h2 className="font-black text-xl text-slate-900 mt-0.5">{detailItem.item_name}</h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] font-mono text-slate-400">{detailItem.qr_id}</span>
+                                        <button onClick={() => handlePrintQr(detailItem.qr_id, detailItem.item_name)}
+                                            className="text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md">🖨️ Print</button>
+                                    </div>
                                 </div>
-                                <button onClick={() => setDetailSale(null)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                                <button onClick={closeDetail} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
                             </div>
 
                             {loadingDetail ? (
-                                <p className="text-center text-slate-400 animate-pulse py-10">Memuat...</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Item ({detailItems.length})</p>
-                                    {detailItems.map((it: any) => (
-                                        <div key={it.id} className="bg-slate-50 rounded-xl p-3.5">
-                                            <p className="font-bold text-sm text-slate-800">{it.item_name}</p>
-                                            <p className="text-[10px] text-slate-400 font-mono">{it.qr_id}</p>
-                                            <div className="flex justify-between items-center mt-1">
-                                                <p className="text-[10px] text-slate-500">📍 {it.location_name} · Qty: <span className="font-bold">{it.qty} {it.unit}</span></p>
+                                <p className="text-center text-slate-400 animate-pulse py-10">Memuat detail...</p>
+                            ) : detailData && (
+                                <>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { label: 'Stok Fisik', val: detailData.total_stock, color: 'text-slate-800' },
+                                            { label: 'Pending', val: detailData.total_reserved, color: 'text-orange-500' },
+                                            { label: 'Tersedia', val: detailData.total_available, color: detailData.total_available > 0 ? 'text-emerald-600' : 'text-red-500' },
+                                        ].map(s => (
+                                            <div key={s.label} className="bg-slate-50 rounded-2xl p-3 text-center">
+                                                <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                                                <p className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">{s.label}</p>
+                                                <p className="text-[9px] text-slate-400">{detailData.item?.unit}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {(user.role === 'ADMIN' || user.role === 'MANAGER') && Number(detailData.item?.unit_price) > 0 && (
+                                        <div className="bg-violet-50 rounded-2xl p-3">
+                                            <p className="text-[10px] font-black text-violet-400 uppercase">💰 Harga Beli / HPP</p>
+                                            <p className="font-black text-violet-800 text-lg mt-0.5">
+                                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(detailData.item.unit_price)}
+                                                <span className="text-[10px] text-violet-400 font-bold ml-1">/ {detailData.item.unit}</span>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {detailData.item?.photo_path && (
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Foto Barang</p>
+                                            <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${detailData.item.photo_path}`)} className="w-full">
+                                                <img src={`https://sedayu.com/api/warehouse/${detailData.item.photo_path}`}
+                                                    alt={detailItem.item_name}
+                                                    className="w-full max-h-48 object-cover rounded-2xl border border-slate-100 active:opacity-80 transition-opacity" />
+                                                <p className="text-[9px] text-slate-400 text-center mt-1">👆 Tap untuk perbesar</p>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Stok per Lokasi</p>
+                                        <div className="space-y-2">
+                                            {detailData.locations?.length === 0 ? (
+                                                <p className="text-sm text-slate-300 italic">Belum ada data lokasi.</p>
+                                            ) : detailData.locations?.map((loc: any) => (
+                                                <div key={loc.location_id} className="flex justify-between items-center bg-slate-50 rounded-xl p-3">
+                                                    <div>
+                                                        <p className="font-bold text-sm text-slate-700">📍 {loc.location_name}</p>
+                                                        {loc.reserved_qty > 0 && <p className="text-[10px] text-orange-500 font-bold">⏳ {loc.reserved_qty} pending</p>}
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={`font-black text-lg ${loc.available_qty > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{loc.available_qty}</p>
+                                                        <p className="text-[9px] text-slate-400">/ {loc.stock_qty} tersedia</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Riwayat Checkout</p>
+                                        {detailData.transactions?.length === 0 ? (
+                                            <p className="text-sm text-slate-300 italic">Belum ada transaksi.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {detailData.transactions?.map((trx: any) => (
+                                                    <div key={trx.header_id} className="bg-white border border-slate-100 rounded-2xl p-3.5">
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${statusColor(trx.manager_approval_status)}`}>{trx.manager_approval_status}</span>
+                                                                    <span className="text-[9px] text-slate-400 font-mono">{trx.transaction_code}</span>
+                                                                </div>
+                                                                <p className="font-bold text-sm text-slate-800 truncate">{trx.project_name}</p>
+                                                                <p className="text-[10px] text-slate-400">PIC: {trx.pic_name} · {trx.checkout_date}</p>
+                                                                {trx.location_name && <p className="text-[10px] text-slate-400">📍 {trx.location_name}</p>}
+                                                                <p className="text-[10px] font-bold text-slate-600 mt-0.5">Qty: {trx.qty} {detailData.item?.unit}</p>
+                                                            </div>
+                                                            <div className="flex flex-col gap-1 flex-shrink-0">
+                                                                {trx.photo_path && (
+                                                                    <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path}`)}>
+                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path}`} className="w-12 h-12 object-cover rounded-lg border border-slate-100" alt="checkout" />
+                                                                        <p className="text-[8px] text-slate-400 text-center mt-0.5">Checkout</p>
+                                                                    </button>
+                                                                )}
+                                                                {trx.photo_path_checkin && (
+                                                                    <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`)}>
+                                                                        <img src={`https://sedayu.com/api/warehouse/${trx.photo_path_checkin}`} className="w-12 h-12 object-cover rounded-lg border border-emerald-100" alt="checkin" />
+                                                                        <p className="text-[8px] text-emerald-500 text-center mt-0.5">Check In</p>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {detailData.adjustments?.length > 0 && (
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Riwayat Adjustment</p>
+                                            <div className="space-y-2">
+                                                {detailData.adjustments?.map((adj: any) => (
+                                                    <div key={adj.id} className="bg-slate-50 rounded-xl p-3 flex justify-between items-start">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[9px] font-black bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase">{adj.adjustment_type}</span>
+                                                                <span className={`text-xs font-black ${adj.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{adj.diff > 0 ? `+${adj.diff}` : adj.diff}</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 mt-0.5">{adj.location_name}{adj.to_location_name ? ` → ${adj.to_location_name}` : ''}</p>
+                                                            <p className="text-[10px] text-slate-400">{adj.adjusted_by} · {new Date(adj.created_at).toLocaleDateString('id-ID')}</p>
+                                                            {adj.note && <p className="text-[10px] italic text-slate-400">"{adj.note}"</p>}
+                                                        </div>
+                                                        {adj.photo_path && (
+                                                            <button onClick={() => setLightboxUrl(`https://sedayu.com/api/warehouse/${adj.photo_path}`)}>
+                                                                <img src={`https://sedayu.com/api/warehouse/${adj.photo_path}`} className="w-10 h-10 object-cover rounded-lg border border-slate-200" alt="adj" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {user.role !== 'MANAGER' && (
+                                        <div className="flex gap-2 pt-2">
+                                            <button onClick={() => { closeDetail(); handleStartEdit(detailItem); }}
+                                                className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-2xl text-xs uppercase">✏️ Edit</button>
+                                            <button onClick={() => router.push('/stock-adjustment')}
+                                                className="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-xs uppercase shadow-md">🔄 Adjustment</button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LIGHTBOX */}
+            {lightboxUrl && (
+                <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+                    <button className="absolute top-5 right-5 text-white bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-black text-lg">✕</button>
+                    <img src={lightboxUrl} alt="fullscreen" className="max-w-full max-h-full object-contain rounded-xl" />
+                </div>
+            )}
+
+            {/* EDIT MODAL */}
+            {editingQr && editItem && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => { setEditingQr(null); setEditItem(null); }}>
+                    <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
+                        <div className="bg-white min-h-full rounded-t-3xl p-5 pb-16 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Edit Item</p>
+                                    <p className="font-bold text-slate-800 mt-0.5">{editItem.item_name}</p>
+                                    <p className="text-[10px] font-mono text-slate-400">{editItem.qr_id}</p>
+                                </div>
+                                <button onClick={() => { setEditingQr(null); setEditItem(null); }} className="bg-slate-100 p-2 rounded-full font-black text-slate-400">✕</button>
+                            </div>
+
+                            <input type="text" value={editForm.item_name} onChange={e => setEditForm({ ...editForm, item_name: e.target.value })}
+                                placeholder="Nama Barang *"
+                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            <div className="grid grid-cols-2 gap-3">
+                                <select value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                                    className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                    <option value="Material">Material</option>
+                                    <option value="Tools">Tools</option>
+                                    <option value="Produk">Produk</option>
+                                </select>
+                                <input type="text" value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
+                                    placeholder="Satuan *"
+                                    className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                            </div>
+
+                            {/* UNIT PRICE — hanya Admin/Manager */}
+                            {(user.role === 'ADMIN' || user.role === 'MANAGER') && (
+                                <div>
+                                    <label className="text-[10px] font-black text-violet-500 uppercase ml-1">💰 Harga Beli / HPP (per satuan)</label>
+                                    <div className="relative mt-1">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+                                        <input type="number" min="0" value={editForm.unit_price || 0}
+                                            onChange={e => setEditForm({ ...editForm, unit_price: e.target.value })}
+                                            placeholder="0"
+                                            className="w-full p-3.5 pl-10 bg-violet-50 rounded-xl outline-none font-bold text-slate-700 focus:ring-2 ring-violet-200 transition-all" />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
+                                <div className="space-y-2 mt-1.5">
+                                    {(editForm.locations || []).map((fl: any, idx: number) => (
+                                        <div key={idx} className="flex gap-2 items-center">
+                                            <select value={fl.location_id} onChange={e => { const u = [...editForm.locations]; u[idx].location_id = e.target.value; setEditForm({ ...editForm, locations: u }); }}
+                                                className="flex-1 p-3 bg-slate-50 rounded-xl outline-none text-sm font-medium text-slate-700 appearance-none">
+                                                <option value="">-- Lokasi --</option>
+                                                {locations.map((l: any) => <option key={l.id} value={String(l.id)}>{l.location_name}</option>)}
+                                            </select>
+                                            <input type="number" min="0" value={fl.qty}
+                                                onChange={e => { const u = [...editForm.locations]; u[idx].qty = Number(e.target.value); setEditForm({ ...editForm, locations: u }); }}
+                                                className="w-16 p-3 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-center" />
+                                            {editForm.locations.length > 1 && (
+                                                <button onClick={() => setEditForm({ ...editForm, locations: editForm.locations.filter((_: any, i: number) => i !== idx) })}
+                                                    className="text-red-400 font-black text-sm px-1">✕</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button onClick={() => setEditForm({ ...editForm, locations: [...(editForm.locations || []), { location_id: '', qty: 0 }] })}
+                                        className="text-[10px] font-black text-blue-500 uppercase tracking-widest">＋ Tambah Lokasi</button>
+                                </div>
+                            </div>
+
+                            <input type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                                placeholder="Catatan perubahan stok (opsional)..."
+                                className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
+                                <div className="flex items-center gap-3 mt-1.5">
+                                    <button onClick={() => editPhotoRef.current?.click()}
+                                        className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95">
+                                        📷 Upload Foto
+                                    </button>
+                                    {editPhotoPreview ? (
+                                        <div className="relative">
+                                            <img src={editPhotoPreview} alt="preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" />
+                                            <button onClick={() => { setEditPhotoB64(''); setEditPhotoPreview(''); }}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                        </div>
+                                    ) : editItem.photo_path ? (
+                                        <div className="relative">
+                                            <img src={`https://sedayu.com/api/warehouse/${editItem.photo_path}`}
+                                                alt="current" className="w-16 h-16 object-cover rounded-xl border border-slate-200 opacity-60" />
+                                            <p className="text-[8px] text-slate-400 text-center mt-0.5">Foto saat ini</p>
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <input ref={editPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                    onChange={async e => {
+                                        const file = e.target.files?.[0]; if (!file) return;
+                                        const b64 = await compressImage(file);
+                                        setEditPhotoB64(b64); setEditPhotoPreview(b64);
+                                    }} />
+                            </div>
+
+                            <div className="flex gap-3 pt-2 pb-4">
+                                <button onClick={() => { setEditingQr(null); setEditItem(null); }}
+                                    className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-xs uppercase">Batal</button>
+                                <button onClick={handleSaveEdit} disabled={savingEdit}
+                                    className="flex-1 bg-blue-600 text-white font-black py-4 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
+                                    {savingEdit ? 'Menyimpan...' : '✓ Simpan'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+            <div className="p-4 space-y-4 max-w-4xl mx-auto">
+                {showForm && (
+                    <div className="bg-white rounded-3xl shadow-xl p-6 space-y-4 border border-blue-100">
+                        <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Daftarkan Inventory Baru</h2>
+                        {newItemQr && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center space-y-3">
+                                <p className="text-[10px] font-black text-emerald-600 uppercase">✅ Berhasil Didaftarkan!</p>
+                                <p className="font-black text-2xl text-emerald-700 font-mono">{newItemQr}</p>
+                                <p className="text-xs text-slate-500">{newItemName}</p>
+                                <button onClick={() => handlePrintQr(newItemQr, newItemName)}
+                                    className="w-full bg-emerald-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest active:scale-95 transition-all shadow-md">
+                                    🖨️ Print Label QR
+                                </button>
+                            </div>
+                        )}
+                        <input type="text" placeholder="Nama Barang *" value={form.item_name}
+                            onChange={e => setForm({ ...form, item_name: e.target.value })}
+                            className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                        <div className="grid grid-cols-2 gap-3">
+                            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
+                                <option value="">Kategori *</option>
+                                <option value="Material">Material</option>
+                                <option value="Tools">Tools</option>
+                                <option value="Produk">Produk</option>
+                            </select>
+                            <input type="text" placeholder="Satuan * (pcs, m, kg...)" value={form.unit}
+                                onChange={e => setForm({ ...form, unit: e.target.value })}
+                                className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">QR Code</label>
+                            <div className="flex gap-2 mt-1.5">
+                                <button type="button" onClick={() => { setQrMode('auto'); setManualQr(''); }}
+                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'auto' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                                    🆕 Generate Baru
+                                </button>
+                                <button type="button" onClick={() => setQrMode('existing')}
+                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'existing' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                                    🏷️ Pakai QR Existing
+                                </button>
+                            </div>
+                            {qrMode === 'existing' && (
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Ketik / scan QR code yang sudah ditempel..." value={manualQr}
+                                            onChange={e => setManualQr(e.target.value)}
+                                            className="flex-1 p-3.5 bg-amber-50 border border-amber-200 rounded-xl outline-none font-mono font-bold text-slate-700 text-sm uppercase" />
+                                        <button type="button" onClick={() => openScanner('form')}
+                                            className="px-4 bg-amber-500 text-white font-black text-xs rounded-xl active:scale-95 transition-all flex-shrink-0">
+                                            📷 Scan
+                                        </button>
+                                    </div>
+                                    <p className="text-[9px] text-amber-600 font-medium ml-1">⚠️ Buat barang yang QR-nya udah tercetak/tertempel fisik tapi belum kedaftar di sistem.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
+                            <div className="space-y-2 mt-1">
+                                {formLocations.map((fl, idx) => (
+                                    <div key={idx} className="flex gap-2 items-center">
+                                        <select value={fl.location_id} onChange={e => { const u = [...formLocations]; u[idx].location_id = e.target.value; setFormLocations(u); }}
+                                            className="flex-1 p-2.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm appearance-none">
+                                            <option value="">-- Lokasi --</option>
+                                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+                                        </select>
+                                        <input type="number" min="0" value={fl.qty}
+                                            onChange={e => { const u = [...formLocations]; u[idx].qty = Number(e.target.value); setFormLocations(u); }}
+                                            placeholder="Qty" className="w-16 p-2.5 bg-slate-50 rounded-xl outline-none font-bold text-slate-700 text-sm text-center" />
+                                        {formLocations.length > 1 && <button onClick={() => setFormLocations(formLocations.filter((_, i) => i !== idx))} className="text-red-400 font-black text-sm px-1">✕</button>}
+                                    </div>
+                                ))}
+                                <button onClick={() => setFormLocations([...formLocations, { location_id: '', qty: 0 }])}
+                                    className="text-[10px] font-black text-blue-500 uppercase tracking-widest">＋ Tambah Lokasi</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Foto Barang (opsional)</label>
+                            <div className="flex items-center gap-3 mt-1.5">
+                                <button onClick={() => itemPhotoRef.current?.click()}
+                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 font-black text-xs rounded-xl active:scale-95 transition-all">
+                                    📷 Upload Foto
+                                </button>
+                                {itemPhotoPreview && (
+                                    <div className="relative">
+                                        <img src={itemPhotoPreview} alt="preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200" />
+                                        <button onClick={() => { setItemPhotoB64(''); setItemPhotoPreview(''); }}
+                                            className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-black">✕</button>
+                                    </div>
+                                )}
+                            </div>
+                            <input ref={itemPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                                onChange={async e => {
+                                    const file = e.target.files?.[0]; if (!file) return;
+                                    const b64 = await compressImage(file);
+                                    setItemPhotoB64(b64); setItemPhotoPreview(b64);
+                                }} />
+                        </div>
+                        <button onClick={handleSubmitItem} disabled={submitting}
+                            className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
+                            {submitting ? 'Menyimpan...' : (qrMode === 'existing' ? '✓ Daftarkan dengan QR Ini' : '✓ Daftarkan & Generate QR ID')}
+                        </button>
+                    </div>
+                )}
+
+                {loading ? (
+                    <div className="text-center py-20 text-slate-400 font-bold text-[10px] uppercase animate-pulse">Memuat Data...</div>
+                ) : filtered.length === 0 ? (
+                    <div className="text-center py-20 text-slate-300 italic text-sm">Tidak ada item ditemukan.</div>
+                ) : (
+                    <>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{filtered.length} item ditemukan</p>
+                        {['Material', 'Tools', 'Produk'].map(cat => {
+                            const group = filtered.filter(i => i.category === cat);
+                            if (!group.length) return null;
+                            const catIcon = cat === 'Material' ? '📦' : cat === 'Tools' ? '🛠️' : '🛒';
+                            const catBorder = cat === 'Material' ? 'border-l-emerald-500' : cat === 'Tools' ? 'border-l-amber-500' : 'border-l-violet-500';
+                            return (
+                                <div key={cat} className="space-y-3">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{catIcon} {cat} ({group.length})</h3>
+                                    {group.map((item: any) => (
+                                        <div key={item.qr_id} className={`bg-white rounded-2xl shadow-sm border-l-4 overflow-hidden ${catBorder}`}>
+                                            <div className="p-4">
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <button onClick={() => openDetail(item)} className="flex-1 min-w-0 text-left">
+                                                        <p className="font-bold text-sm text-slate-800">{item.item_name}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <p className="text-[10px] font-mono text-slate-400">{item.qr_id}</p>
+                                                            <button onClick={e => { e.stopPropagation(); handlePrintQr(item.qr_id, item.item_name); }}
+                                                                className="text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-md active:scale-95">🖨️ Print</button>
+                                                        </div>
+                                                        {item.locations?.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                {item.locations.map((loc: any) => (
+                                                                    <span key={loc.location_id} className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${(loc.available_qty ?? loc.stock_qty) > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-400'}`}>
+                                                                        📍 {loc.location_name}: {loc.available_qty ?? loc.stock_qty}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                                        <div className="text-right">
+                                                            <p className={`text-lg font-black ${Number(item.available_qty) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                {item.available_qty}<span className="text-[10px] font-bold text-slate-400 ml-1">{item.unit}</span>
+                                                            </p>
+                                                            <p className="text-[9px] text-slate-400 font-bold">tersedia</p>
+                                                            {Number(item.reserved_qty) > 0 && <p className="text-[9px] text-orange-500 font-black">⏳ {item.reserved_qty} pending</p>}
+                                                        </div>
+                                                        {user.role !== 'MANAGER' && (
+                                                            <button onClick={e => { e.stopPropagation(); handleStartEdit(item); }}
+                                                                className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">✏️ Edit</button>
+                                                        )}
+                                                        <button onClick={e => { e.stopPropagation(); fetchLog(item.qr_id); }}
+                                                            className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg active:scale-95">📋 Log</button>
+                                                        <button onClick={e => { e.stopPropagation(); router.push(`/inventory/${item.qr_id}/price-history`); }}
+                                                            className="text-[9px] font-black text-violet-500 bg-violet-50 px-2 py-1 rounded-lg active:scale-95">💰 Harga</button>
+                                                        {user.role === 'ADMIN' && (
+                                                            <button onClick={e => { e.stopPropagation(); handleDelete(item); }}
+                                                                disabled={deletingQr === item.qr_id}
+                                                                className="text-[9px] font-black text-red-400 bg-red-50 px-2 py-1 rounded-lg active:scale-95 disabled:opacity-50">
+                                                                {deletingQr === item.qr_id ? '...' : '🗑️'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3">
+                                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all ${Number(item.available_qty) > 0 ? 'bg-emerald-400' : 'bg-red-400'}`}
+                                                            style={{ width: `${Math.min(100, (Number(item.available_qty) / Math.max(Number(item.stock_qty), 1)) * 100)}%` }} />
+                                                    </div>
+                                                    <span className="text-[9px] text-slate-400 mt-1 block">Stok fisik: {item.stock_qty} {item.unit}</span>
+                                                </div>
+                                                {logQr === item.qr_id && (
+                                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📋 Riwayat Adjustment Stok</p>
+                                                        {loadingLog ? <p className="text-[10px] text-slate-400 animate-pulse py-2">Memuat...</p>
+                                                            : logs.length === 0 ? <p className="text-[10px] text-slate-300 italic py-2">Belum ada perubahan stok.</p>
+                                                                : (
+                                                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                                        {logs.map((log: any) => (
+                                                                            <div key={log.id} className="flex justify-between items-start gap-2 bg-slate-50 rounded-xl p-2.5">
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex items-center gap-1.5">
+                                                                                        <span className={`text-[10px] font-black ${log.diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{log.diff > 0 ? `+${log.diff}` : log.diff}</span>
+                                                                                        <span className="text-[10px] text-slate-500">({log.stock_before} → {log.stock_after})</span>
+                                                                                        {log.adjustment_type && (
+                                                                                            <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full uppercase">{log.adjustment_type}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {/* Input oleh siapa */}
+                                                                                    {log.submitted_by && (
+                                                                                        <p className="text-[9px] text-slate-500 mt-0.5">
+                                                                                            ✏️ Diinput: <span className="font-bold">{log.submitted_by}</span>
+                                                                                        </p>
+                                                                                    )}
+                                                                                    {/* Approve oleh siapa */}
+                                                                                    <p className="text-[9px] text-slate-400">
+                                                                                        {log.submitted_by ? '✅ Diapprove' : '👤'}: <span className="font-bold">{log.adjusted_by}</span>
+                                                                                    </p>
+                                                                                    {log.supplier && <p className="text-[9px] text-blue-500 font-bold">🏪 {log.supplier}</p>}
+                                                                                    {log.note && <p className="text-[9px] text-slate-500 italic">"{log.note}"</p>}
+                                                                                </div>
+                                                                                <p className="text-[9px] text-slate-300 flex-shrink-0">{new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            )}
-
-                            {canApprove && detailSale.manager_approval_status === 'PENDING' && (
-                                <div className="flex gap-3 pt-2">
-                                    <button onClick={() => handleProcess('reject')} disabled={processingId === detailSale.id}
-                                        className="flex-1 bg-red-50 text-red-500 font-black py-4 rounded-2xl text-xs uppercase disabled:opacity-50">
-                                        ✕ Tolak
-                                    </button>
-                                    <button onClick={() => handleProcess('approve')} disabled={processingId === detailSale.id}
-                                        className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl text-xs uppercase shadow-lg disabled:opacity-50">
-                                        {processingId === detailSale.id ? '...' : '✓ Approve & Potong Stok'}
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
+                            );
+                        })}
+                    </>
+                )}
+            </div>
             <Navbar />
         </main>
     );
 }
 
-export default function PenjualanPage() {
-    return <PenjualanContent />;
+export default function InventoryPage() {
+    return (
+        <Suspense fallback={<div className="h-screen flex items-center justify-center font-black animate-pulse text-slate-400">Loading...</div>}>
+            <InventoryContent />
+        </Suspense>
+    );
 }
