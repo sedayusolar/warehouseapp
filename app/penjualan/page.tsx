@@ -33,6 +33,9 @@ function PenjualanContent() {
     const [pendingItem, setPendingItem] = useState<any>(null);
     const [showScanner, setShowScanner] = useState(false);
     const [scannerError, setScannerError] = useState('');
+    const [cameras, setCameras] = useState<{ id: string, label: string }[]>([]);
+    const [cameraIndex, setCameraIndex] = useState(0);
+    const [switchingCamera, setSwitchingCamera] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
     const html5QrRef = useRef<any>(null);
 
@@ -159,6 +162,27 @@ function PenjualanContent() {
         setScanLoading(false);
     };
 
+    const startScannerWithCamera = async (camId: string) => {
+        const Html5Qrcode = (window as any).Html5Qrcode;
+        const Formats = (window as any).Html5QrcodeSupportedFormats;
+        const scanner = new Html5Qrcode('penjualan-qr-reader', {
+            formatsToSupport: [
+                Formats.QR_CODE, Formats.CODE_128, Formats.CODE_39, Formats.CODE_93,
+                Formats.EAN_13, Formats.EAN_8, Formats.UPC_A, Formats.UPC_E,
+                Formats.CODABAR, Formats.ITF, Formats.DATA_MATRIX,
+            ],
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+            verbose: false,
+        });
+        html5QrRef.current = scanner;
+        await scanner.start(
+            camId,
+            { fps: 10, qrbox: { width: 260, height: 160 } },
+            (decodedText: string) => { handleScanned(decodedText); },
+            () => { /* ignore per-frame no-match */ }
+        );
+    };
+
     const openScanner = async () => {
         setScannerError('');
         setShowScanner(true);
@@ -167,23 +191,14 @@ function PenjualanContent() {
             setTimeout(async () => {
                 try {
                     const Html5Qrcode = (window as any).Html5Qrcode;
-                    const Formats = (window as any).Html5QrcodeSupportedFormats;
-                    const scanner = new Html5Qrcode('penjualan-qr-reader', {
-                        formatsToSupport: [
-                            Formats.QR_CODE, Formats.CODE_128, Formats.CODE_39, Formats.CODE_93,
-                            Formats.EAN_13, Formats.EAN_8, Formats.UPC_A, Formats.UPC_E,
-                            Formats.CODABAR, Formats.ITF, Formats.DATA_MATRIX,
-                        ],
-                        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-                        verbose: false,
-                    });
-                    html5QrRef.current = scanner;
-                    await scanner.start(
-                        { facingMode: 'environment' },
-                        { fps: 10, qrbox: { width: 260, height: 160 } },
-                        (decodedText: string) => { handleScanned(decodedText); },
-                        () => { /* ignore per-frame no-match */ }
-                    );
+                    const devices = await Html5Qrcode.getCameras();
+                    setCameras(devices || []);
+                    let idx = (devices || []).findIndex((d: any) => /back|rear|belakang/i.test(d.label) && !/ultra|wide angle|tele/i.test(d.label));
+                    if (idx < 0) idx = (devices || []).findIndex((d: any) => /back|rear|belakang/i.test(d.label));
+                    if (idx < 0) idx = 0;
+                    setCameraIndex(idx);
+                    const camId = devices?.[idx]?.id;
+                    await startScannerWithCamera(camId || { facingMode: 'environment' } as any);
                 } catch {
                     setScannerError('Tidak bisa akses kamera. Pastikan izin kamera diizinkan, atau cari manual.');
                 }
@@ -191,6 +206,22 @@ function PenjualanContent() {
         } catch {
             setScannerError('Gagal load scanner. Cek koneksi internet, atau cari manual.');
         }
+    };
+
+    const switchCamera = async () => {
+        if (cameras.length < 2 || switchingCamera) return;
+        setSwitchingCamera(true);
+        try {
+            const scanner = html5QrRef.current;
+            if (scanner) { try { await scanner.stop(); await scanner.clear(); } catch { } }
+            html5QrRef.current = null;
+            const nextIdx = (cameraIndex + 1) % cameras.length;
+            setCameraIndex(nextIdx);
+            await startScannerWithCamera(cameras[nextIdx].id);
+        } catch {
+            setScannerError('Gagal ganti kamera.');
+        }
+        setSwitchingCamera(false);
     };
 
     const confirmLocation = (loc: any) => {
@@ -499,6 +530,15 @@ function PenjualanContent() {
                             <p className="text-xs text-red-500 font-medium py-6 text-center">{scannerError}</p>
                         ) : (
                             <div id="penjualan-qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
+                        )}
+                        {cameras.length > 1 && !scannerError && (
+                            <button onClick={switchCamera} disabled={switchingCamera}
+                                className="w-full bg-slate-100 text-slate-600 font-black text-xs py-2.5 rounded-xl active:scale-95 transition-all disabled:opacity-50">
+                                {switchingCamera ? 'Mengganti...' : `🔄 Ganti Kamera (${cameraIndex + 1}/${cameras.length})`}
+                            </button>
+                        )}
+                        {cameras[cameraIndex]?.label && !scannerError && (
+                            <p className="text-[9px] text-slate-300 text-center truncate">{cameras[cameraIndex].label}</p>
                         )}
                         <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code atau barcode produk.</p>
                     </div>
