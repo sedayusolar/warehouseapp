@@ -369,7 +369,7 @@ function CheckoutContent() {
 
         return (
             <div key={cartItemKey(item)} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 transition-all
-                ${isUnavailable || isInsufficient ? 'border-l-red-400' : item.type === 'MATERIAL' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
+                ${isUnavailable || isInsufficient ? 'border-l-red-400' : item.type === 'MATERIAL' ? 'border-l-emerald-500' : item.type === 'TOOLS' ? 'border-l-amber-500' : 'border-l-violet-500'}`}>
                 <div className="flex justify-between items-start gap-3">
                     <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm text-slate-800">{item.name}</p>
@@ -622,6 +622,12 @@ function CheckoutContent() {
                                 <div className="space-y-3">
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">🛠️ Tools</h3>
                                     {cart.filter(i => i.type === 'TOOLS').map(item => renderCartItem(item))}
+                                </div>
+                            )}
+                            {cart.filter(i => i.type === 'PRODUK').length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">🛒 Produk</h3>
+                                    {cart.filter(i => i.type === 'PRODUK').map(item => renderCartItem(item))}
                                 </div>
                             )}
                         </div>

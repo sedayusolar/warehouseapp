@@ -119,6 +119,10 @@ function CostReportContent() {
                                         <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">📦 Material (Konsumsi)</p>
                                         <p className="text-base font-black text-emerald-400">{formatRp(Number(gt.total_material) || 0)}</p>
                                     </div>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">🛒 Produk (Penjualan)</p>
+                                        <p className="text-base font-black text-violet-400">{formatRp(Number(gt.total_produk) || 0)}</p>
+                                    </div>
                                     <div className="flex justify-between items-center opacity-60">
                                         <p className="text-[10px] text-slate-400 uppercase tracking-widest">🛠️ Tools (Referensi)</p>
                                         <p className="text-sm font-bold text-slate-400">{formatRp(Number(gt.total_tools) || 0)}</p>
@@ -185,6 +189,7 @@ function CostReportContent() {
                                             </div>
                                             <div className="flex gap-3 mt-1.5">
                                                 <span className="text-[9px] text-emerald-600">Material: {formatRp(Number(proj.cost_material))}</span>
+                                                <span className="text-[9px] text-violet-600">Produk: {formatRp(Number(proj.cost_produk))}</span>
                                                 <span className="text-[9px] text-amber-600">Tools: {formatRp(Number(proj.cost_tools))}</span>
                                             </div>
                                         </button>
@@ -206,7 +211,7 @@ function CostReportContent() {
                                         <div className="flex justify-between items-start gap-2">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${item.category === 'Tools' ? 'bg-amber-100 text-amber-700' : item.category === 'Produk' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                                         {item.category}
                                                     </span>
                                                 </div>

@@ -317,6 +317,7 @@ function InventoryContent() {
                             <option value="">Semua Kategori</option>
                             <option value="Material">Material</option>
                             <option value="Tools">Tools</option>
+                            <option value="Produk">Produk</option>
                         </select>
                     </div>
                 </div>
@@ -530,6 +531,7 @@ function InventoryContent() {
                                     className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 appearance-none">
                                     <option value="Material">Material</option>
                                     <option value="Tools">Tools</option>
+                                    <option value="Produk">Produk</option>
                                 </select>
                                 <input type="text" value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
                                     placeholder="Satuan *"
@@ -645,6 +647,7 @@ function InventoryContent() {
                                 <option value="">Kategori *</option>
                                 <option value="Material">Material</option>
                                 <option value="Tools">Tools</option>
+                                <option value="Produk">Produk</option>
                             </select>
                             <input type="text" placeholder="Satuan * (pcs, m, kg...)" value={form.unit}
                                 onChange={e => setForm({ ...form, unit: e.target.value })}
@@ -733,14 +736,16 @@ function InventoryContent() {
                 ) : (
                     <>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{filtered.length} item ditemukan</p>
-                        {['Material', 'Tools'].map(cat => {
+                        {['Material', 'Tools', 'Produk'].map(cat => {
                             const group = filtered.filter(i => i.category === cat);
                             if (!group.length) return null;
+                            const catIcon = cat === 'Material' ? '📦' : cat === 'Tools' ? '🛠️' : '🛒';
+                            const catBorder = cat === 'Material' ? 'border-l-emerald-500' : cat === 'Tools' ? 'border-l-amber-500' : 'border-l-violet-500';
                             return (
                                 <div key={cat} className="space-y-3">
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{cat === 'Material' ? '📦' : '🛠️'} {cat} ({group.length})</h3>
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{catIcon} {cat} ({group.length})</h3>
                                     {group.map((item: any) => (
-                                        <div key={item.qr_id} className={`bg-white rounded-2xl shadow-sm border-l-4 overflow-hidden ${item.category === 'Material' ? 'border-l-emerald-500' : 'border-l-amber-500'}`}>
+                                        <div key={item.qr_id} className={`bg-white rounded-2xl shadow-sm border-l-4 overflow-hidden ${catBorder}`}>
                                             <div className="p-4">
                                                 <div className="flex justify-between items-start gap-2">
                                                     <button onClick={() => openDetail(item)} className="flex-1 min-w-0 text-left">
