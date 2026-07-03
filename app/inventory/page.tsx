@@ -30,6 +30,7 @@ function InventoryContent() {
     const [cameras, setCameras] = useState<{ id: string, label: string }[]>([]);
     const [cameraIndex, setCameraIndex] = useState(0);
     const [switchingCamera, setSwitchingCamera] = useState(false);
+    const [scanTarget, setScanTarget] = useState<'search' | 'form'>('form');
     const html5QrRef = useRef<any>(null);
     const [itemPhotoB64, setItemPhotoB64] = useState('');
     const [itemPhotoPreview, setItemPhotoPreview] = useState('');
@@ -175,14 +176,16 @@ function InventoryContent() {
             camId,
             { fps: 10, qrbox: { width: 260, height: 160 } },
             (decodedText: string) => {
-                setManualQr(decodedText);
+                if (scanTarget === 'search') setSearchQuery(decodedText);
+                else setManualQr(decodedText);
                 closeScanner();
             },
             () => { /* ignore per-frame no-match */ }
         );
     };
 
-    const openScanner = async () => {
+    const openScanner = async (target: 'search' | 'form' = 'form') => {
+        setScanTarget(target);
         setScannerError('');
         setShowScanner(true);
         try {
@@ -340,6 +343,10 @@ function InventoryContent() {
                         <input type="text" placeholder="🔍 Cari nama / QR ID..." value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className="flex-1 p-2.5 bg-slate-100 text-slate-700 placeholder-slate-400 rounded-xl outline-none text-sm font-medium" />
+                        <button onClick={() => openScanner('search')}
+                            className="px-3 py-2.5 rounded-xl font-black text-xs bg-slate-800 text-white shadow-sm flex-shrink-0">
+                            📷
+                        </button>
                         {user.role !== 'MANAGER' && (
                             <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); if (showScanner) closeScanner(); }}
                                 className={`px-3 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex-shrink-0 ${showForm ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-sm'}`}>
@@ -387,7 +394,9 @@ function InventoryContent() {
                         {cameras[cameraIndex]?.label && !scannerError && (
                             <p className="text-[9px] text-slate-300 text-center truncate">{cameras[cameraIndex].label}</p>
                         )}
-                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code atau barcode di kemasan produk.</p>
+                        <p className="text-[10px] text-slate-400 text-center">
+                            {scanTarget === 'search' ? 'Scan buat langsung cari item ini di list.' : 'Arahkan kamera ke QR code atau barcode di kemasan produk.'}
+                        </p>
                     </div>
                 </div>
             )}
@@ -721,7 +730,7 @@ function InventoryContent() {
                                         <input type="text" placeholder="Ketik / scan QR code yang sudah ditempel..." value={manualQr}
                                             onChange={e => setManualQr(e.target.value)}
                                             className="flex-1 p-3.5 bg-amber-50 border border-amber-200 rounded-xl outline-none font-mono font-bold text-slate-700 text-sm uppercase" />
-                                        <button type="button" onClick={openScanner}
+                                        <button type="button" onClick={() => openScanner('form')}
                                             className="px-4 bg-amber-500 text-white font-black text-xs rounded-xl active:scale-95 transition-all flex-shrink-0">
                                             📷 Scan
                                         </button>
