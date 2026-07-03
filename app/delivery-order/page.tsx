@@ -238,10 +238,17 @@ function DeliveryOrderContent() {
             const params = new URLSearchParams({ action: 'list_sales_orders', page: '1', per_page: '50' });
             const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            const list = r.sales_orders || [];
-            setSoRawList(list);
-            setInvoiceResults(list);
-        } catch { setInvoiceError('Gagal ambil data Sales Order dari Jurnal.'); setSoRawList([]); setInvoiceResults([]); }
+            if (!res.ok || !Array.isArray(r.sales_orders)) {
+                // Bukan "kosong" beneran — ada error dari API/proxy, tampilkan biar kelihatan
+                const msg = r.message || r.error || JSON.stringify(r).slice(0, 200);
+                setInvoiceError(`Error (HTTP ${res.status}): ${msg}`);
+                setSoRawList([]); setInvoiceResults([]);
+                setInvoiceLoading(false);
+                return;
+            }
+            setSoRawList(r.sales_orders);
+            setInvoiceResults(r.sales_orders);
+        } catch (e: any) { setInvoiceError('Gagal koneksi ke proxy: ' + (e?.message || 'unknown')); setSoRawList([]); setInvoiceResults([]); }
         setInvoiceLoading(false);
     };
     const openInvoicePicker = () => { setShowInvoicePicker(true); setInvoiceSearchQuery(''); fetchJurnalInvoices(); };
