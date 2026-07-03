@@ -23,6 +23,8 @@ function InventoryContent() {
     const [formLocations, setFormLocations] = useState<{ location_id: string, qty: number }[]>([{ location_id: '', qty: 0 }]);
     const [newItemQr, setNewItemQr] = useState('');
     const [newItemName, setNewItemName] = useState('');
+    const [qrMode, setQrMode] = useState<'auto' | 'existing'>('auto');
+    const [manualQr, setManualQr] = useState('');
     const [itemPhotoB64, setItemPhotoB64] = useState('');
     const [itemPhotoPreview, setItemPhotoPreview] = useState('');
     const itemPhotoRef = useRef<HTMLInputElement>(null);
@@ -112,12 +114,16 @@ function InventoryContent() {
 
     const handleSubmitItem = async () => {
         if (!form.item_name || !form.category || !form.unit) { alert("Nama, kategori, dan satuan wajib!"); return; }
+        if (qrMode === 'existing' && !manualQr.trim()) { alert("Isi/scan dulu QR code yang mau dipakai!"); return; }
         const validLocs = formLocations.filter(l => l.location_id && l.qty > 0);
         setSubmitting(true);
         try {
             const res = await fetch(`${BASE_URL}/add_item.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
-                body: JSON.stringify({ ...form, locations: validLocs, item_photo: itemPhotoB64 || null })
+                body: JSON.stringify({
+                    ...form, locations: validLocs, item_photo: itemPhotoB64 || null,
+                    qr_id: qrMode === 'existing' ? manualQr.trim().toUpperCase() : ''
+                })
             });
             const r = await res.json();
             if (r.status === 'success') {
@@ -125,6 +131,7 @@ function InventoryContent() {
                 setForm({ item_name: '', category: '', unit: '' });
                 setFormLocations([{ location_id: '', qty: 0 }]);
                 setItemPhotoB64(''); setItemPhotoPreview('');
+                setQrMode('auto'); setManualQr('');
                 fetchItems(filterLocation, filterCategory);
             } else alert("Gagal: " + r.message);
         } catch { alert("Gagal koneksi."); }
@@ -571,6 +578,27 @@ function InventoryContent() {
                                 className="p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700" />
                         </div>
                         <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">QR Code</label>
+                            <div className="flex gap-2 mt-1.5">
+                                <button type="button" onClick={() => { setQrMode('auto'); setManualQr(''); }}
+                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'auto' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                                    🆕 Generate Baru
+                                </button>
+                                <button type="button" onClick={() => setQrMode('existing')}
+                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'existing' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                                    🏷️ Pakai QR Existing
+                                </button>
+                            </div>
+                            {qrMode === 'existing' && (
+                                <div className="mt-2 space-y-1.5">
+                                    <input type="text" placeholder="Ketik / scan QR code yang sudah ditempel..." value={manualQr}
+                                        onChange={e => setManualQr(e.target.value)}
+                                        className="w-full p-3.5 bg-amber-50 border border-amber-200 rounded-xl outline-none font-mono font-bold text-slate-700 text-sm uppercase" />
+                                    <p className="text-[9px] text-amber-600 font-medium ml-1">⚠️ Buat barang yang QR-nya udah tercetak/tertempel fisik tapi belum kedaftar di sistem.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Stok per Lokasi</label>
                             <div className="space-y-2 mt-1">
                                 {formLocations.map((fl, idx) => (
@@ -614,7 +642,7 @@ function InventoryContent() {
                         </div>
                         <button onClick={handleSubmitItem} disabled={submitting}
                             className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
-                            {submitting ? 'Menyimpan...' : '✓ Daftarkan & Generate QR ID'}
+                            {submitting ? 'Menyimpan...' : (qrMode === 'existing' ? '✓ Daftarkan dengan QR Ini' : '✓ Daftarkan & Generate QR ID')}
                         </button>
                     </div>
                 )}
