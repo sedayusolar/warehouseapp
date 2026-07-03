@@ -35,51 +35,107 @@ const BOTTOM_ENGINEER = [
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
 ];
 
-// ── DRAWER per role ──
+// ── DRAWER per role — dikelompokan jadi submenu ──
 const DRAWER_STAFF = [
-    { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Checkout', icon: '🛒', path: '/checkout' },
-    { label: 'Penjualan', icon: '💵', path: '/penjualan' },              // ← BARU
-    { label: 'Check In', icon: '✅', path: '/checkin' },
-    { label: 'Check In Project', icon: '📦', path: '/checkin-project' },
-    { label: 'Transfer Gudang', icon: '🚚', path: '/transfer' },
-    { label: 'Riwayat Transfer', icon: '📋', path: '/transfer-list' },
-    { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Inventory', icon: '📦', path: '/inventory' },
-    { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment' },
-    { label: 'Input GR', icon: '📥', path: '/purchase' },
-    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
-    { label: 'Check In List', icon: '📥', path: '/checkin-list' },
-    { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+    {
+        group: 'Utama', items: [
+            { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
+        ]
+    },
+    {
+        group: 'Barang Keluar', items: [
+            { label: 'Checkout', icon: '🛒', path: '/checkout' },
+            { label: 'Delivery Order (DO)', icon: '📄', path: '/delivery-order' },
+            { label: 'Transfer Gudang', icon: '🚚', path: '/transfer' },
+            { label: 'Riwayat Transfer', icon: '📋', path: '/transfer-list' },
+        ]
+    },
+    {
+        group: 'Check In', items: [
+            { label: 'Check In', icon: '✅', path: '/checkin' },
+            { label: 'Check In Project', icon: '📦', path: '/checkin-project' },
+            { label: 'Check In List', icon: '📥', path: '/checkin-list' },
+        ]
+    },
+    {
+        group: 'Inventory', items: [
+            { label: 'Inventory', icon: '📦', path: '/inventory' },
+            { label: 'Adjustment', icon: '🔄', path: '/stock-adjustment' },
+        ]
+    },
+    {
+        group: 'Purchase / GR', items: [
+            { label: 'Input GR', icon: '📥', path: '/purchase' },
+            { label: 'Status GR', icon: '📄', path: '/purchase-list' },
+        ]
+    },
+    {
+        group: 'Laporan', items: [
+            { label: 'Transaksi', icon: '📋', path: '/transactions' },
+            { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+        ]
+    },
 ];
 
 const DRAWER_ADMIN = [
     ...DRAWER_STAFF,
-    { label: 'Users', icon: '👥', path: '/users' },
+    {
+        group: 'Administrasi', items: [
+            { label: 'Users', icon: '👥', path: '/users' },
+        ]
+    },
 ];
 
 const DRAWER_MANAGER = [
-    { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Approve Checkout', icon: '⏳', path: '/transactions' },
-    { label: 'Approve Check In', icon: '✅', path: '/checkin-list' },
-    { label: 'Approve Transfer', icon: '🚚', path: '/transfer-list' },
-    { label: 'Approve Penjualan', icon: '💵', path: '/penjualan' },      // ← BARU
-    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
-    { label: 'Inventory', icon: '📦', path: '/inventory' },
-    { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+    {
+        group: 'Utama', items: [
+            { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
+        ]
+    },
+    {
+        group: 'Approval', items: [
+            { label: 'Approve Checkout', icon: '⏳', path: '/transactions' },
+            { label: 'Approve Check In', icon: '✅', path: '/checkin-list' },
+            { label: 'Approve Transfer', icon: '🚚', path: '/transfer-list' },
+            { label: 'Approve DO', icon: '📄', path: '/delivery-order' },
+            { label: 'Status GR', icon: '📄', path: '/purchase-list' },
+        ]
+    },
+    {
+        group: 'Inventory & Laporan', items: [
+            { label: 'Inventory', icon: '📦', path: '/inventory' },
+            { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+        ]
+    },
 ];
 
 const DRAWER_PROCUREMENT = [
-    { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Status GR', icon: '📄', path: '/purchase-list' },
-    { label: 'Inventory', icon: '📦', path: '/inventory' },
-    { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+    {
+        group: 'Utama', items: [
+            { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
+        ]
+    },
+    {
+        group: 'GR & Inventory', items: [
+            { label: 'Status GR', icon: '📄', path: '/purchase-list' },
+            { label: 'Inventory', icon: '📦', path: '/inventory' },
+        ]
+    },
+    {
+        group: 'Laporan', items: [
+            { label: 'Transaksi', icon: '📋', path: '/transactions' },
+            { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+        ]
+    },
 ];
 
 const DRAWER_ENGINEER = [
-    { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
-    { label: 'Transaksi', icon: '📋', path: '/transactions' },
+    {
+        group: 'Utama', items: [
+            { label: 'Dashboard', icon: '🏠', path: '/dashboard' },
+            { label: 'Transaksi', icon: '📋', path: '/transactions' },
+        ]
+    },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -97,7 +153,7 @@ const PAGE_TITLES: Record<string, string> = {
     '/users': 'Users',
     '/cost-report': 'Cost Report',
     '/stock-adjustment': 'Adjustment',
-    '/penjualan': 'Penjualan',   // ← BARU
+    '/delivery-order': 'Delivery Order',
 };
 
 export default function Navbar() {
@@ -105,18 +161,19 @@ export default function Navbar() {
     const pathname = usePathname();
     const [user, setUser] = useState<any>(null);
     const [showDrawer, setShowDrawer] = useState(false);
+    const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
     const [pendingCheckin, setPendingCheckin] = useState(0);
     const [pendingCheckout, setPendingCheckout] = useState(0);
     const [pendingTransfer, setPendingTransfer] = useState(0);
     const [pendingProcurement, setPendingProcurement] = useState(0);
-    const [pendingSales, setPendingSales] = useState(0);   // ← BARU
+    const [pendingDO, setPendingDO] = useState(0);   // ← BARU (DO butuh aksi: approve manager / verifikasi staff)
 
     useEffect(() => {
         const u = localStorage.getItem('user');
-        if (u) { setUser(JSON.parse(u)); fetchBadges(); }
+        if (u) { const parsed = JSON.parse(u); setUser(parsed); fetchBadges(parsed.role); }
     }, []);
 
-    const fetchBadges = async () => {
+    const fetchBadges = async (role: string) => {
         try {
             const res = await fetch(`${BASE_URL}/get_dashboard.php`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
@@ -140,11 +197,16 @@ export default function Navbar() {
             if (r3.status === 'success') setPendingTransfer(r3.data?.length || 0);
         } catch { }
 
-        // Badge penjualan pending ← BARU
+        // Badge Delivery Order — beda status yang dihitung tergantung role
         try {
-            const res4 = await fetch(`${BASE_URL}/get_sales_list.php?status=PENDING`, { headers: { 'X-API-KEY': API_KEY } });
-            const r4 = await res4.json();
-            if (r4.status === 'success') setPendingSales(r4.data?.length || 0);
+            const statuses = (role === 'MANAGER' || role === 'ADMIN')
+                ? ['PENDING_SURAT_JALAN', 'PENDING_KELUAR_GUDANG']       // butuh approval manager
+                : ['REJECTED_SURAT_JALAN', 'SURAT_JALAN_TERBIT', 'REJECTED_KELUAR_GUDANG']; // butuh aksi staff (revisi/verifikasi)
+            const results = await Promise.all(statuses.map(s =>
+                fetch(`${BASE_URL}/get_do_list.php?status=${s}`, { headers: { 'X-API-KEY': API_KEY } }).then(r => r.json())
+            ));
+            const total = results.reduce((sum, r) => sum + (r.status === 'success' ? (r.data?.length || 0) : 0), 0);
+            setPendingDO(total);
         } catch { }
     };
 
@@ -171,6 +233,22 @@ export default function Navbar() {
                     role === 'ENGINEER' ? DRAWER_ENGINEER :
                         DRAWER_STAFF;
 
+    const isPathActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+    const activeGroup = drawerItems.find(g => g.items.some(it => isPathActive(it.path)))?.group;
+
+    useEffect(() => {
+        if (activeGroup) setOpenGroups(prev => new Set(prev).add(activeGroup));
+    }, [pathname]); // eslint-disable-line
+
+    const isGroupOpen = (group: string) => openGroups.has(group);
+    const toggleGroup = (group: string) => {
+        setOpenGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(group)) next.delete(group); else next.add(group);
+            return next;
+        });
+    };
+
     const totalBadge = pendingCheckin + pendingCheckout;
 
     const title = Object.entries(PAGE_TITLES).find(([k]) =>
@@ -182,13 +260,15 @@ export default function Navbar() {
         if (path === '/checkin-list') return pendingCheckin;
         if (path === '/transfer-list') return pendingTransfer;
         if (path === '/transfer') return pendingTransfer;
-        if (path === '/penjualan') return (role === 'MANAGER' || role === 'ADMIN') ? pendingSales : 0;   // ← BARU
+        if (path === '/delivery-order') return pendingDO;   // ← BARU (relevan buat MANAGER/ADMIN maupun STAFF, beda status)
         if (path === '/purchase-list') {
             if (role === 'PROCUREMENT') return pendingProcurement;
             if (role === 'MANAGER' || role === 'ADMIN') return pendingCheckout;
         }
         return 0;
     };
+
+    const groupBadgeTotal = (items: { path: string }[]) => items.reduce((s, it) => s + getBadge(it.path), 0);
 
     return (
         <>
@@ -225,11 +305,11 @@ export default function Navbar() {
                                 <span>🚚</span><span>{pendingTransfer}</span>
                             </button>
                         )}
-                        {/* Badge penjualan untuk manager ← BARU */}
-                        {(role === 'MANAGER' || role === 'ADMIN') && pendingSales > 0 && (
-                            <button onClick={() => router.push('/penjualan')}
+                        {/* Badge Delivery Order — MANAGER/ADMIN & STAFF ← BARU */}
+                        {pendingDO > 0 && (
+                            <button onClick={() => router.push('/delivery-order')}
                                 className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] px-2.5 py-1.5 rounded-xl flex items-center gap-1">
-                                <span>💵</span><span>{pendingSales}</span>
+                                <span>📄</span><span>{pendingDO}</span>
                             </button>
                         )}
                         {role === 'PROCUREMENT' && pendingProcurement > 0 && (
@@ -262,25 +342,58 @@ export default function Navbar() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto py-3">
-                            {drawerItems.map((item) => {
-                                const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-                                const badge = getBadge(item.path);
+                        <div className="flex-1 overflow-y-auto py-2">
+                            {drawerItems.map((grp) => {
+                                const open = isGroupOpen(grp.group);
+                                const grpBadge = groupBadgeTotal(grp.items);
+                                const isUngrouped = grp.group === 'Utama';
+                                if (isUngrouped) {
+                                    return grp.items.map((item) => {
+                                        const isActive = isPathActive(item.path);
+                                        const badge = getBadge(item.path);
+                                        return (
+                                            <button key={item.path}
+                                                onClick={() => { setShowDrawer(false); router.push(item.path); }}
+                                                className={`w-full flex items-center gap-3 px-5 py-3.5 transition-all active:bg-slate-50
+                                                    ${isActive ? 'bg-blue-50 border-r-4 border-blue-600' : 'hover:bg-slate-50'}`}>
+                                                <span className="text-lg w-6 text-center">{item.icon}</span>
+                                                <span className={`text-sm font-bold flex-1 text-left ${isActive ? 'text-blue-700' : 'text-slate-700'}`}>{item.label}</span>
+                                                {badge > 0 && (
+                                                    <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{badge}</span>
+                                                )}
+                                            </button>
+                                        );
+                                    });
+                                }
                                 return (
-                                    <button key={item.path}
-                                        onClick={() => { setShowDrawer(false); router.push(item.path); }}
-                                        className={`w-full flex items-center gap-3 px-5 py-3.5 transition-all active:bg-slate-50
-                                            ${isActive ? 'bg-blue-50 border-r-4 border-blue-600' : 'hover:bg-slate-50'}`}>
-                                        <span className="text-lg w-6 text-center">{item.icon}</span>
-                                        <span className={`text-sm font-bold flex-1 text-left ${isActive ? 'text-blue-700' : 'text-slate-700'}`}>
-                                            {item.label}
-                                        </span>
-                                        {badge > 0 && (
-                                            <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">
-                                                {badge}
+                                    <div key={grp.group} className="mb-1">
+                                        <button onClick={() => toggleGroup(grp.group)}
+                                            className="w-full flex items-center gap-2 px-5 py-2.5 mt-1">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest flex-1 text-left ${open ? 'text-blue-600' : 'text-slate-400'}`}>
+                                                {grp.group}
                                             </span>
-                                        )}
-                                    </button>
+                                            {grpBadge > 0 && !open && (
+                                                <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{grpBadge}</span>
+                                            )}
+                                            <span className={`text-slate-400 text-xs transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+                                        </button>
+                                        {open && grp.items.map((item) => {
+                                            const isActive = isPathActive(item.path);
+                                            const badge = getBadge(item.path);
+                                            return (
+                                                <button key={item.path}
+                                                    onClick={() => { setShowDrawer(false); router.push(item.path); }}
+                                                    className={`w-full flex items-center gap-3 pl-8 pr-5 py-3 transition-all active:bg-slate-50
+                                                        ${isActive ? 'bg-blue-50 border-r-4 border-blue-600' : 'hover:bg-slate-50'}`}>
+                                                    <span className="text-base w-6 text-center">{item.icon}</span>
+                                                    <span className={`text-sm font-bold flex-1 text-left ${isActive ? 'text-blue-700' : 'text-slate-700'}`}>{item.label}</span>
+                                                    {badge > 0 && (
+                                                        <span className="bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center">{badge}</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 );
                             })}
                         </div>
