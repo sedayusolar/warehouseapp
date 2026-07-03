@@ -71,9 +71,9 @@ function DeliveryOrderContent() {
     const [showInvoicePicker, setShowInvoicePicker] = useState(false);
     const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
     const [invoiceResults, setInvoiceResults] = useState<any[]>([]);
+    const [soRawList, setSoRawList] = useState<any[]>([]);
     const [invoiceLoading, setInvoiceLoading] = useState(false);
     const [invoiceError, setInvoiceError] = useState('');
-    const invoiceSearchTimeout = useRef<any>(null);
     const [note, setNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -232,27 +232,27 @@ function DeliveryOrderContent() {
         setPendingItem(null);
     };
 
-    const fetchJurnalInvoices = async (q: string = '') => {
+    const fetchJurnalInvoices = async () => {
         setInvoiceLoading(true); setInvoiceError('');
         try {
-            const from = new Date(); from.setMonth(from.getMonth() - 3);
-            const params = new URLSearchParams({
-                action: 'list_sales_orders', page: '1', per_page: '20',
-                from_date: from.toISOString().split('T')[0],
-                to_date: new Date().toISOString().split('T')[0],
-            });
-            if (q) params.set('search', q);
+            const params = new URLSearchParams({ action: 'list_sales_orders', page: '1', per_page: '50' });
             const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            setInvoiceResults(r.sales_orders || []);
-        } catch { setInvoiceError('Gagal ambil data Sales Order dari Jurnal.'); setInvoiceResults([]); }
+            const list = r.sales_orders || [];
+            setSoRawList(list);
+            setInvoiceResults(list);
+        } catch { setInvoiceError('Gagal ambil data Sales Order dari Jurnal.'); setSoRawList([]); setInvoiceResults([]); }
         setInvoiceLoading(false);
     };
-    const openInvoicePicker = () => { setShowInvoicePicker(true); setInvoiceSearchQuery(''); fetchJurnalInvoices(''); };
+    const openInvoicePicker = () => { setShowInvoicePicker(true); setInvoiceSearchQuery(''); fetchJurnalInvoices(); };
     const handleInvoiceSearchInput = (val: string) => {
         setInvoiceSearchQuery(val);
-        if (invoiceSearchTimeout.current) clearTimeout(invoiceSearchTimeout.current);
-        invoiceSearchTimeout.current = setTimeout(() => fetchJurnalInvoices(val), 400);
+        const q = val.trim().toLowerCase();
+        if (!q) { setInvoiceResults(soRawList); return; }
+        setInvoiceResults(soRawList.filter((inv: any) =>
+            (inv.transaction_no || '').toLowerCase().includes(q) ||
+            (inv.person?.display_name || '').toLowerCase().includes(q)
+        ));
     };
     const selectInvoice = (inv: any) => { setInvoiceNo(inv.transaction_no); setCustomerName(inv.person?.display_name || ''); setShowInvoicePicker(false); };
     const fmtInvoiceRp = (v: string | number) =>
@@ -622,7 +622,7 @@ function DeliveryOrderContent() {
                         <input type="text" value={invoiceSearchQuery} onChange={e => handleInvoiceSearchInput(e.target.value)}
                             placeholder="Cari no. SO / nama customer..."
                             className="w-full p-3.5 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 mb-3" />
-                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan Sales Order 3 bulan terakhir. Ketik buat cari lebih spesifik.</p>
+                        <p className="text-[9px] text-slate-400 mb-3">Menampilkan 50 Sales Order terbaru. Ketik buat filter dari list ini.</p>
                         {invoiceLoading && <p className="text-center text-xs text-slate-400 animate-pulse py-6">Memuat dari Jurnal...</p>}
                         {invoiceError && <p className="text-center text-xs text-red-500 py-6">{invoiceError}</p>}
                         {!invoiceLoading && !invoiceError && invoiceResults.length === 0 && (
