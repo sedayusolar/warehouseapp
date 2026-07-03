@@ -25,6 +25,9 @@ function InventoryContent() {
     const [newItemName, setNewItemName] = useState('');
     const [qrMode, setQrMode] = useState<'auto' | 'existing'>('auto');
     const [manualQr, setManualQr] = useState('');
+    const [showScanner, setShowScanner] = useState(false);
+    const [scannerError, setScannerError] = useState('');
+    const html5QrRef = useRef<any>(null);
     const [itemPhotoB64, setItemPhotoB64] = useState('');
     const [itemPhotoPreview, setItemPhotoPreview] = useState('');
     const itemPhotoRef = useRef<HTMLInputElement>(null);
@@ -138,6 +141,58 @@ function InventoryContent() {
         setSubmitting(false);
     };
 
+    const loadHtml5QrcodeScript = (): Promise<void> => {
+        return new Promise((resolve, reject) => {
+            if ((window as any).Html5Qrcode) { resolve(); return; }
+            const existing = document.getElementById('html5-qrcode-script');
+            if (existing) { existing.addEventListener('load', () => resolve()); return; }
+            const script = document.createElement('script');
+            script.id = 'html5-qrcode-script';
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Gagal load library scanner'));
+            document.body.appendChild(script);
+        });
+    };
+
+    const openScanner = async () => {
+        setScannerError('');
+        setShowScanner(true);
+        try {
+            await loadHtml5QrcodeScript();
+            // Tunggu satu tick biar div#qr-reader sudah ke-render
+            setTimeout(async () => {
+                try {
+                    const Html5Qrcode = (window as any).Html5Qrcode;
+                    const scanner = new Html5Qrcode('qr-reader');
+                    html5QrRef.current = scanner;
+                    await scanner.start(
+                        { facingMode: 'environment' },
+                        { fps: 10, qrbox: { width: 230, height: 230 } },
+                        (decodedText: string) => {
+                            setManualQr(decodedText);
+                            closeScanner();
+                        },
+                        () => { /* ignore per-frame no-match */ }
+                    );
+                } catch (e: any) {
+                    setScannerError('Tidak bisa akses kamera. Pastikan izin kamera diizinkan, atau ketik manual.');
+                }
+            }, 150);
+        } catch {
+            setScannerError('Gagal load scanner. Cek koneksi internet, atau ketik manual.');
+        }
+    };
+
+    const closeScanner = () => {
+        const scanner = html5QrRef.current;
+        if (scanner) {
+            scanner.stop().then(() => scanner.clear()).catch(() => { });
+            html5QrRef.current = null;
+        }
+        setShowScanner(false);
+    };
+
     const handlePrintQr = (qrId: string, itemName: string) => {
         const win = window.open('', '_blank');
         if (!win) return;
@@ -245,7 +300,7 @@ function InventoryContent() {
                             onChange={e => setSearchQuery(e.target.value)}
                             className="flex-1 p-2.5 bg-slate-100 text-slate-700 placeholder-slate-400 rounded-xl outline-none text-sm font-medium" />
                         {user.role !== 'MANAGER' && (
-                            <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); }}
+                            <button onClick={() => { setShowForm(v => !v); setNewItemQr(''); if (showScanner) closeScanner(); }}
                                 className={`px-3 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex-shrink-0 ${showForm ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white shadow-sm'}`}>
                                 {showForm ? '✕' : '＋'}
                             </button>
@@ -267,6 +322,24 @@ function InventoryContent() {
                 </div>
             </div>
 
+
+            {/* QR SCANNER MODAL */}
+            {showScanner && (
+                <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-5">
+                    <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-black text-sm text-slate-800">📷 Scan QR Code</h3>
+                            <button onClick={closeScanner} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
+                        </div>
+                        {scannerError ? (
+                            <p className="text-xs text-red-500 font-medium py-6 text-center">{scannerError}</p>
+                        ) : (
+                            <div id="qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
+                        )}
+                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code yang mau didaftarkan.</p>
+                    </div>
+                </div>
+            )}
 
             {/* DETAIL MODAL */}
             {detailItem && (
@@ -591,9 +664,15 @@ function InventoryContent() {
                             </div>
                             {qrMode === 'existing' && (
                                 <div className="mt-2 space-y-1.5">
-                                    <input type="text" placeholder="Ketik / scan QR code yang sudah ditempel..." value={manualQr}
-                                        onChange={e => setManualQr(e.target.value)}
-                                        className="w-full p-3.5 bg-amber-50 border border-amber-200 rounded-xl outline-none font-mono font-bold text-slate-700 text-sm uppercase" />
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Ketik / scan QR code yang sudah ditempel..." value={manualQr}
+                                            onChange={e => setManualQr(e.target.value)}
+                                            className="flex-1 p-3.5 bg-amber-50 border border-amber-200 rounded-xl outline-none font-mono font-bold text-slate-700 text-sm uppercase" />
+                                        <button type="button" onClick={openScanner}
+                                            className="px-4 bg-amber-500 text-white font-black text-xs rounded-xl active:scale-95 transition-all flex-shrink-0">
+                                            📷 Scan
+                                        </button>
+                                    </div>
                                     <p className="text-[9px] text-amber-600 font-medium ml-1">⚠️ Buat barang yang QR-nya udah tercetak/tertempel fisik tapi belum kedaftar di sistem.</p>
                                 </div>
                             )}
