@@ -146,7 +146,7 @@ function PenjualanContent() {
         closeScanner();
         setScanLoading(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr_id=${encodeURIComponent(decodedText)}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(decodedText)}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             const item = r?.data || r?.item;
             if (r.status !== 'success' || !item) {
