@@ -164,11 +164,21 @@ function InventoryContent() {
             setTimeout(async () => {
                 try {
                     const Html5Qrcode = (window as any).Html5Qrcode;
-                    const scanner = new Html5Qrcode('qr-reader');
+                    const Formats = (window as any).Html5QrcodeSupportedFormats;
+                    const scanner = new Html5Qrcode('qr-reader', {
+                        // Dukung QR code 2D sekaligus barcode 1D (produk pabrikan biasanya Code128/EAN/UPC)
+                        formatsToSupport: [
+                            Formats.QR_CODE, Formats.CODE_128, Formats.CODE_39, Formats.CODE_93,
+                            Formats.EAN_13, Formats.EAN_8, Formats.UPC_A, Formats.UPC_E,
+                            Formats.CODABAR, Formats.ITF, Formats.DATA_MATRIX,
+                        ],
+                        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                        verbose: false,
+                    });
                     html5QrRef.current = scanner;
                     await scanner.start(
                         { facingMode: 'environment' },
-                        { fps: 10, qrbox: { width: 230, height: 230 } },
+                        { fps: 10, qrbox: { width: 260, height: 160 } },
                         (decodedText: string) => {
                             setManualQr(decodedText);
                             closeScanner();
@@ -329,7 +339,7 @@ function InventoryContent() {
                 <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-5">
                     <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3">
                         <div className="flex justify-between items-center">
-                            <h3 className="font-black text-sm text-slate-800">📷 Scan QR Code</h3>
+                            <h3 className="font-black text-sm text-slate-800">📷 Scan QR / Barcode</h3>
                             <button onClick={closeScanner} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
                         </div>
                         {scannerError ? (
@@ -337,7 +347,7 @@ function InventoryContent() {
                         ) : (
                             <div id="qr-reader" className="w-full rounded-2xl overflow-hidden bg-slate-900" />
                         )}
-                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code yang mau didaftarkan.</p>
+                        <p className="text-[10px] text-slate-400 text-center">Arahkan kamera ke QR code atau barcode di kemasan produk.</p>
                     </div>
                 </div>
             )}
