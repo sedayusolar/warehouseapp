@@ -11,7 +11,7 @@ const BOTTOM_STAFF = [
     { label: 'Inventory', icon: '📦', path: '/inventory' },
     { label: 'Checkout', icon: '🛒', path: '/checkout' },
     { label: 'Transaksi', icon: '📋', path: '/transactions' },
-    { label: 'Transfer', icon: '🚚', path: '/transfer' },  // ← BARU
+    { label: 'Transfer', icon: '🚚', path: '/transfer' },
 ];
 
 const BOTTOM_MANAGER = [
@@ -80,6 +80,12 @@ const DRAWER_STAFF = [
 const DRAWER_ADMIN = [
     ...DRAWER_STAFF,
     {
+        group: 'Sales & Jurnal', items: [
+            { label: 'Sales Quote', icon: '📝', path: '/sales-quote' },
+            { label: 'Sales Invoice', icon: '📄', path: '/sales-invoice' },
+        ]
+    },
+    {
         group: 'Administrasi', items: [
             { label: 'Users', icon: '👥', path: '/users' },
         ]
@@ -105,6 +111,12 @@ const DRAWER_MANAGER = [
         group: 'Inventory & Laporan', items: [
             { label: 'Inventory', icon: '📦', path: '/inventory' },
             { label: 'Cost Report', icon: '💰', path: '/cost-report' },
+        ]
+    },
+    {
+        group: 'Sales & Jurnal', items: [
+            { label: 'Sales Quote', icon: '📝', path: '/sales-quote' },
+            { label: 'Sales Invoice', icon: '📄', path: '/sales-invoice' },
         ]
     },
 ];
@@ -154,6 +166,8 @@ const PAGE_TITLES: Record<string, string> = {
     '/cost-report': 'Cost Report',
     '/stock-adjustment': 'Adjustment',
     '/delivery-order': 'Delivery Order',
+    '/sales-quote': 'Sales Quote',
+    '/sales-invoice': 'Sales Invoice',
 };
 
 export default function Navbar() {
@@ -166,7 +180,7 @@ export default function Navbar() {
     const [pendingCheckout, setPendingCheckout] = useState(0);
     const [pendingTransfer, setPendingTransfer] = useState(0);
     const [pendingProcurement, setPendingProcurement] = useState(0);
-    const [pendingDO, setPendingDO] = useState(0);   // ← BARU (DO butuh aksi: approve manager / verifikasi staff)
+    const [pendingDO, setPendingDO] = useState(0);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -183,25 +197,22 @@ export default function Navbar() {
             }
         } catch { }
 
-        // Badge procurement
         try {
             const res2 = await fetch(`${BASE_URL}/get_purchase_list.php?status=PENDING&count=1`, { headers: { 'X-API-KEY': API_KEY } });
             const r2 = await res2.json();
             if (r2.status === 'success') setPendingProcurement(r2.data?.length || 0);
         } catch { }
 
-        // Badge transfer pending
         try {
             const res3 = await fetch(`${BASE_URL}/get_transfer_list.php?status=PENDING&count=1`, { headers: { 'X-API-KEY': API_KEY } });
             const r3 = await res3.json();
             if (r3.status === 'success') setPendingTransfer(r3.data?.length || 0);
         } catch { }
 
-        // Badge Delivery Order — beda status yang dihitung tergantung role
         try {
             const statuses = (role === 'MANAGER' || role === 'ADMIN')
-                ? ['PENDING_SURAT_JALAN', 'PENDING_KELUAR_GUDANG']       // butuh approval manager
-                : ['REJECTED_SURAT_JALAN', 'SURAT_JALAN_TERBIT', 'REJECTED_KELUAR_GUDANG']; // butuh aksi staff (revisi/verifikasi)
+                ? ['PENDING_SURAT_JALAN', 'PENDING_KELUAR_GUDANG']
+                : ['REJECTED_SURAT_JALAN', 'SURAT_JALAN_TERBIT', 'REJECTED_KELUAR_GUDANG'];
             const results = await Promise.all(statuses.map(s =>
                 fetch(`${BASE_URL}/get_do_list.php?status=${s}`, { headers: { 'X-API-KEY': API_KEY } }).then(r => r.json())
             ));
@@ -240,7 +251,6 @@ export default function Navbar() {
 
     if (!user) return null;
 
-
     const isGroupOpen = (group: string) => openGroups.has(group);
     const toggleGroup = (group: string) => {
         setOpenGroups(prev => {
@@ -261,7 +271,7 @@ export default function Navbar() {
         if (path === '/checkin-list') return pendingCheckin;
         if (path === '/transfer-list') return pendingTransfer;
         if (path === '/transfer') return pendingTransfer;
-        if (path === '/delivery-order') return pendingDO;   // ← BARU (relevan buat MANAGER/ADMIN maupun STAFF, beda status)
+        if (path === '/delivery-order') return pendingDO;
         if (path === '/purchase-list') {
             if (role === 'PROCUREMENT') return pendingProcurement;
             if (role === 'MANAGER' || role === 'ADMIN') return pendingCheckout;
@@ -299,14 +309,12 @@ export default function Navbar() {
                                 <span>⏳</span><span>{totalBadge}</span>
                             </button>
                         )}
-                        {/* Badge transfer untuk manager */}
                         {(role === 'MANAGER' || role === 'ADMIN') && pendingTransfer > 0 && (
                             <button onClick={() => router.push('/transfer-list')}
                                 className="bg-violet-50 border border-violet-200 text-violet-700 font-black text-[10px] px-2.5 py-1.5 rounded-xl flex items-center gap-1">
                                 <span>🚚</span><span>{pendingTransfer}</span>
                             </button>
                         )}
-                        {/* Badge Delivery Order — MANAGER/ADMIN & STAFF ← BARU */}
                         {pendingDO > 0 && (
                             <button onClick={() => router.push('/delivery-order')}
                                 className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] px-2.5 py-1.5 rounded-xl flex items-center gap-1">

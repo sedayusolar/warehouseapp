@@ -91,10 +91,16 @@ export default function JurnalInvoiceDashboard() {
     const [summary, setSummary] = useState<Summary>({ total: 0, paid: 0, unpaid: 0, overdue: 0 });
     const [searchInput, setSearchInput] = useState("");
 
-    // ── Auth guard: harus login dulu ──
+    // ── Auth guard: harus login dulu + khusus ADMIN/MANAGER ──
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
+        const parsed = JSON.parse(u);
+        if (!['ADMIN', 'MANAGER'].includes(parsed.role)) {
+            alert("Akses ditolak! Halaman ini hanya untuk Admin dan Manager.");
+            router.push('/dashboard');
+            return;
+        }
         setAuthChecked(true);
     }, []); // eslint-disable-line
 
