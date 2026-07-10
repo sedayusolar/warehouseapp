@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 const PROXY_URL = "https://sedayu.com/api/warehouse/jurnal_proxy.php";
 const API_KEY = "SedayuSolar_TopSecret_2026";
@@ -72,6 +73,9 @@ const STATUS_FILTER_OPTIONS = [
 ];
 
 export default function JurnalInvoiceDashboard() {
+    const router = useRouter();
+    const [authChecked, setAuthChecked] = useState(false);
+
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -86,6 +90,13 @@ export default function JurnalInvoiceDashboard() {
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [summary, setSummary] = useState<Summary>({ total: 0, paid: 0, unpaid: 0, overdue: 0 });
     const [searchInput, setSearchInput] = useState("");
+
+    // ── Auth guard: harus login dulu ──
+    useEffect(() => {
+        const u = localStorage.getItem('user');
+        if (!u) { router.push('/login'); return; }
+        setAuthChecked(true);
+    }, []); // eslint-disable-line
 
     const fetchInvoices = useCallback(async (
         pg: number = 1,
@@ -135,7 +146,7 @@ export default function JurnalInvoiceDashboard() {
         setLoading(false);
     }, [search, fromDate, toDate]);
 
-    useEffect(() => { fetchInvoices(1); }, []); // eslint-disable-line
+    useEffect(() => { if (authChecked) fetchInvoices(1); }, [authChecked]); // eslint-disable-line
 
     const handleSearch = () => { setSearch(searchInput); fetchInvoices(1, searchInput, fromDate, toDate); };
     const handleDateFilter = () => fetchInvoices(1, search, fromDate, toDate);
@@ -193,6 +204,9 @@ export default function JurnalInvoiceDashboard() {
         { label: "Belum Lunas", value: fmt(summary.unpaid), color: "#FBBF24", icon: "⏳" },
         { label: "Jatuh Tempo", value: fmt(summary.overdue), color: "#F87171", icon: "🔴" },
     ];
+
+    // Belum ketauan login atau enggak → jangan render apa-apa dulu (hindari flash data sebelum redirect)
+    if (!authChecked) return null;
 
     return (
         <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif", background: "#0D1621", minHeight: "100vh", color: "#E2E8F0" }}>
