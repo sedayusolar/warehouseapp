@@ -58,6 +58,7 @@ function SalesQuoteContent() {
     const [detailItems, setDetailItems] = useState<any[]>([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [retrying, setRetrying] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -109,6 +110,21 @@ function SalesQuoteContent() {
             if (r.status === 'success') { setDetailQuote(null); fetchQuotes(listStatus); }
         } catch { alert('Gagal koneksi.'); }
         setRetrying(false);
+    };
+
+    const refreshFromJurnal = async () => {
+        if (!detailQuote) return;
+        setRefreshing(true);
+        try {
+            const res = await fetch(`${BASE_URL}/refresh_quote.php`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({ id: detailQuote.id })
+            });
+            const r = await res.json();
+            if (r.status === 'success') { await openDetail(detailQuote); fetchQuotes(listStatus); }
+            else alert('Gagal: ' + r.message);
+        } catch { alert('Gagal koneksi.'); }
+        setRefreshing(false);
     };
 
     // ── Customer picker ──
@@ -467,10 +483,16 @@ function SalesQuoteContent() {
                             )}
 
                             {detailQuote.sync_status === 'SYNCED' && (
-                                <button onClick={() => printQuote(detailQuote.id)}
-                                    className="w-full bg-slate-800 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest">
-                                    🖨️ Print Quote
-                                </button>
+                                <div className="flex gap-2">
+                                    <button onClick={refreshFromJurnal} disabled={refreshing}
+                                        className="flex-1 bg-slate-100 text-slate-600 font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest disabled:opacity-50">
+                                        {refreshing ? 'Refreshing...' : '🔄 Refresh dari Jurnal'}
+                                    </button>
+                                    <button onClick={() => printQuote(detailQuote.id)}
+                                        className="flex-1 bg-slate-800 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest">
+                                        🖨️ Print Quote
+                                    </button>
+                                </div>
                             )}
                             {detailQuote.sync_status === 'FAILED' && (
                                 <button onClick={retrySync} disabled={retrying}
