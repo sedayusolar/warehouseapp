@@ -107,14 +107,17 @@ function DeliveryOrderContent() {
     const [verifiedBy, setVerifiedBy] = useState('');
     const [driverName, setDriverName] = useState('');
     const [warehouseStaffName, setWarehouseStaffName] = useState('');
-    const [recipientName, setRecipientName] = useState('');
     const [hasDriverSig, setHasDriverSig] = useState(false);
     const [hasStaffSig, setHasStaffSig] = useState(false);
-    const [hasRecvSig, setHasRecvSig] = useState(false);
     const driverCanvasRef = useRef<HTMLCanvasElement>(null);
     const staffCanvasRef = useRef<HTMLCanvasElement>(null);
-    const recvCanvasRef = useRef<HTMLCanvasElement>(null);
     const [verifySubmitting, setVerifySubmitting] = useState(false);
+
+    const [showReceiptConfirm, setShowReceiptConfirm] = useState(false);
+    const [receiptRecipientName, setReceiptRecipientName] = useState('');
+    const [hasReceiptSig, setHasReceiptSig] = useState(false);
+    const receiptCanvasRef = useRef<HTMLCanvasElement>(null);
+    const [receiptSubmitting, setReceiptSubmitting] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem('user');
@@ -410,8 +413,8 @@ function DeliveryOrderContent() {
         if (!detailDO) return;
         setVerifyItems(detailItems.map((it: any) => ({ ...it, scanned: false })));
         setVerifiedBy(user?.name || '');
-        setDriverName(''); setWarehouseStaffName(''); setRecipientName('');
-        setHasDriverSig(false); setHasStaffSig(false); setHasRecvSig(false);
+        setDriverName(''); setWarehouseStaffName('');
+        setHasDriverSig(false); setHasStaffSig(false);
         setShowVerify(true);
     };
 
@@ -424,8 +427,8 @@ function DeliveryOrderContent() {
     const submitVerify = async () => {
         const unscanned = verifyItems.filter(it => !it.scanned);
         if (unscanned.length > 0) { alert(`Masih ada ${unscanned.length} item belum discan!`); return; }
-        if (!verifiedBy || !driverName || !warehouseStaffName || !recipientName) { alert('Nama verifikator, Sopir, Staff Gudang, dan Penerima wajib diisi!'); return; }
-        if (!hasDriverSig || !hasStaffSig || !hasRecvSig) { alert('Semua TTD (Sopir, Staff Gudang, Penerima) wajib diisi!'); return; }
+        if (!verifiedBy || !driverName || !warehouseStaffName) { alert('Nama verifikator, Sopir, dan Staff Gudang wajib diisi!'); return; }
+        if (!hasDriverSig || !hasStaffSig) { alert('TTD Sopir dan Staff Gudang wajib diisi!'); return; }
         setVerifySubmitting(true);
         try {
             const res = await fetch(`${BASE_URL}/verify_do.php`, {
@@ -435,7 +438,6 @@ function DeliveryOrderContent() {
                     scanned_qr_ids: verifyItems.map(it => it.qr_id),
                     driver_name: driverName, driver_sig: driverCanvasRef.current?.toDataURL('image/png'),
                     warehouse_staff_name: warehouseStaffName, warehouse_staff_sig: staffCanvasRef.current?.toDataURL('image/png'),
-                    recipient_name: recipientName, recipient_sig: recvCanvasRef.current?.toDataURL('image/png'),
                 })
             });
             const r = await res.json();
@@ -446,6 +448,34 @@ function DeliveryOrderContent() {
             } else alert('Gagal: ' + r.message);
         } catch { alert('Gagal koneksi.'); }
         setVerifySubmitting(false);
+    };
+
+    const openReceiptConfirm = () => {
+        setReceiptRecipientName(''); setHasReceiptSig(false);
+        setShowReceiptConfirm(true);
+    };
+
+    const submitReceiptConfirm = async () => {
+        if (!receiptRecipientName) { alert('Nama penerima wajib diisi!'); return; }
+        if (!hasReceiptSig) { alert('TTD Penerima wajib diisi!'); return; }
+        setReceiptSubmitting(true);
+        try {
+            const res = await fetch(`${BASE_URL}/confirm_receipt.php`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                body: JSON.stringify({
+                    id: detailDO.id, confirmed_by: user?.name || 'unknown',
+                    recipient_name: receiptRecipientName,
+                    recipient_sig: receiptCanvasRef.current?.toDataURL('image/png'),
+                })
+            });
+            const r = await res.json();
+            if (r.status === 'success') {
+                alert(r.message);
+                setShowReceiptConfirm(false); setDetailDO(null);
+                fetchDOs(listStatus);
+            } else alert('Gagal: ' + r.message);
+        } catch { alert('Gagal koneksi.'); }
+        setReceiptSubmitting(false);
     };
 
     const printDO = (id: number) => {
@@ -757,17 +787,34 @@ function DeliveryOrderContent() {
                             <button onClick={() => clearCanvas(staffCanvasRef, setHasStaffSig)} className="text-[10px] text-red-400 underline">Hapus TTD</button>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">TTD Penerima *</label>
-                            <input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="Nama Penerima"
-                                className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
-                            <SigCanvas canvasRef={recvCanvasRef} onDraw={() => setHasRecvSig(true)} />
-                            <button onClick={() => clearCanvas(recvCanvasRef, setHasRecvSig)} className="text-[10px] text-red-400 underline">Hapus TTD</button>
-                        </div>
+                        <p className="text-[9px] text-slate-400 italic">📌 TTD Penerima diisi belakangan, setelah Manager approve "Barang Berhasil Keluar".</p>
 
                         <button onClick={submitVerify} disabled={verifySubmitting}
                             className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
                             {verifySubmitting ? 'Menyimpan...' : '✓ Submit ke Manager (Barang Keluar)'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {showReceiptConfirm && detailDO && (
+                <div className="fixed inset-0 z-[65] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowReceiptConfirm(false)}>
+                    <div className="bg-white rounded-3xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-black text-sm text-slate-800">✍️ Konfirmasi Penerima — {detailDO.do_code}</h3>
+                            <button onClick={() => setShowReceiptConfirm(false)} className="bg-slate-100 p-2 rounded-full font-black text-slate-400 w-8 h-8 flex items-center justify-center">✕</button>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Barang udah keluar gudang. Isi TTD penerima buat lengkapin Surat Jalan.</p>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nama Penerima *</label>
+                            <input type="text" value={receiptRecipientName} onChange={e => setReceiptRecipientName(e.target.value)} placeholder="Nama Penerima"
+                                className="w-full p-3 bg-slate-50 rounded-xl outline-none font-medium text-slate-700 text-sm" />
+                            <SigCanvas canvasRef={receiptCanvasRef} onDraw={() => setHasReceiptSig(true)} />
+                            <button onClick={() => clearCanvas(receiptCanvasRef, setHasReceiptSig)} className="text-[10px] text-red-400 underline">Hapus TTD</button>
+                        </div>
+                        <button onClick={submitReceiptConfirm} disabled={receiptSubmitting}
+                            className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50">
+                            {receiptSubmitting ? 'Menyimpan...' : '✓ Simpan TTD Penerima'}
                         </button>
                     </div>
                 </div>
@@ -793,7 +840,7 @@ function DeliveryOrderContent() {
                 </div>
             )}
 
-            {detailDO && !showVerify && !rejectingStage && (
+            {detailDO && !showVerify && !rejectingStage && !showReceiptConfirm && (
                 <div className="fixed inset-0 z-50 bg-black/60 flex flex-col" onClick={() => setDetailDO(null)}>
                     <div className="flex-1 overflow-y-auto mt-16" onClick={e => e.stopPropagation()}>
                         <div className="bg-white min-h-full rounded-t-3xl p-5 pb-28 space-y-4">
@@ -805,7 +852,8 @@ function DeliveryOrderContent() {
                                     {detailDO.jurnal_invoice_no && <p className="text-[10px] text-violet-500 font-mono mt-1">📄 {detailDO.jurnal_invoice_no}</p>}
                                     <p className="text-[10px] text-slate-400 mt-0.5">Sales: {detailDO.staff_name}</p>
                                     {detailDO.sj_approved_by && <p className="text-[10px] text-slate-400">Surat Jalan disetujui: {detailDO.sj_approved_by}</p>}
-                                    {detailDO.verified_by && <p className="text-[10px] text-slate-400">Diverifikasi: {detailDO.verified_by} (Sopir: {detailDO.driver_name}, Penerima: {detailDO.recipient_name})</p>}
+                                    {detailDO.verified_by && <p className="text-[10px] text-slate-400">Diverifikasi: {detailDO.verified_by} (Sopir: {detailDO.driver_name}, Staff Gudang: {detailDO.warehouse_staff_name})</p>}
+                                    {detailDO.receipt_confirmed_by && <p className="text-[10px] text-slate-400">TTD Penerima dikonfirmasi: {detailDO.receipt_confirmed_by}</p>}
                                     {detailDO.final_approved_by && <p className="text-[10px] text-slate-400">Barang keluar disetujui: {detailDO.final_approved_by}</p>}
                                     {detailDO.rejected_reason_1 && <p className="text-[10px] text-red-400 italic mt-0.5">Alasan tolak (Surat Jalan): "{detailDO.rejected_reason_1}"</p>}
                                     {detailDO.rejected_reason_2 && <p className="text-[10px] text-red-400 italic mt-0.5">Alasan tolak (Keluar Gudang): "{detailDO.rejected_reason_2}"</p>}
@@ -865,6 +913,15 @@ function DeliveryOrderContent() {
                                         {processingId === detailDO.id ? '...' : '✓ Barang Berhasil Keluar'}
                                     </button>
                                 </div>
+                            )}
+
+                            {detailDO.do_status === 'BARANG_KELUAR' && !detailDO.recipient_sig_path && (
+                                <button onClick={openReceiptConfirm} className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl text-xs uppercase shadow-lg">
+                                    ✍️ Konfirmasi TTD Penerima
+                                </button>
+                            )}
+                            {detailDO.do_status === 'BARANG_KELUAR' && detailDO.recipient_sig_path && (
+                                <p className="text-center text-[10px] text-emerald-600 font-bold">✓ TTD Penerima udah lengkap ({detailDO.recipient_name})</p>
                             )}
                         </div>
                     </div>
