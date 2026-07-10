@@ -143,9 +143,13 @@ function SalesQuoteContent() {
             const params = new URLSearchParams({ action: 'list_products', page: '1', per_page: '100' });
             const res = await fetch(`${BASE_URL}/jurnal_proxy.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
-            if (!res.ok || !Array.isArray(r.data)) {
+            if (!res.ok || !Array.isArray(r.products)) {
                 setProductError(r.message || 'Gagal ambil data produk.'); setProductRaw([]); setProductResults([]);
-            } else { setProductRaw(r.data); setProductResults(r.data); }
+            } else {
+                // /products balikin unit sebagai object {id,name} — ratain jadi unit_name biar konsisten dipakai di UI
+                const normalized = r.products.map((p: any) => ({ ...p, unit_name: p.unit?.name || '' }));
+                setProductRaw(normalized); setProductResults(normalized);
+            }
         } catch { setProductError('Gagal koneksi.'); setProductRaw([]); setProductResults([]); }
         setProductLoading(false);
     };
