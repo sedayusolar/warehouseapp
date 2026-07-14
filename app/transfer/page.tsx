@@ -60,7 +60,7 @@ function TransferContent() {
         if (!locId) return;
         setLoadingStock(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_items.php?location_id=${locId}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_items.php?location_id=${locId}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status === 'success') setStockItems(r.data.filter((i: any) => i.stock_qty > 0));
         } catch { }

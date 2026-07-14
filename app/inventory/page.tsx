@@ -76,9 +76,10 @@ function InventoryContent() {
     useEffect(() => {
         const u = localStorage.getItem('user');
         if (!u) { router.push('/login'); return; }
-        setUser(JSON.parse(u));
+        const parsed = JSON.parse(u);
+        setUser(parsed);
         fetchLocations();
-        fetchItems();
+        fetchItems('', '', parsed.id);
     }, []);
 
     const fetchLocations = async () => {
@@ -89,13 +90,13 @@ function InventoryContent() {
         } catch { }
     };
 
-    const fetchItems = async (locId = '', cat = '') => {
+    const fetchItems = async (locId = '', cat = '', uid?: number) => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
             if (locId) params.append('location_id', locId);
             if (cat) params.append('category', cat);
-            const res = await fetch(`${BASE_URL}/get_items.php?${params}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_items.php?${params}&user_id=${uid ?? user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status === 'success') setItems(r.data);
         } catch { }
@@ -110,7 +111,7 @@ function InventoryContent() {
     const openDetail = async (item: any) => {
         setDetailItem(item); setDetailData(null); setLoadingDetail(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_item_detail.php?qr_id=${item.qr_id}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_item_detail.php?qr_id=${item.qr_id}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status === 'success') setDetailData(r);
         } catch { }

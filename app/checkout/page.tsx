@@ -93,7 +93,7 @@ function CheckoutContent() {
             const qty = poSelection[item.id]?.qty || item.qty;
             if (qty <= 0) continue;
             try {
-                const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(item.qr_id)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(item.qr_id)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 if (r.status !== 'success' || !r.data?.length) { skipped++; continue; }
                 const inv = r.data.find((d: any) => d.qr_id === item.qr_id) || r.data[0];
@@ -208,7 +208,7 @@ function CheckoutContent() {
 
     const fetchAndPend = async (qrId: string) => {
         try {
-            const res = await fetch(`${BASE}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             if (r.status === 'success') {
                 if ((r.data.available_qty ?? r.data.stock_qty) <= 0) alert(`⚠️ STOK HABIS: ${r.data.item_name}`);
@@ -238,7 +238,7 @@ function CheckoutContent() {
         searchTimeout.current = setTimeout(async () => {
             setSearching(true);
             try {
-                const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 setSearchResults(r.status === 'success' ? r.data : []);
             } catch { setSearchResults([]); }

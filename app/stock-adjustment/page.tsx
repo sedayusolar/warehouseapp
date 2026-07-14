@@ -52,7 +52,7 @@ function StockAdjustmentContent() {
         if (parsed.role === 'MANAGER') { router.push('/'); return; }
         setUser(parsed);
         fetchLocations();
-        fetchItems();
+        fetchItems(parsed.id);
     }, []);
 
     const fetchLocations = async () => {
@@ -61,8 +61,8 @@ function StockAdjustmentContent() {
         if (r.status === 'success') setLocations(r.data);
     };
 
-    const fetchItems = async () => {
-        const res = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
+    const fetchItems = async (uid?: number) => {
+        const res = await fetch(`${BASE_URL}/get_items.php?user_id=${uid ?? user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
         const r = await res.json();
         if (r.status === 'success') setItems(r.data);
     };
@@ -82,7 +82,7 @@ function StockAdjustmentContent() {
 
     const fetchItemByQr = async (qrId: string) => {
         try {
-            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}`, {
+            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(qrId)}&user_id=${user?.id}`, {
                 headers: { 'X-API-KEY': API_KEY }
             });
             const r = await res.json();
@@ -117,7 +117,7 @@ function StockAdjustmentContent() {
         searchTimeout.current = setTimeout(async () => {
             setSearchingItem(true);
             try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 setItemResults(r.status === 'success' ? r.data : []);
             } catch { setItemResults([]); }

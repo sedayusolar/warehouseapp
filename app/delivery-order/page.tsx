@@ -211,7 +211,7 @@ function DeliveryOrderContent() {
         searchTimeout.current = setTimeout(async () => {
             setSearching(true);
             try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 const onlyProduk = (r.status === 'success' ? r.data : []).filter((it: any) => it.category === 'Produk');
                 setSearchResults(onlyProduk);
@@ -292,7 +292,7 @@ function DeliveryOrderContent() {
         closeScanner();
         setScanLoading(true);
         try {
-            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(decodedText)}`, { headers: { 'X-API-KEY': API_KEY } });
+            const res = await fetch(`${BASE_URL}/get_item_by_qr.php?qr=${encodeURIComponent(decodedText)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const r = await res.json();
             const item = r?.data;
             if (r.status !== 'success' || !item) alert(`QR "${decodedText}" tidak ditemukan di inventory.`);

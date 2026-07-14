@@ -93,7 +93,7 @@ function InventoryImportContent() {
             }));
 
             // Step 2: ambil inventory untuk AI suggest
-            const invRes = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
+            const invRes = await fetch(`${BASE_URL}/get_items.php?user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const invData = await invRes.json();
             const inventoryList = invData.status === 'success' ? invData.data : [];
 
@@ -193,7 +193,7 @@ function InventoryImportContent() {
         if (val.length < 2) { updateItem(key, { searchResults: [], searching: false }); return; }
         searchTimeouts.current[key] = setTimeout(async () => {
             try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 updateItem(key, { searchResults: r.status === 'success' ? r.data : [], searching: false });
             } catch { updateItem(key, { searchResults: [], searching: false }); }

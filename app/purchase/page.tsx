@@ -136,7 +136,7 @@ function GRContent() {
             const sjItems = r.result;
 
             // Step 2: Ambil inventory untuk AI suggest
-            const invRes = await fetch(`${BASE_URL}/get_items.php`, { headers: { 'X-API-KEY': API_KEY } });
+            const invRes = await fetch(`${BASE_URL}/get_items.php?user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
             const invData = await invRes.json();
             const inventoryList = invData.status === 'success' ? invData.data : [];
 
@@ -222,7 +222,7 @@ function GRContent() {
         if (val.length < 2) { updateAiItem(i, { searchResults: [], searching: false }); return; }
         itemSearchTimeouts.current[i] = setTimeout(async () => {
             try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 updateAiItem(i, { searchResults: r.status === 'success' ? r.data : [], searching: false });
             } catch { updateAiItem(i, { searchResults: [], searching: false }); }
@@ -263,7 +263,7 @@ function GRContent() {
         searchTimeout.current = setTimeout(async () => {
             setSearching(true);
             try {
-                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}`, { headers: { 'X-API-KEY': API_KEY } });
+                const res = await fetch(`${BASE_URL}/search_inventory.php?q=${encodeURIComponent(val)}&user_id=${user?.id}`, { headers: { 'X-API-KEY': API_KEY } });
                 const r = await res.json();
                 setSearchResults(r.status === 'success' ? r.data : []);
             } catch { setSearchResults([]); }
